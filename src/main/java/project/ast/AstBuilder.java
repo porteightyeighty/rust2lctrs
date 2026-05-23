@@ -16,10 +16,34 @@ public final class AstBuilder extends RustParserBaseVisitor<Node> {
   }
 
   @Override
+  public Node visitArithmeticOrLogicalExpression(
+      RustParser.ArithmeticOrLogicalExpressionContext ctx) {
+    BinOp.Op op;
+    if (ctx.STAR() != null) {
+      op = BinOp.Op.MUL;
+    } else if (ctx.PLUS() != null) {
+      op = BinOp.Op.ADD;
+    } else if (ctx.SLASH() != null) {
+      op = BinOp.Op.DIV;
+    } else if (ctx.MINUS() != null) {
+      op = BinOp.Op.SUB;
+    } else {
+      throw new UnsupportedConstructException(
+          ctx, "Only basic (+, -, *, /) arithmetic expressions support.");
+    }
+    Expr left = (Expr) visit(ctx.expression().get(0));
+    Expr right = (Expr) visit(ctx.expression().get(1));
+    return new BinOp(op, left, right);
+  }
+
+  @Override
   public Node visitLetStatement(RustParser.LetStatementContext ctx) {
     Identifier bindingTarget = extractBinding(ctx.patternNoTopAlt());
 
     Type type = extractType(ctx.type_());
+
+    // TODO: Expr implementation
+    //
 
     throw new UnsupportedConstructException(ctx);
   }
