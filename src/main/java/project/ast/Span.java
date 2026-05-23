@@ -9,4 +9,9 @@ record Span(int line, int col, int startIndex, int endIndex) {
     Token b = ctx.getStop();
     return new Span(a.getLine(), b.getCharPositionInLine(), a.getStartIndex(), b.getStopIndex());
   }
+
+  @Override
+  public final String toString() {
+    return String.format("L%d:C%d - Span: [%d:%d]", line, col, startIndex, endIndex);
+  }
 }
