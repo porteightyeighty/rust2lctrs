@@ -2,6 +2,8 @@ package project.ast;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import org.antlr.v4.runtime.ParserRuleContext;
 import project.parser.RustParser;
 
 /**
@@ -10,6 +12,12 @@ import project.parser.RustParser;
  * supported Rust fragment.
  */
 public final class AstBuilder {
+
+  private final SpanTable spans;
+
+  public AstBuilder(SpanTable spanTable) {
+    this.spans = Objects.requireNonNull(spanTable);
+  }
 
   /**
    * Builds the root {@link Crate} from a crate parse-tree context.
@@ -22,7 +30,7 @@ public final class AstBuilder {
     for (var itemCtx : ctx.item()) {
       items.add(buildItem(itemCtx));
     }
-    return new Crate(items);
+    return track(new Crate(items), ctx);
   }
 
   /**
@@ -76,7 +84,7 @@ public final class AstBuilder {
     Identifier id = new Identifier(identifierContext.getText());
     List<Parameter> functionParams = extractParameters(ctx.functionParameters());
     Block block = buildBlock(ctx.blockExpression());
-    return new FunctionDef(id, functionParams, block, returnType);
+    return track(new FunctionDef(id, functionParams, block, returnType), ctx);
   }
 
   /**
@@ -104,7 +112,7 @@ public final class AstBuilder {
     if (statements.isEmpty() || !(statements.get(statements.size() - 1) instanceof Return)) {
       throw new UnsupportedConstructException(ctx, "Block must end with a return statement");
     }
-    return new Block(statements);
+    return track(new Block(statements), ctx);
   }
 
   /**
@@ -138,7 +146,7 @@ public final class AstBuilder {
       throw new UnsupportedConstructException(
           ctx, "Only return expressions are supported as expression statements");
     }
-    return new Return(buildExpression(returnCtx.expression()));
+    return track(new Return(buildExpression(returnCtx.expression())), ctx);
   }
 
   /**
@@ -154,7 +162,7 @@ public final class AstBuilder {
     if (litExprCtx == null || litExprCtx.INTEGER_LITERAL() == null) {
       throw new UnsupportedConstructException(ctx, "Unsupported literal expression");
     }
-    return new IntLit(Long.parseLong(litExprCtx.INTEGER_LITERAL().getText()));
+    return track(new IntLit(Long.parseLong(litExprCtx.INTEGER_LITERAL().getText())), ctx);
   }
 
   /**
@@ -194,7 +202,7 @@ public final class AstBuilder {
     if (identifier == null) {
       throw new UnsupportedConstructException(ctx, "Only simple variable references are supported");
     }
-    return new Var(new Identifier(identifier.getText()));
+    return track(new Var(new Identifier(identifier.getText())), ctx);
   }
 
   /**
@@ -217,24 +225,24 @@ public final class AstBuilder {
       op = BinOp.Op.SUB;
     } else {
       throw new UnsupportedConstructException(
-          ctx, "Only basic (+, -, *, /) arithmetic expressions support.");
+          ctx, "Only basic (+, -, *, /) arithmetic expressions supported.");
     }
-    Expr left = (Expr) buildExpression(ctx.expression().get(0));
-    Expr right = (Expr) buildExpression(ctx.expression().get(1));
-    return new BinOp(op, left, right);
+    Expr left = buildExpression(ctx.expression().get(0));
+    Expr right = buildExpression(ctx.expression().get(1));
+    return track(new BinOp(op, left, right), ctx);
   }
 
   /**
-   * Builds a {@link Let} from a let-statement parse-tree context.
+   * Builds a {@link LetStmt} from a let-statement parse-tree context.
    *
    * @param ctx the let-statement context
-   * @return the corresponding {@link Let} node
+   * @return the corresponding {@link LetStmt} node
    */
-  public Let buildLetStatement(RustParser.LetStatementContext ctx) {
+  public LetStmt buildLetStatement(RustParser.LetStatementContext ctx) {
     Identifier bindingTarget = extractLetBinding(ctx.patternNoTopAlt());
     Type type = extractType(ctx.type_());
-    Expr expr = (Expr) buildExpression(ctx.expression());
-    return new Let(bindingTarget, type, expr);
+    Expr expr = buildExpression(ctx.expression());
+    return track(new LetStmt(bindingTarget, type, expr), ctx);
   }
 
   private Type extractType(RustParser.Type_Context ctx) {
@@ -242,16 +250,19 @@ public final class AstBuilder {
     return switch (typeText) {
       case "i8", "i16", "i32", "i64", "i128", "isize", "u8", "u16", "u32", "u64", "u128" ->
           Type.Int.valueOf(typeText);
-      default -> throw new UnsupportedConstructException(ctx, "Unsupport type: " + typeText);
+      default -> throw new UnsupportedConstructException(ctx, "Unsupported type: " + typeText);
     };
   }
 
   private List<Parameter> extractParameters(RustParser.FunctionParametersContext ctx) {
+    List<Parameter> builtParams = new ArrayList<>();
+    if (ctx == null) {
+      return builtParams;
+    }
 
     if (ctx.selfParam() != null) {
       throw new UnsupportedConstructException(ctx, "Self parameters are not supported");
     }
-    List<Parameter> builtParams = new ArrayList<>();
     for (RustParser.FunctionParamContext param : ctx.functionParam()) {
       if (param.outerAttribute().size() > 0) {
         throw new UnsupportedConstructException(
@@ -285,5 +296,11 @@ public final class AstBuilder {
       throw new UnsupportedConstructException(idPattern, "Only simple bindings are supported");
     }
     return new Identifier(idPattern.identifier().getText());
+  }
+
+  private <T extends Node> T track(T node, ParserRuleContext ctx) {
+    Objects.requireNonNull(node, "build method returned null: bug in AstBuilder");
+    spans.put(node, Span.of(ctx));
+    return node;
   }
 }
