@@ -2,7 +2,6 @@ package project.ast;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import project.parser.RustParser;
 
 /**
@@ -81,43 +80,65 @@ public final class AstBuilder {
   }
 
   /**
-   * Builds a {@link Block} from a block-expression parse-tree context.
+   * Builds a {@link Block} from a block-expression parse-tree context. The block must end with an
+   * explicit {@link Return} statement; trailing expressions are rejected.
    *
    * @param ctx the block expression context
    * @return the corresponding {@link Block} node
+   * @throws UnsupportedConstructException if the block has a trailing expression or does not end
+   *     with a {@code return} statement
    */
   public Block buildBlock(RustParser.BlockExpressionContext ctx) {
     RustParser.StatementsContext statementsCtx = ctx.statements();
-    if (statementsCtx == null) {
-      return new Block(new ArrayList<Stmt>(), Optional.empty());
-    }
     List<Stmt> statements = new ArrayList<>();
-    Optional<Expr> trailingExpression = Optional.empty();
-    if (statementsCtx.expression() != null) {
-      trailingExpression = Optional.of(buildExpression(statementsCtx.expression()));
+    if (statementsCtx != null) {
+      if (statementsCtx.expression() != null) {
+        throw new UnsupportedConstructException(
+            statementsCtx.expression(),
+            "Trailing expressions are not supported; use an explicit return statement");
+      }
+      for (RustParser.StatementContext statementCtx : statementsCtx.statement()) {
+        statements.add(buildStatement(statementCtx));
+      }
     }
-    for (RustParser.StatementContext statementCtx : statementsCtx.statement()) {
-      statements.add(buildStatement(statementCtx));
+    if (statements.isEmpty() || !(statements.get(statements.size() - 1) instanceof Return)) {
+      throw new UnsupportedConstructException(ctx, "Block must end with a return statement");
     }
-    return new Block(statements, trailingExpression);
+    return new Block(statements);
   }
 
   /**
-   * Builds a {@link Stmt} from a statement parse-tree context. Only {@code let} statements are
-   * supported.
+   * Builds a {@link Stmt} from a statement parse-tree context. Only {@code let} and {@code return}
+   * statements are supported.
    *
    * @param ctx the statement context
    * @return the corresponding {@link Stmt} node
-   * @throws UnsupportedConstructException if the statement is not a {@code let} binding
+   * @throws UnsupportedConstructException if the statement is not a {@code let} or {@code return}
    */
   public Stmt buildStatement(RustParser.StatementContext ctx) {
-    if (ctx.SEMI() != null
-        | ctx.item() != null
-        | ctx.expressionStatement() != null
-        | ctx.macroInvocationSemi() != null) {
-      throw new UnsupportedConstructException(ctx, "Only let statements are supported");
+    if (ctx.SEMI() != null || ctx.item() != null || ctx.macroInvocationSemi() != null) {
+      throw new UnsupportedConstructException(ctx, "Only let and return statements are supported");
+    }
+    if (ctx.expressionStatement() != null) {
+      return buildReturnStatement(ctx.expressionStatement());
     }
     return buildLetStatement(ctx.letStatement());
+  }
+
+  /**
+   * Builds a {@link Return} from an expression-statement parse-tree context. Only {@code return}
+   * expressions are supported as expression statements.
+   *
+   * @param ctx the expression statement context
+   * @return the corresponding {@link Return} node
+   * @throws UnsupportedConstructException if the expression statement is not a {@code return}
+   */
+  public Return buildReturnStatement(RustParser.ExpressionStatementContext ctx) {
+    if (!(ctx.expression() instanceof RustParser.ReturnExpressionContext returnCtx)) {
+      throw new UnsupportedConstructException(
+          ctx, "Only return expressions are supported as expression statements");
+    }
+    return new Return(buildExpression(returnCtx.expression()));
   }
 
   /**
@@ -153,8 +174,8 @@ public final class AstBuilder {
   }
 
   /**
-   * Builds a {@link Var} from a path expression context. Only single-segment paths with no
-   * generic arguments are supported (i.e. a plain variable name).
+   * Builds a {@link Var} from a path expression context. Only single-segment paths with no generic
+   * arguments are supported (i.e. a plain variable name).
    *
    * @param ctx the path expression context
    * @return the corresponding {@link Var} node
