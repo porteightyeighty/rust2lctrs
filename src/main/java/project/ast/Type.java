@@ -1,18 +1,22 @@
 package project.ast;
 
+/**
+ * Represents a type in the supported fragment. Currently only fixed-width integer types are
+ * supported.
+ */
 public sealed interface Type permits Type.Int {
-  record Int(IntSize size) implements Type {}
 
-  enum IntSize {
-    I8,
-    I16,
-    I32,
-    I64,
-    I128,
-    U8,
-    U16,
-    U32,
-    U64,
-    U128
+  /** The set of primitive integer types recognised by the builder. */
+  enum Int implements Type {
+    i8,
+    i16,
+    i32,
+    i64,
+    i128,
+    u8,
+    u16,
+    u32,
+    u64,
+    u128
   }
 }

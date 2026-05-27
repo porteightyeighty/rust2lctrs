@@ -1,7 +1,19 @@
 package project.ast;
 
+import java.util.Objects;
+
 /**
- * A let binding. {@code type} is always present, implicit types are rejected at parse time. {@code
- * value} is guaranteed non-null; uninitialised bindings are not in the supported fragment.
+ * A {@code let} binding statement. The type annotation is always required and the binding must be
+ * initialised. Both implicit types and uninitialised bindings are rejected by the builder.
+ *
+ * @param name the binding target (a simple identifier in the supported fragment)
+ * @param type the declared type
+ * @param value the initialiser expression
  */
-public record Let(Identifier name, Type type, Expr value) implements Stmt {}
+public record Let(Identifier name, Type type, Expr value) implements Stmt {
+  public Let {
+    Objects.requireNonNull(name);
+    Objects.requireNonNull(type);
+    Objects.requireNonNull(value);
+  }
+}
