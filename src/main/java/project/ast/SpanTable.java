@@ -9,7 +9,7 @@ import java.util.Map;
  */
 public final class SpanTable {
 
-  private final Map<Object, Span> spans = new IdentityHashMap<>();
+  private final Map<Node, Span> spans = new IdentityHashMap<>();
 
   /**
    * Records the source span for the given AST node.
@@ -17,7 +17,7 @@ public final class SpanTable {
    * @param node the AST node
    * @param span its location in the source
    */
-  public void put(Object node, Span span) {
+  public void put(Node node, Span span) {
     spans.put(node, span);
   }
 
@@ -27,7 +27,7 @@ public final class SpanTable {
    * @param node the AST node to look up
    * @return the recorded {@link Span}, or {@code null}
    */
-  public Span of(Object node) {
+  public Span of(Node node) {
     return spans.get(node);
   }
 }
