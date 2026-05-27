@@ -1,17 +1,25 @@
-package com.mattport;
+package project;
 
-//TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or
-// click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
+import org.antlr.v4.runtime.CharStream;
+import org.antlr.v4.runtime.CharStreams;
+import org.antlr.v4.runtime.CommonTokenStream;
+import org.antlr.v4.runtime.TokenStream;
+import project.ast.AstBuilder;
+import project.ast.Crate;
+import project.parser.RustLexer;
+import project.parser.RustParser;
+
 public class Main {
-    static void main() {
-        //TIP Press <shortcut actionId="ShowIntentionActions"/> with your caret at the highlighted text
-        // to see how IntelliJ IDEA suggests fixing it.
-        IO.println(String.format("Hello and welcome!"));
-
-        for (int i = 1; i <= 5; i++) {
-            //TIP Press <shortcut actionId="Debug"/> to start debugging your code. We have set one <icon src="AllIcons.Debugger.Db_set_breakpoint"/> breakpoint
-            // for you, but you can always add more by pressing <shortcut actionId="ToggleLineBreakpoint"/>.
-            IO.println("i = " + i);
-        }
-    }
+  static void main() {
+    String input = "fn main() -> i32 {let i: i32 = 0; let x: i32 = i + 5; x}";
+    CharStream inputStream = CharStreams.fromString(input);
+    RustLexer lexer = new RustLexer(inputStream);
+    TokenStream tokens = new CommonTokenStream(lexer);
+    RustParser parser = new RustParser(tokens);
+    RustParser.CrateContext crateCtx = parser.crate();
+    System.out.println(crateCtx.toStringTree(parser));
+    AstBuilder astBuilder = new AstBuilder();
+    Crate crate = astBuilder.buildCrate(crateCtx);
+    System.out.println(crate);
+  }
 }
