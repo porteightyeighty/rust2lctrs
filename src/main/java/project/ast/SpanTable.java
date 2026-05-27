@@ -2,6 +2,7 @@ package project.ast;
 
 import java.util.IdentityHashMap;
 import java.util.Map;
+import java.util.NoSuchElementException;
 
 /**
  * Maps AST node instances to their source {@link Span}. Identity-keyed so structurally equal nodes
@@ -22,12 +23,15 @@ public final class SpanTable {
   }
 
   /**
-   * Returns the source span for the given AST node, or {@code null} if none was recorded.
+   * Returns the source span for the given AST node.
    *
    * @param node the AST node to look up
-   * @return the recorded {@link Span}, or {@code null}
+   * @return the recorded {@link Span}
+   * @throws NoSuchElementException if no span was recorded for {@code node}
    */
-  public Span of(Node node) {
-    return spans.get(node);
+  public Span get(Node node) {
+    Span s = spans.get(node);
+    if (s == null) throw new NoSuchElementException("No span recorded for " + node);
+    return s;
   }
 }
