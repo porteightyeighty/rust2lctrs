@@ -4,18 +4,30 @@ import java.util.IdentityHashMap;
 import java.util.Map;
 
 /**
- * A mapping from AST {@link Node}s to source {@link Span}. Used to track the source location of
- * nodes in the AST.
+ * Maps AST node instances to their source {@link Span}. Identity-keyed so structurally equal nodes
+ * at different source locations are tracked independently.
  */
 public final class SpanTable {
 
-  private final Map<Node, Span> spans = new IdentityHashMap<>();
+  private final Map<Object, Span> spans = new IdentityHashMap<>();
 
-  public void put(Node n, Span s) {
-    spans.put(n, s);
+  /**
+   * Records the source span for the given AST node.
+   *
+   * @param node the AST node
+   * @param span its location in the source
+   */
+  public void put(Object node, Span span) {
+    spans.put(node, span);
   }
 
-  public Span of(Node n) {
-    return spans.get(n);
+  /**
+   * Returns the source span for the given AST node, or {@code null} if none was recorded.
+   *
+   * @param node the AST node to look up
+   * @return the recorded {@link Span}, or {@code null}
+   */
+  public Span of(Object node) {
+    return spans.get(node);
   }
 }
