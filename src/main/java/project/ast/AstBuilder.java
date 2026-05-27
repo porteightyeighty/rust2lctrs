@@ -225,12 +225,12 @@ public final class AstBuilder {
   }
 
   /**
-   * Builds a {@link Let} from a let-statement parse-tree context.
+   * Builds a {@link LetStmt} from a let-statement parse-tree context.
    *
    * @param ctx the let-statement context
-   * @return the corresponding {@link Let} node
+   * @return the corresponding {@link LetStmt} node
    */
-  public Let buildLetStatement(RustParser.LetStatementContext ctx) {
+  public LetStmt buildLetStatement(RustParser.LetStatementContext ctx) {
     Identifier bindingTarget = extractLetBinding(ctx.patternNoTopAlt());
     Type type = extractType(ctx.type_());
     Expr expr = (Expr) buildExpression(ctx.expression());
