@@ -1,3 +1,4 @@
 package project.ast;
 
-public sealed interface Stmt extends Node permits Let {}
+/** Marker interface for statements. */
+public sealed interface Stmt permits Let {}

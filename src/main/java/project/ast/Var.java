@@ -2,8 +2,8 @@ package project.ast;
 
 import java.util.Objects;
 
-public record Identifier(String name) {
-  public Identifier {
+public record Var(Identifier name) implements Expr {
+  public Var {
     Objects.requireNonNull(name);
   }
 }
