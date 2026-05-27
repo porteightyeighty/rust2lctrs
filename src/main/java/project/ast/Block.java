@@ -2,18 +2,14 @@ package project.ast;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
- * A braced block, a sequence of statements followed by an optional trailing expression whose value
- * becomes the block's value.
+ * A braced block — a sequence of statements. The final statement must be a {@link Return}.
  *
- * @param statements the list of statements (may be empty)
- * @param trailingExpression the final expression whose value the block evaluates to, if present
+ * @param statements the list of statements (last must be a {@link Return})
  */
-public record Block(List<Stmt> statements, Optional<Expr> trailingExpression) {
+public record Block(List<Stmt> statements) implements Node {
   public Block {
     Objects.requireNonNull(statements);
-    Objects.requireNonNull(trailingExpression);
   }
 }
