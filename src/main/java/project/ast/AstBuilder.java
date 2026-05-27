@@ -5,8 +5,19 @@ import java.util.List;
 import java.util.Optional;
 import project.parser.RustParser;
 
+/**
+ * Converts an ANTLR parse tree into the typed AST. Each {@code build*} method handles one grammar
+ * rule and throws {@link UnsupportedConstructException} on the first construct outside the
+ * supported Rust fragment.
+ */
 public final class AstBuilder {
 
+  /**
+   * Builds the root {@link Crate} from a crate parse-tree context.
+   *
+   * @param ctx the top-level crate context produced by the parser
+   * @return the corresponding {@link Crate} node
+   */
   public Crate buildCrate(RustParser.CrateContext ctx) {
     List<Item> items = new ArrayList<>();
     for (var itemCtx : ctx.item()) {
@@ -15,6 +26,14 @@ public final class AstBuilder {
     return new Crate(items);
   }
 
+  /**
+   * Builds an {@link Item} from an item parse-tree context. Only visible function items are
+   * supported.
+   *
+   * @param ctx the item context
+   * @return the corresponding {@link Item} node
+   * @throws UnsupportedConstructException if the item is not a plain function definition
+   */
   public Item buildItem(RustParser.ItemContext ctx) {
     RustParser.VisItemContext visItemContext = ctx.visItem();
     if (visItemContext == null) {
@@ -27,6 +46,14 @@ public final class AstBuilder {
     return buildFunctionDefinition(functionContext);
   }
 
+  /**
+   * Builds a {@link FunctionDef} from a function parse-tree context. Qualifiers (async, unsafe,
+   * const, extern), generics, and a missing return type are all rejected.
+   *
+   * @param ctx the function context
+   * @return the corresponding {@link FunctionDef} node
+   * @throws UnsupportedConstructException if any unsupported feature is present
+   */
   public FunctionDef buildFunctionDefinition(RustParser.Function_Context ctx) {
     RustParser.FunctionQualifiersContext functionQualifiersContext = ctx.functionQualifiers();
     if (functionQualifiersContext.KW_ASYNC() != null
@@ -53,6 +80,12 @@ public final class AstBuilder {
     return new FunctionDef(id, functionParams, block, returnType);
   }
 
+  /**
+   * Builds a {@link Block} from a block-expression parse-tree context.
+   *
+   * @param ctx the block expression context
+   * @return the corresponding {@link Block} node
+   */
   public Block buildBlock(RustParser.BlockExpressionContext ctx) {
     RustParser.StatementsContext statementsCtx = ctx.statements();
     if (statementsCtx == null) {
@@ -69,6 +102,14 @@ public final class AstBuilder {
     return new Block(statements, trailingExpression);
   }
 
+  /**
+   * Builds a {@link Stmt} from a statement parse-tree context. Only {@code let} statements are
+   * supported.
+   *
+   * @param ctx the statement context
+   * @return the corresponding {@link Stmt} node
+   * @throws UnsupportedConstructException if the statement is not a {@code let} binding
+   */
   public Stmt buildStatement(RustParser.StatementContext ctx) {
     if (ctx.SEMI() != null
         | ctx.item() != null
@@ -79,6 +120,14 @@ public final class AstBuilder {
     return buildLetStatement(ctx.letStatement());
   }
 
+  /**
+   * Builds an {@link IntLit} from a literal-expression parse-tree context. Only integer literals
+   * are supported.
+   *
+   * @param ctx the literal expression context
+   * @return the corresponding {@link IntLit} node
+   * @throws UnsupportedConstructException if the literal is not an integer literal
+   */
   public IntLit buildIntegerLiteralExpression(RustParser.LiteralExpression_Context ctx) {
     RustParser.LiteralExpressionContext litExprCtx = ctx.literalExpression();
     if (litExprCtx == null || litExprCtx.INTEGER_LITERAL() == null) {
@@ -87,6 +136,13 @@ public final class AstBuilder {
     return new IntLit(Long.parseLong(litExprCtx.INTEGER_LITERAL().getText()));
   }
 
+  /**
+   * Dispatches an expression parse-tree context to the appropriate builder method.
+   *
+   * @param ctx the expression context
+   * @return the corresponding {@link Expr} node
+   * @throws UnsupportedConstructException if the expression kind is not supported
+   */
   public Expr buildExpression(RustParser.ExpressionContext ctx) {
     return switch (ctx) {
       case RustParser.LiteralExpression_Context c -> buildIntegerLiteralExpression(c);
@@ -96,7 +152,15 @@ public final class AstBuilder {
     };
   }
 
-  private Var buildVarExpression(RustParser.PathExpression_Context ctx) {
+  /**
+   * Builds a {@link Var} from a path expression context. Only single-segment paths with no
+   * generic arguments are supported (i.e. a plain variable name).
+   *
+   * @param ctx the path expression context
+   * @return the corresponding {@link Var} node
+   * @throws UnsupportedConstructException if the path is not a simple identifier reference
+   */
+  public Var buildVarExpression(RustParser.PathExpression_Context ctx) {
     RustParser.PathInExpressionContext path = ctx.pathExpression().pathInExpression();
     if (path == null || path.pathExprSegment().size() != 1 || path.PATHSEP() != null) {
       throw new UnsupportedConstructException(ctx, "Only simple variable references are supported");
@@ -112,6 +176,14 @@ public final class AstBuilder {
     return new Var(new Identifier(identifier.getText()));
   }
 
+  /**
+   * Builds a {@link BinOp} from an arithmetic-or-logical expression parse-tree context. Only the
+   * four basic arithmetic operators (+, -, *, /) are supported.
+   *
+   * @param ctx the arithmetic/logical expression context
+   * @return the corresponding {@link BinOp} node
+   * @throws UnsupportedConstructException if the operator is not a basic arithmetic operator
+   */
   public BinOp buildBinaryOperatorExpression(RustParser.ArithmeticOrLogicalExpressionContext ctx) {
     BinOp.Op op;
     if (ctx.STAR() != null) {
@@ -131,6 +203,12 @@ public final class AstBuilder {
     return new BinOp(op, left, right);
   }
 
+  /**
+   * Builds a {@link Let} from a let-statement parse-tree context.
+   *
+   * @param ctx the let-statement context
+   * @return the corresponding {@link Let} node
+   */
   public Let buildLetStatement(RustParser.LetStatementContext ctx) {
     Identifier bindingTarget = extractLetBinding(ctx.patternNoTopAlt());
     Type type = extractType(ctx.type_());

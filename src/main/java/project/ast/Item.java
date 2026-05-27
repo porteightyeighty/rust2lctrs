@@ -1,4 +1,4 @@
 package project.ast;
 
-/** Marker interface for crate-level nodes. */
+/** Marker interface for top-level items that can appear directly inside a {@link Crate}. */
 public sealed interface Item permits FunctionDef {}

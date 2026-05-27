@@ -1,4 +1,4 @@
 package project.ast;
 
-/** Marker interface for statements. */
+/** Marker interface for statement nodes that can appear inside a {@link Block}. */
 public sealed interface Stmt permits Let {}

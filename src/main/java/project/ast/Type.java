@@ -1,6 +1,12 @@
 package project.ast;
 
+/**
+ * Represents a type in the supported fragment. Currently only fixed-width integer types are
+ * supported.
+ */
 public sealed interface Type permits Type.Int {
+
+  /** The set of primitive integer types recognised by the builder. */
   enum Int implements Type {
     i8,
     i16,
