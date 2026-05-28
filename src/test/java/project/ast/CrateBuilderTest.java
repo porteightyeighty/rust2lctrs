@@ -25,7 +25,8 @@ public class CrateBuilderTest {
     Block block = new Block(List.of(new Return(new IntLit(0))));
 
     Crate expected =
-        new Crate(List.of(new FunctionDef(new Identifier("x"), List.of(), block, Type.Int.i32)));
+        new Crate(
+            List.of(new FunctionDeclaration(new Identifier("x"), List.of(), block, Type.Int.i32)));
     Crate actual = astBuilder.buildCrate(crateContext);
     assertEquals(expected, actual);
   }

@@ -50,18 +50,18 @@ public final class AstBuilder {
     if (functionContext == null) {
       throw new UnsupportedConstructException(ctx, "Only function definitions are supported");
     }
-    return buildFunctionDefinition(functionContext);
+    return buildFunctionDeclaration(functionContext);
   }
 
   /**
-   * Builds a {@link FunctionDef} from a function parse-tree context. Qualifiers (async, unsafe,
-   * const, extern), generics, and a missing return type are all rejected.
+   * Builds a {@link FunctionDeclaration} from a function parse-tree context. Qualifiers (async,
+   * unsafe, const, extern), generics, and a missing return type are all rejected.
    *
    * @param ctx the function context
-   * @return the corresponding {@link FunctionDef} node
+   * @return the corresponding {@link FunctionDeclaration} node
    * @throws UnsupportedConstructException if any unsupported feature is present
    */
-  public FunctionDef buildFunctionDefinition(RustParser.Function_Context ctx) {
+  public FunctionDeclaration buildFunctionDeclaration(RustParser.Function_Context ctx) {
     RustParser.FunctionQualifiersContext functionQualifiersContext = ctx.functionQualifiers();
     if (functionQualifiersContext.KW_ASYNC() != null
         || functionQualifiersContext.KW_UNSAFE() != null
@@ -84,7 +84,7 @@ public final class AstBuilder {
     Identifier id = new Identifier(identifierContext.getText());
     List<Parameter> functionParams = extractParameters(ctx.functionParameters());
     Block block = buildBlock(ctx.blockExpression());
-    return track(new FunctionDef(id, functionParams, block, returnType), ctx);
+    return track(new FunctionDeclaration(id, functionParams, block, returnType), ctx);
   }
 
   /**
