@@ -2,6 +2,7 @@ package project.ast;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,5 +38,13 @@ public class StatementBuilderTest {
     Return expected = new Return(new IntLit(0));
     Return actual = assertInstanceOf(Return.class, astBuilder.buildStatement(statementContext));
     assertEquals(expected, actual);
+  }
+
+  @Test
+  void rejectsReturnStatementWithoutExpression() {
+    String testInput = "return;";
+    RustParser.StatementContext statementContext = TestHelper.parseStmt(testInput);
+    assertThrows(
+        UnsupportedConstructException.class, () -> astBuilder.buildStatement(statementContext));
   }
 }

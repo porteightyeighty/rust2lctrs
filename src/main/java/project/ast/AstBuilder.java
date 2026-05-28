@@ -147,6 +147,9 @@ public final class AstBuilder {
       throw new UnsupportedConstructException(
           ctx, "Only return expressions are supported as expression statements");
     }
+    if (returnCtx.expression() == null) {
+      throw new UnsupportedConstructException(ctx, "Return statement must have an expression");
+    }
     return track(new Return(buildExpression(returnCtx.expression())), ctx);
   }
 
