@@ -18,6 +18,7 @@ public class StatementBuilderTest {
     astBuilder = new AstBuilder(spans);
   }
 
+  // TODO: add tests for different integer types
   @Test
   void buildsIntegerLetStatement() {
     String testInput = "let i: i32 = 0;";
