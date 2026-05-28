@@ -50,18 +50,18 @@ public final class AstBuilder {
     if (functionContext == null) {
       throw new UnsupportedConstructException(ctx, "Only function definitions are supported");
     }
-    return buildFunctionDefinition(functionContext);
+    return buildFunctionDeclaration(functionContext);
   }
 
   /**
-   * Builds a {@link FunctionDef} from a function parse-tree context. Qualifiers (async, unsafe,
-   * const, extern), generics, and a missing return type are all rejected.
+   * Builds a {@link FunctionDeclaration} from a function parse-tree context. Qualifiers (async,
+   * unsafe, const, extern), generics, and a missing return type are all rejected.
    *
    * @param ctx the function context
-   * @return the corresponding {@link FunctionDef} node
+   * @return the corresponding {@link FunctionDeclaration} node
    * @throws UnsupportedConstructException if any unsupported feature is present
    */
-  public FunctionDef buildFunctionDefinition(RustParser.Function_Context ctx) {
+  public FunctionDeclaration buildFunctionDeclaration(RustParser.Function_Context ctx) {
     RustParser.FunctionQualifiersContext functionQualifiersContext = ctx.functionQualifiers();
     if (functionQualifiersContext.KW_ASYNC() != null
         || functionQualifiersContext.KW_UNSAFE() != null
@@ -83,36 +83,37 @@ public final class AstBuilder {
     RustParser.IdentifierContext identifierContext = ctx.identifier();
     Identifier id = new Identifier(identifierContext.getText());
     List<Parameter> functionParams = extractParameters(ctx.functionParameters());
-    Block block = buildBlock(ctx.blockExpression());
-    return track(new FunctionDef(id, functionParams, block, returnType), ctx);
+    BodyBlock block = buildBlock(ctx.blockExpression());
+    return track(new FunctionDeclaration(id, functionParams, block, returnType), ctx);
   }
 
   /**
-   * Builds a {@link Block} from a block-expression parse-tree context. The block must end with an
-   * explicit {@link Return} statement; trailing expressions are rejected.
+   * Builds a {@link BodyBlock} from a block-expression parse-tree context. The block must end with
+   * an explicit {@link Return} statement; trailing expressions are rejected.
    *
    * @param ctx the block expression context
-   * @return the corresponding {@link Block} node
+   * @return the corresponding {@link BodyBlock} node
    * @throws UnsupportedConstructException if the block has a trailing expression or does not end
    *     with a {@code return} statement
    */
-  public Block buildBlock(RustParser.BlockExpressionContext ctx) {
+  public BodyBlock buildBlock(RustParser.BlockExpressionContext ctx) {
     RustParser.StatementsContext statementsCtx = ctx.statements();
-    List<Stmt> statements = new ArrayList<>();
-    if (statementsCtx != null) {
-      if (statementsCtx.expression() != null) {
-        throw new UnsupportedConstructException(
-            statementsCtx.expression(),
-            "Trailing expressions are not supported; use an explicit return statement");
-      }
-      for (RustParser.StatementContext statementCtx : statementsCtx.statement()) {
-        statements.add(buildStatement(statementCtx));
-      }
-    }
-    if (statements.isEmpty() || !(statements.get(statements.size() - 1) instanceof Return)) {
+    if (statementsCtx == null || statementsCtx.statement().isEmpty()) {
       throw new UnsupportedConstructException(ctx, "Block must end with a return statement");
     }
-    return track(new Block(statements), ctx);
+    if (statementsCtx.expression() != null) {
+      throw new UnsupportedConstructException(
+          statementsCtx.expression(),
+          "Trailing expressions are not supported; use an explicit return statement");
+    }
+    List<Stmt> built = new ArrayList<>();
+    for (RustParser.StatementContext statementCtx : statementsCtx.statement()) {
+      built.add(buildStatement(statementCtx));
+    }
+    if (!(built.getLast() instanceof Return tail)) {
+      throw new UnsupportedConstructException(ctx, "Block must end with a return statement");
+    }
+    return track(new BodyBlock(built.subList(0, built.size() - 1), tail), ctx);
   }
 
   /**
@@ -145,6 +146,9 @@ public final class AstBuilder {
     if (!(ctx.expression() instanceof RustParser.ReturnExpressionContext returnCtx)) {
       throw new UnsupportedConstructException(
           ctx, "Only return expressions are supported as expression statements");
+    }
+    if (returnCtx.expression() == null) {
+      throw new UnsupportedConstructException(ctx, "Return statement must have an expression");
     }
     return track(new Return(buildExpression(returnCtx.expression())), ctx);
   }
