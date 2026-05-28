@@ -23,6 +23,23 @@ public class ItemBuilderTest {
   }
 
   @Test
+  void buildsBodyBlockWithTrailingOnly() {
+    String testInput = "{ return 10; }";
+    RustParser.BlockExpressionContext blockContext = TestHelper.parseBlock(testInput);
+    BodyBlock expected = new BodyBlock(List.of(), new Return(new IntLit(10)));
+    assertEquals(expected, astBuilder.buildBlock(blockContext));
+  }
+
+  @Test
+  void buildsBodyBlock() {
+    String testInput = "{ let x: i32 = 0; return 10; }";
+    RustParser.BlockExpressionContext blockContext = TestHelper.parseBlock(testInput);
+    LetStmt letStmt = new LetStmt(new Identifier("x"), Type.Int.i32, new IntLit(0));
+    BodyBlock expected = new BodyBlock(List.of(letStmt), new Return(new IntLit(10)));
+    assertEquals(expected, astBuilder.buildBlock(blockContext));
+  }
+
+  @Test
   void buildsFunctionDeclarationWithoutParams() {
     String testInput = "fn x() -> i32 { return 10; }";
     RustParser.ItemContext itemContext = TestHelper.parseItem(testInput);
@@ -62,5 +79,18 @@ public class ItemBuilderTest {
   void rejectsUnsupportedFunctionForms(String input) {
     RustParser.ItemContext ctx = TestHelper.parseItem(input);
     assertThrows(UnsupportedConstructException.class, () -> astBuilder.buildItem(ctx));
+  }
+
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "{}", // empty block
+        "{ let x: i32 = 0; }", // missing return
+        "{ let x: i32 = 0; x }" // expression return
+      })
+  void rejectsUnsupportedBodyBlockForms(String input) {
+    RustParser.BlockExpressionContext blockExpressionContext = TestHelper.parseBlock(input);
+    assertThrows(
+        UnsupportedConstructException.class, () -> astBuilder.buildBlock(blockExpressionContext));
   }
 }
