@@ -26,7 +26,7 @@ public class ItemBuilderTest {
   void buildsFunctionDeclarationWithoutParams() {
     String testInput = "fn x() -> i32 { return 10; }";
     RustParser.ItemContext itemContext = TestHelper.parseItem(testInput);
-    Block block = new Block(List.of(new Return(new IntLit(10))));
+    BodyBlock block = new BodyBlock(List.of(), new Return(new IntLit(10)));
     FunctionDeclaration expected =
         new FunctionDeclaration(new Identifier("x"), List.of(), block, Type.Int.i32);
     FunctionDeclaration actual =
@@ -39,7 +39,7 @@ public class ItemBuilderTest {
     String testInput = "fn y(a: i32) -> i32 { return 10; }";
     RustParser.ItemContext itemmContext = TestHelper.parseItem(testInput);
     Parameter param = new Parameter(new Identifier("a"), Type.Int.i32);
-    Block block = new Block(List.of(new Return(new IntLit(10))));
+    BodyBlock block = new BodyBlock(List.of(), new Return(new IntLit(10)));
     FunctionDeclaration expected =
         new FunctionDeclaration(new Identifier("y"), List.of(param), block, Type.Int.i32);
     FunctionDeclaration actual =
