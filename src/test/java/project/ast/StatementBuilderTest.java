@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import project.parser.RustParser;
 
 public class StatementBuilderTest {
@@ -18,12 +20,12 @@ public class StatementBuilderTest {
     astBuilder = new AstBuilder(spans);
   }
 
-  // TODO: add tests for different integer types
-  @Test
-  void buildsIntegerLetStatement() {
-    String testInput = "let i: i32 = 0;";
+  @ParameterizedTest
+  @ValueSource(strings = {"i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128"})
+  void buildsIntegerLetStatements(String type) {
+    String testInput = String.format("let i: %s = 0;", type);
     RustParser.StatementContext statementContext = TestHelper.parseStmt(testInput);
-    LetStmt expected = new LetStmt(new Identifier("i"), Type.Int.i32, new IntLit(0));
+    LetStmt expected = new LetStmt(new Identifier("i"), Type.Int.valueOf(type), new IntLit(0));
     LetStmt actual = assertInstanceOf(LetStmt.class, astBuilder.buildStatement(statementContext));
     assertEquals(expected, actual);
   }
