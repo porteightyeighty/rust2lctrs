@@ -46,6 +46,10 @@ public final class TestHelper {
     return parse(src, RustParser::crate);
   }
 
+  static RustParser.BlockExpressionContext parseBlock(String src) {
+    return parse(src, RustParser::blockExpression);
+  }
+
   static RustParser.ItemContext parseItem(String src) {
     return parse(src, RustParser::item);
   }
