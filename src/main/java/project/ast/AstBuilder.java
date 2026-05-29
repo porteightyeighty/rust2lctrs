@@ -196,7 +196,7 @@ public final class AstBuilder {
    */
   public Expression buildExpression(RustParser.ExpressionContext ctx) {
     return switch (ctx) {
-      case RustParser.LiteralExpression_Context c -> buildIntegerLiteralExpression(c);
+      case RustParser.LiteralExpression_Context c -> buildLiteral(c);
       case RustParser.ArithmeticOrLogicalExpressionContext c -> buildBinaryOperatorExpression(c);
       case RustParser.PathExpression_Context c -> buildVarExpression(c);
       default -> throw new UnsupportedConstructException(ctx, "Unsupported expression");
@@ -204,19 +204,27 @@ public final class AstBuilder {
   }
 
   /**
-   * Builds an {@link IntegerLiteral} from a literal-expression parse-tree context. Only integer
-   * literals are supported.
+   * Builds a {@link Literal} from a literal-expression parse-tree context. Only
+   * integer and boolean literals are supported.
    *
    * @param ctx the literal expression context
-   * @return the corresponding {@link IntegerLiteral} node
-   * @throws UnsupportedConstructException if the literal is not an integer literal
+   * @return the corresponding {@link Literal} node
+   * @throws UnsupportedConstructException if the literal is not an integer or
+   *                                       boolean literal
    */
-  public IntegerLiteral buildIntegerLiteralExpression(RustParser.LiteralExpression_Context ctx) {
+  public Literal buildLiteral(RustParser.LiteralExpression_Context ctx) {
     RustParser.LiteralExpressionContext litExprCtx = ctx.literalExpression();
-    if (litExprCtx == null || litExprCtx.INTEGER_LITERAL() == null) {
-      throw new UnsupportedConstructException(ctx, "Unsupported literal expression");
+    if (litExprCtx.INTEGER_LITERAL() != null) {
+      return track(new Integer(Long.parseLong(litExprCtx.INTEGER_LITERAL().getText())), ctx);
     }
-    return track(new IntegerLiteral(Long.parseLong(litExprCtx.INTEGER_LITERAL().getText())), ctx);
+    if (litExprCtx.KW_TRUE() != null) {
+      return track(new Boolean(true), ctx);
+    }
+    if (litExprCtx.KW_FALSE() != null) {
+      return track(new Boolean(false), ctx);
+    }
+    throw new UnsupportedConstructException(ctx,
+        "Unsupported literal, only integer and boolean literals are supported");
   }
 
   /**
@@ -288,6 +296,7 @@ public final class AstBuilder {
     return switch (typeText) {
       case "i8", "i16", "i32", "i64", "i128", "isize", "u8", "u16", "u32", "u64", "u128" ->
           Type.Int.valueOf(typeText);
+      case "bool" -> Type.BOOL;
       default -> throw new UnsupportedConstructException(ctx, "Unsupported type: " + typeText);
     };
   }
