@@ -23,8 +23,8 @@ public class ExpressionBuilderTest {
   void buildsIntLiteralExpression() {
     String testInput = "10";
     RustParser.ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
-    IntLit expected = new IntLit(10);
-    IntLit actual = assertInstanceOf(IntLit.class, astBuilder.buildExpression(expressionContext));
+    IntegerLiteral expected = new IntegerLiteral(10);
+    IntegerLiteral actual = assertInstanceOf(IntegerLiteral.class, astBuilder.buildExpression(expressionContext));
     assertEquals(expected, actual);
   }
 
@@ -32,8 +32,8 @@ public class ExpressionBuilderTest {
   void buildsBinaryOperatorExpression() {
     String testInput = "1 + 2";
     RustParser.ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
-    BinOp expected = new BinOp(BinOp.Op.ADD, new IntLit(1), new IntLit(2));
-    BinOp actual = assertInstanceOf(BinOp.class, astBuilder.buildExpression(expressionContext));
+    BinaryOp expected = new BinaryOp(BinaryOp.Op.ADD, new IntegerLiteral(1), new IntegerLiteral(2));
+    BinaryOp actual = assertInstanceOf(BinaryOp.class, astBuilder.buildExpression(expressionContext));
     assertEquals(expected, actual);
   }
 

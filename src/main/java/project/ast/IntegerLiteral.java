@@ -5,4 +5,4 @@ package project.ast;
  *
  * @param value the literal value
  */
-public record IntLit(long value) implements Expr {}
+public record IntegerLiteral(long value) implements Expression {}

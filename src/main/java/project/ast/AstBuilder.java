@@ -99,7 +99,7 @@ public final class AstBuilder {
    *     with a {@code return} statement
    */
   public BodyBlock buildBodyBlock(RustParser.BlockExpressionContext ctx) {
-    List<Stmt> built = extractStatementsFromBlock(ctx);
+    List<Statement> built = extractStatementsFromBlock(ctx);
     if (!(built.getLast() instanceof Return tail)) {
       throw new UnsupportedConstructException(ctx, "Block must end with a return statement");
     }
@@ -107,19 +107,19 @@ public final class AstBuilder {
   }
 
   public Block buildBlock(BlockExpressionContext ctx) {
-    List<Stmt> built = extractStatementsFromBlock(ctx);
+    List<Statement> built = extractStatementsFromBlock(ctx);
     return track(new Block(built), ctx);
   }
 
   /**
-   * Builds a {@link Stmt} from a statement parse-tree context. Only {@code let} and {@code return}
-   * statements are supported.
+   * Builds a {@link Statement} from a statement parse-tree context. Only {@code let} and {@code
+   * return} statements are supported.
    *
    * @param ctx the statement context
-   * @return the corresponding {@link Stmt} node
+   * @return the corresponding {@link Statement} node
    * @throws UnsupportedConstructException if the statement is not a {@code let} or {@code return}
    */
-  public Stmt buildStatement(RustParser.StatementContext ctx) {
+  public Statement buildStatement(RustParser.StatementContext ctx) {
     if (ctx.SEMI() != null || ctx.item() != null || ctx.macroInvocationSemi() != null) {
       throw new UnsupportedConstructException(ctx, "Only let and return statements are supported");
     }
@@ -130,16 +130,16 @@ public final class AstBuilder {
   }
 
   /**
-   * Builds a {@link LetStmt} from a let-statement parse-tree context.
+   * Builds a {@link Let} from a let-statement parse-tree context.
    *
    * @param ctx the let-statement context
-   * @return the corresponding {@link LetStmt} node
+   * @return the corresponding {@link Let} node
    */
-  public LetStmt buildLetStatement(RustParser.LetStatementContext ctx) {
+  public Let buildLetStatement(RustParser.LetStatementContext ctx) {
     Identifier bindingTarget = extractLetBinding(ctx.patternNoTopAlt());
     Type type = extractType(ctx.type_());
-    Expr expr = buildExpression(ctx.expression());
-    return track(new LetStmt(bindingTarget, type, expr), ctx);
+    Expression expr = buildExpression(ctx.expression());
+    return track(new Let(bindingTarget, type, expr), ctx);
   }
 
   /**
@@ -165,7 +165,7 @@ public final class AstBuilder {
     if (ctx.ifLetExpression() != null) {
       throw new UnsupportedConstructException(ctx, "If-let expressions are not supported");
     }
-    Expr condition = buildExpression(ctx.expression());
+    Expression condition = buildExpression(ctx.expression());
     Block thenBlock = buildBlock(ctx.blockExpression(0));
     BlockExpressionContext elseBlockContext = ctx.blockExpression(1);
     Optional<Block> elseBlock = Optional.empty();
@@ -183,7 +183,7 @@ public final class AstBuilder {
           ctx.expression(0), "Assignment target must be a simple variable");
     }
     Identifier target = extractPathIdentifier(targetCtx);
-    Expr value = buildExpression(ctx.expression(1));
+    Expression value = buildExpression(ctx.expression(1));
     return track(new Assignment(target, value), ctx);
   }
 
@@ -191,10 +191,10 @@ public final class AstBuilder {
    * Dispatches an expression parse-tree context to the appropriate builder method.
    *
    * @param ctx the expression context
-   * @return the corresponding {@link Expr} node
+   * @return the corresponding {@link Expression} node
    * @throws UnsupportedConstructException if the expression kind is not supported
    */
-  public Expr buildExpression(RustParser.ExpressionContext ctx) {
+  public Expression buildExpression(RustParser.ExpressionContext ctx) {
     return switch (ctx) {
       case RustParser.LiteralExpression_Context c -> buildIntegerLiteralExpression(c);
       case RustParser.ArithmeticOrLogicalExpressionContext c -> buildBinaryOperatorExpression(c);
@@ -204,31 +204,31 @@ public final class AstBuilder {
   }
 
   /**
-   * Builds an {@link IntLit} from a literal-expression parse-tree context. Only integer literals
-   * are supported.
+   * Builds an {@link IntegerLiteral} from a literal-expression parse-tree context. Only integer
+   * literals are supported.
    *
    * @param ctx the literal expression context
-   * @return the corresponding {@link IntLit} node
+   * @return the corresponding {@link IntegerLiteral} node
    * @throws UnsupportedConstructException if the literal is not an integer literal
    */
-  public IntLit buildIntegerLiteralExpression(RustParser.LiteralExpression_Context ctx) {
+  public IntegerLiteral buildIntegerLiteralExpression(RustParser.LiteralExpression_Context ctx) {
     RustParser.LiteralExpressionContext litExprCtx = ctx.literalExpression();
     if (litExprCtx == null || litExprCtx.INTEGER_LITERAL() == null) {
       throw new UnsupportedConstructException(ctx, "Unsupported literal expression");
     }
-    return track(new IntLit(Long.parseLong(litExprCtx.INTEGER_LITERAL().getText())), ctx);
+    return track(new IntegerLiteral(Long.parseLong(litExprCtx.INTEGER_LITERAL().getText())), ctx);
   }
 
   /**
-   * Builds a {@link Var} from a path expression context. Only single-segment paths with no generic
-   * arguments are supported (i.e. a plain variable name).
+   * Builds a {@link Variable} from a path expression context. Only single-segment paths with no
+   * generic arguments are supported (i.e. a plain variable name).
    *
    * @param ctx the path expression context
-   * @return the corresponding {@link Var} node
+   * @return the corresponding {@link Variable} node
    * @throws UnsupportedConstructException if the path is not a simple identifier reference
    */
-  public Var buildVarExpression(RustParser.PathExpression_Context ctx) {
-    return track(new Var(extractPathIdentifier(ctx)), ctx);
+  public Variable buildVarExpression(RustParser.PathExpression_Context ctx) {
+    return track(new Variable(extractPathIdentifier(ctx)), ctx);
   }
 
   /**
@@ -256,30 +256,31 @@ public final class AstBuilder {
   }
 
   /**
-   * Builds a {@link BinOp} from an arithmetic-or-logical expression parse-tree context. Only the
-   * four basic arithmetic operators (+, -, *, /) are supported.
+   * Builds a {@link BinaryOp} from an arithmetic-or-logical expression parse-tree context. Only
+   * the four basic arithmetic operators (+, -, *, /) are supported.
    *
    * @param ctx the arithmetic/logical expression context
-   * @return the corresponding {@link BinOp} node
+   * @return the corresponding {@link BinaryOp} node
    * @throws UnsupportedConstructException if the operator is not a basic arithmetic operator
    */
-  public BinOp buildBinaryOperatorExpression(RustParser.ArithmeticOrLogicalExpressionContext ctx) {
-    BinOp.Op op;
+  public BinaryOp buildBinaryOperatorExpression(
+      RustParser.ArithmeticOrLogicalExpressionContext ctx) {
+    BinaryOp.Op op;
     if (ctx.STAR() != null) {
-      op = BinOp.Op.MUL;
+      op = BinaryOp.Op.MUL;
     } else if (ctx.PLUS() != null) {
-      op = BinOp.Op.ADD;
+      op = BinaryOp.Op.ADD;
     } else if (ctx.SLASH() != null) {
-      op = BinOp.Op.DIV;
+      op = BinaryOp.Op.DIV;
     } else if (ctx.MINUS() != null) {
-      op = BinOp.Op.SUB;
+      op = BinaryOp.Op.SUB;
     } else {
       throw new UnsupportedConstructException(
           ctx, "Only basic (+, -, *, /) arithmetic expressions supported.");
     }
-    Expr left = buildExpression(ctx.expression().get(0));
-    Expr right = buildExpression(ctx.expression().get(1));
-    return track(new BinOp(op, left, right), ctx);
+    Expression left = buildExpression(ctx.expression().get(0));
+    Expression right = buildExpression(ctx.expression().get(1));
+    return track(new BinaryOp(op, left, right), ctx);
   }
 
   private Type extractType(RustParser.Type_Context ctx) {
@@ -335,7 +336,7 @@ public final class AstBuilder {
     return new Identifier(idPattern.identifier().getText());
   }
 
-  private List<Stmt> extractStatementsFromBlock(RustParser.BlockExpressionContext ctx) {
+  private List<Statement> extractStatementsFromBlock(RustParser.BlockExpressionContext ctx) {
     RustParser.StatementsContext statementsCtx = ctx.statements();
     if (statementsCtx == null || statementsCtx.statement().isEmpty()) {
       throw new UnsupportedConstructException(ctx, "Block must end with a return statement");
@@ -345,7 +346,7 @@ public final class AstBuilder {
           statementsCtx.expression(),
           "Trailing expressions are not supported; use an explicit return statement");
     }
-    List<Stmt> built = new ArrayList<>();
+    List<Statement> built = new ArrayList<>();
     for (RustParser.StatementContext statementCtx : statementsCtx.statement()) {
       built.add(buildStatement(statementCtx));
     }

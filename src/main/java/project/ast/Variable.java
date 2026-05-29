@@ -7,8 +7,8 @@ import java.util.Objects;
  *
  * @param name the identifier being referenced
  */
-public record Var(Identifier name) implements Expr {
-  public Var {
+public record Variable(Identifier name) implements Expression {
+  public Variable {
     Objects.requireNonNull(name);
   }
 }

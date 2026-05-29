@@ -1,3 +1,3 @@
 package project.ast;
 
-public sealed interface Node permits Crate, Expr, Stmt, Item, Block, BodyBlock {}
+public sealed interface Node permits Crate, Expression, Statement, Item, Block, BodyBlock {}
