@@ -71,8 +71,41 @@ public class ItemBuilderTest {
         "extern fn x() -> i32 {return 10; }", // extern qualifier
         "extern \"C\" fn x() -> i32 {return 10; }", // extern "C" qualifier
         "fn x<T>(a: T) -> i32 {return 10; }", // generic parameters
+        "fn x(...) -> i32 { return 10; }", // variadic parameters
       })
   void rejectsUnsupportedFunctionForms(String input) {
+    RustParser.ItemContext ctx = TestHelper.parseItem(input);
+    assertThrows(UnsupportedConstructException.class, () -> astBuilder.buildItem(ctx));
+  }
+
+  @Test
+  void buildsFunctionDeclarationWithMultipleParams() {
+    String testInput = "fn z(a: i32, b: bool) -> i32 { return 10; }";
+    RustParser.ItemContext itemContext = TestHelper.parseItem(testInput);
+    Parameter first = new Parameter(new Identifier("a"), Type.Int.i32);
+    Parameter second = new Parameter(new Identifier("b"), Type.BOOL);
+    BodyBlock block = new BodyBlock(List.of(), new Return(new Integer(10)));
+    FunctionDeclaration expected =
+        new FunctionDeclaration(new Identifier("z"), List.of(first, second), block, Type.Int.i32);
+    FunctionDeclaration actual =
+        assertInstanceOf(FunctionDeclaration.class, astBuilder.buildItem(itemContext));
+    assertEquals(expected, actual);
+  }
+
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "struct S { x: i32 }", // struct
+        "enum E { A, B }", // enum
+        "union U { x: i32 }", // union
+        "trait T {}", // trait
+        "impl S {}", // impl
+        "use std::collections::HashMap;", // use declaration
+        "mod m {}", // module
+        "const C: i32 = 0;", // const item
+        "static S: i32 = 0;", // static item
+      })
+  void rejectsNonFunctionItems(String input) {
     RustParser.ItemContext ctx = TestHelper.parseItem(input);
     assertThrows(UnsupportedConstructException.class, () -> astBuilder.buildItem(ctx));
   }

@@ -30,4 +30,24 @@ public class CrateBuilderTest {
     Crate actual = astBuilder.buildCrate(crateContext);
     assertEquals(expected, actual);
   }
+
+  @Test
+  void buildsCrateWithMultipleFunctions() {
+    String testInput = "fn f() -> i32 { return 0; } fn g(a: i32) -> i32 { return 1; }";
+    RustParser.CrateContext crateContext = TestHelper.parseCrate(testInput);
+    BodyBlock fBlock = new BodyBlock(List.of(), new Return(new Integer(0)));
+    BodyBlock gBlock = new BodyBlock(List.of(), new Return(new Integer(1)));
+
+    Crate expected =
+        new Crate(
+            List.of(
+                new FunctionDeclaration(new Identifier("f"), List.of(), fBlock, Type.Int.i32),
+                new FunctionDeclaration(
+                    new Identifier("g"),
+                    List.of(new Parameter(new Identifier("a"), Type.Int.i32)),
+                    gBlock,
+                    Type.Int.i32)));
+    Crate actual = astBuilder.buildCrate(crateContext);
+    assertEquals(expected, actual);
+  }
 }
