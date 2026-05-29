@@ -6,12 +6,12 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.List;
 import java.util.Optional;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import project.parser.RustParser;
+import project.parser.RustParser.IfExpressionContext;
+import project.parser.RustParser.StatementContext;
 
 public class StatementBuilderTest {
 
@@ -28,7 +28,7 @@ public class StatementBuilderTest {
   @ValueSource(strings = {"i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128"})
   void buildsIntegerLetStatements(String type) {
     String testInput = String.format("let i: %s = 0;", type);
-    RustParser.StatementContext statementContext = TestHelper.parseStmt(testInput);
+    StatementContext statementContext = TestHelper.parseStmt(testInput);
     Let expected = new Let(new Identifier("i"), Type.Int.valueOf(type), new Integer(0));
     Let actual = assertInstanceOf(Let.class, astBuilder.buildStatement(statementContext));
     assertEquals(expected, actual);
@@ -37,7 +37,7 @@ public class StatementBuilderTest {
   @Test
   void buildsBooleanLetStatements() {
     String testInput = "let b: bool = true;";
-    RustParser.StatementContext statementContext = TestHelper.parseStmt(testInput);
+    StatementContext statementContext = TestHelper.parseStmt(testInput);
     Let expected = new Let(new Identifier("b"), Type.BOOL, new Boolean(true));
     Let actual = assertInstanceOf(Let.class, astBuilder.buildStatement(statementContext));
     assertEquals(expected, actual);
@@ -46,7 +46,7 @@ public class StatementBuilderTest {
   @Test
   void buildsMutableLetStatement() {
     String testInput = "let mut x: i32 = 0;";
-    RustParser.StatementContext statementContext = TestHelper.parseStmt(testInput);
+    StatementContext statementContext = TestHelper.parseStmt(testInput);
     Let expected = new Let(new Identifier("x"), Type.Int.i32, new Integer(0));
     Let actual = assertInstanceOf(Let.class, astBuilder.buildStatement(statementContext));
     assertEquals(expected, actual);
@@ -60,7 +60,7 @@ public class StatementBuilderTest {
         "println!();", // macro invocation
       })
   void rejectsUnsupportedStatements(String input) {
-    RustParser.StatementContext statementContext = TestHelper.parseStmt(input);
+    StatementContext statementContext = TestHelper.parseStmt(input);
     assertThrows(
         UnsupportedConstructException.class, () -> astBuilder.buildStatement(statementContext));
   }
@@ -68,7 +68,7 @@ public class StatementBuilderTest {
   @Test
   void rejectsFloatLetStatements() {
     String testInput = "let f: f32 = 1.0;";
-    RustParser.StatementContext statementContext = TestHelper.parseStmt(testInput);
+    StatementContext statementContext = TestHelper.parseStmt(testInput);
     assertThrows(
         UnsupportedConstructException.class, () -> astBuilder.buildStatement(statementContext));
   }
@@ -76,7 +76,7 @@ public class StatementBuilderTest {
   @Test
   void buildsReturnStatement() {
     String testInput = "return 0;";
-    RustParser.StatementContext statementContext = TestHelper.parseStmt(testInput);
+    StatementContext statementContext = TestHelper.parseStmt(testInput);
     Return expected = new Return(new Integer(0));
     Return actual = assertInstanceOf(Return.class, astBuilder.buildStatement(statementContext));
     assertEquals(expected, actual);
@@ -85,7 +85,7 @@ public class StatementBuilderTest {
   @Test
   void rejectsReturnStatementWithoutExpression() {
     String testInput = "return;";
-    RustParser.StatementContext statementContext = TestHelper.parseStmt(testInput);
+    StatementContext statementContext = TestHelper.parseStmt(testInput);
     assertThrows(
         UnsupportedConstructException.class, () -> astBuilder.buildStatement(statementContext));
   }
@@ -93,15 +93,16 @@ public class StatementBuilderTest {
   @Test
   void buildsIfStatement() {
     String testInput = "if 1 { return 10; }";
-    RustParser.IfExpressionContext ifExpressionContext = TestHelper.parseIf(testInput);
-    If expected = new If(new Integer(1), new Block(List.of(new Return(new Integer(10)))), Optional.empty());
+    IfExpressionContext ifExpressionContext = TestHelper.parseIf(testInput);
+    If expected =
+        new If(new Integer(1), new Block(List.of(new Return(new Integer(10)))), Optional.empty());
     assertEquals(expected, astBuilder.buildIfStatement(ifExpressionContext));
   }
 
   @Test
   void buildsIfElseStatement() {
     String testInput = "if 1 {return 10;} else { return 5; }";
-    RustParser.IfExpressionContext ifExpressionContext = TestHelper.parseIf(testInput);
+    IfExpressionContext ifExpressionContext = TestHelper.parseIf(testInput);
     Block ifBlock = new Block(List.of(new Return(new Integer(10))));
     Block elseBlock = new Block(List.of(new Return(new Integer(5))));
     If expected = new If(new Integer(1), ifBlock, Optional.of(elseBlock));
@@ -111,7 +112,7 @@ public class StatementBuilderTest {
   @Test
   void buildsIfElseIfStatement() {
     String testInput = "if 1 {return 10;} else if 2 { return 5; }";
-    RustParser.IfExpressionContext ifExpressionContext = TestHelper.parseIf(testInput);
+    IfExpressionContext ifExpressionContext = TestHelper.parseIf(testInput);
     Block ifBlock = new Block(List.of(new Return(new Integer(10))));
     Block secondIfBlock = new Block(List.of(new Return(new Integer(5))));
     Block elseIfBlock = new Block(List.of(new If(new Integer(2), secondIfBlock, Optional.empty())));
@@ -119,4 +120,80 @@ public class StatementBuilderTest {
     assertEquals(expected, astBuilder.buildIfStatement(ifExpressionContext));
   }
 
+  @Test
+  void buildsWhileStatement() {
+    String testInput = "while true { return 1; }";
+    StatementContext statementContext = TestHelper.parseStmt(testInput);
+    While expected = new While(new Boolean(true), new Block(List.of(new Return(new Integer(1)))));
+    While actual = assertInstanceOf(While.class, astBuilder.buildStatement(statementContext));
+    assertEquals(expected, actual);
+  }
+
+  @Test
+  void buildsWhileStatementWithEmptyBody() {
+    String testInput = "while true {}";
+    StatementContext statementContext = TestHelper.parseStmt(testInput);
+    While expected = new While(new Boolean(true), new Block(List.of()));
+    While actual = assertInstanceOf(While.class, astBuilder.buildStatement(statementContext));
+    assertEquals(expected, actual);
+  }
+
+  @Test
+  void buildsLoopStatement() {
+    String testInput = "loop { break; }";
+    StatementContext statementContext = TestHelper.parseStmt(testInput);
+    Loop expected = new Loop(new Block(List.of(new Break())));
+    Loop actual = assertInstanceOf(Loop.class, astBuilder.buildStatement(statementContext));
+    assertEquals(expected, actual);
+  }
+
+  @Test
+  void buildsLoopStatementWithEmptyBody() {
+    String testInput = "loop {}";
+    StatementContext statementContext = TestHelper.parseStmt(testInput);
+    Loop expected = new Loop(new Block(List.of()));
+    Loop actual = assertInstanceOf(Loop.class, astBuilder.buildStatement(statementContext));
+    assertEquals(expected, actual);
+  }
+
+  @Test
+  void buildsBreakStatement() {
+    String testInput = "break;";
+    StatementContext statementContext = TestHelper.parseStmt(testInput);
+    assertEquals(new Break(), astBuilder.buildStatement(statementContext));
+  }
+
+  @Test
+  void buildsContinueStatement() {
+    String testInput = "continue;";
+    StatementContext statementContext = TestHelper.parseStmt(testInput);
+    assertEquals(new Continue(), astBuilder.buildStatement(statementContext));
+  }
+
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "for i in 0..10 { break; }", // iterator loop
+        "while let x = 5 { break; }", // predicate-pattern loop
+        "'outer: loop { break; }", // labelled loop
+        "'outer: while true { break; }", // labelled while
+      })
+  void rejectsUnsupportedLoops(String input) {
+    StatementContext statementContext = TestHelper.parseStmt(input);
+    assertThrows(
+        UnsupportedConstructException.class, () -> astBuilder.buildStatement(statementContext));
+  }
+
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "break 'outer;", // labelled break
+        "break 5;", // break with value
+        "continue 'outer;", // labelled continue
+      })
+  void rejectsUnsupportedBreakContinue(String input) {
+    StatementContext statementContext = TestHelper.parseStmt(input);
+    assertThrows(
+        UnsupportedConstructException.class, () -> astBuilder.buildStatement(statementContext));
+  }
 }
