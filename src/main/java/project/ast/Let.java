@@ -10,8 +10,8 @@ import java.util.Objects;
  * @param type the declared type
  * @param value the initialiser expression
  */
-public record LetStmt(Identifier name, Type type, Expr value) implements Stmt {
-  public LetStmt {
+public record Let(Identifier name, Type type, Expression value) implements Statement {
+  public Let {
     Objects.requireNonNull(name);
     Objects.requireNonNull(type);
     Objects.requireNonNull(value);
