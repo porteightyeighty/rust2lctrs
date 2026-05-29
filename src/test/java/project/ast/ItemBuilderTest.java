@@ -27,7 +27,7 @@ public class ItemBuilderTest {
     String testInput = "{ return 10; }";
     RustParser.BlockExpressionContext blockContext = TestHelper.parseBlock(testInput);
     BodyBlock expected = new BodyBlock(List.of(), new Return(new IntLit(10)));
-    assertEquals(expected, astBuilder.buildBlock(blockContext));
+    assertEquals(expected, astBuilder.buildBodyBlock(blockContext));
   }
 
   @Test
@@ -36,7 +36,7 @@ public class ItemBuilderTest {
     RustParser.BlockExpressionContext blockContext = TestHelper.parseBlock(testInput);
     LetStmt letStmt = new LetStmt(new Identifier("x"), Type.Int.i32, new IntLit(0));
     BodyBlock expected = new BodyBlock(List.of(letStmt), new Return(new IntLit(10)));
-    assertEquals(expected, astBuilder.buildBlock(blockContext));
+    assertEquals(expected, astBuilder.buildBodyBlock(blockContext));
   }
 
   @Test
@@ -91,6 +91,7 @@ public class ItemBuilderTest {
   void rejectsUnsupportedBodyBlockForms(String input) {
     RustParser.BlockExpressionContext blockExpressionContext = TestHelper.parseBlock(input);
     assertThrows(
-        UnsupportedConstructException.class, () -> astBuilder.buildBlock(blockExpressionContext));
+        UnsupportedConstructException.class,
+        () -> astBuilder.buildBodyBlock(blockExpressionContext));
   }
 }

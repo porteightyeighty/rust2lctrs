@@ -50,6 +50,10 @@ public final class TestHelper {
     return parse(src, RustParser::blockExpression);
   }
 
+  public static RustParser.IfExpressionContext parseIf(String src) {
+    return parse(src, RustParser::ifExpression);
+  }
+
   static RustParser.ItemContext parseItem(String src) {
     return parse(src, RustParser::item);
   }
