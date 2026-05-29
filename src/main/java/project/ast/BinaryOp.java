@@ -21,6 +21,13 @@ public record BinaryOp(Op operator, Expression left, Expression right) implement
     ADD,
     SUB,
     MUL,
-    DIV
+    DIV,
+    MOD,
+    GT,
+    GE,
+    LT,
+    LE,
+    EQ,
+    NE
   }
 }
