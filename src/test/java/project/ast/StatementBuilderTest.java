@@ -29,25 +29,50 @@ public class StatementBuilderTest {
   void buildsIntegerLetStatements(String type) {
     String testInput = String.format("let i: %s = 0;", type);
     RustParser.StatementContext statementContext = TestHelper.parseStmt(testInput);
-    Let expected = new Let(new Identifier("i"), Type.Int.valueOf(type), new IntegerLiteral(0));
+    Let expected = new Let(new Identifier("i"), Type.Int.valueOf(type), new Integer(0));
     Let actual = assertInstanceOf(Let.class, astBuilder.buildStatement(statementContext));
     assertEquals(expected, actual);
+  }
+
+  @Test
+  void buildsBooleanLetStatements() {
+    String testInput = "let b: bool = true;";
+    RustParser.StatementContext statementContext = TestHelper.parseStmt(testInput);
+    Let expected = new Let(new Identifier("b"), Type.BOOL, new Boolean(true));
+    Let actual = assertInstanceOf(Let.class, astBuilder.buildStatement(statementContext));
+    assertEquals(expected, actual);
+  }
+
+  @Test
+  void rejectsFloatLetStatements() {
+    String testInput = "let f: f32 = 1.0;";
+    RustParser.StatementContext statementContext = TestHelper.parseStmt(testInput);
+    assertThrows(
+        UnsupportedConstructException.class, () -> astBuilder.buildStatement(statementContext));
   }
 
   @Test
   void buildsReturnStatement() {
     String testInput = "return 0;";
     RustParser.StatementContext statementContext = TestHelper.parseStmt(testInput);
-    Return expected = new Return(new IntegerLiteral(0));
+    Return expected = new Return(new Integer(0));
     Return actual = assertInstanceOf(Return.class, astBuilder.buildStatement(statementContext));
     assertEquals(expected, actual);
+  }
+
+  @Test
+  void rejectsReturnStatementWithoutExpression() {
+    String testInput = "return;";
+    RustParser.StatementContext statementContext = TestHelper.parseStmt(testInput);
+    assertThrows(
+        UnsupportedConstructException.class, () -> astBuilder.buildStatement(statementContext));
   }
 
   @Test
   void buildsIfStatement() {
     String testInput = "if 1 { return 10; }";
     RustParser.IfExpressionContext ifExpressionContext = TestHelper.parseIf(testInput);
-    If expected = new If(new IntegerLiteral(1), new Block(List.of(new Return(new IntegerLiteral(10)))), Optional.empty());
+    If expected = new If(new Integer(1), new Block(List.of(new Return(new Integer(10)))), Optional.empty());
     assertEquals(expected, astBuilder.buildIfStatement(ifExpressionContext));
   }
 
@@ -55,9 +80,9 @@ public class StatementBuilderTest {
   void buildsIfElseStatement() {
     String testInput = "if 1 {return 10;} else { return 5; }";
     RustParser.IfExpressionContext ifExpressionContext = TestHelper.parseIf(testInput);
-    Block ifBlock = new Block(List.of(new Return(new IntegerLiteral(10))));
-    Block elseBlock = new Block(List.of(new Return(new IntegerLiteral(5))));
-    If expected = new If(new IntegerLiteral(1), ifBlock, Optional.of(elseBlock));
+    Block ifBlock = new Block(List.of(new Return(new Integer(10))));
+    Block elseBlock = new Block(List.of(new Return(new Integer(5))));
+    If expected = new If(new Integer(1), ifBlock, Optional.of(elseBlock));
     assertEquals(expected, astBuilder.buildIfStatement(ifExpressionContext));
   }
 
@@ -65,10 +90,10 @@ public class StatementBuilderTest {
   void buildsIfElseIfStatement() {
     String testInput = "if 1 {return 10;} else if 2 { return 5; }";
     RustParser.IfExpressionContext ifExpressionContext = TestHelper.parseIf(testInput);
-    Block ifBlock = new Block(List.of(new Return(new IntegerLiteral(10))));
-    Block secondIfBlock = new Block(List.of(new Return(new IntegerLiteral(5))));
-    Block elseIfBlock = new Block(List.of(new If(new IntegerLiteral(2), secondIfBlock, Optional.empty())));
-    If expected = new If(new IntegerLiteral(1), ifBlock, Optional.of(elseIfBlock));
+    Block ifBlock = new Block(List.of(new Return(new Integer(10))));
+    Block secondIfBlock = new Block(List.of(new Return(new Integer(5))));
+    Block elseIfBlock = new Block(List.of(new If(new Integer(2), secondIfBlock, Optional.empty())));
+    If expected = new If(new Integer(1), ifBlock, Optional.of(elseIfBlock));
     assertEquals(expected, astBuilder.buildIfStatement(ifExpressionContext));
   }
 
