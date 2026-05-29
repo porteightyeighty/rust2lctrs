@@ -38,17 +38,36 @@ public class ExpressionBuilderTest {
   }
 
   @Test
-  void buildsBinaryOperatorExpression() {
+  void rejectsFloatLiteral() {
+    String testInput = "1.0";
+    RustParser.ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
+    assertThrows(
+        UnsupportedConstructException.class, () -> astBuilder.buildExpression(expressionContext));
+  }
+
+  @Test
+  void buildsArithmeticExpression() {
     String testInput = "1 + 2";
     RustParser.ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
     BinaryOp expected = new BinaryOp(BinaryOp.Op.ADD, new Integer(1), new Integer(2));
-    BinaryOp actual = assertInstanceOf(BinaryOp.class, astBuilder.buildExpression(expressionContext));
+    BinaryOp actual =
+        assertInstanceOf(BinaryOp.class, astBuilder.buildExpression(expressionContext));
     assertEquals(expected, actual);
   }
 
   @Test
-  void rejectsFloatLiteral() {
-    String testInput = "1.0";
+  void buildsComparisonExpression() {
+    String testInput = "1 == 2";
+    RustParser.ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
+    BinaryOp expected = new BinaryOp(BinaryOp.Op.EQ, new Integer(1), new Integer(2));
+    BinaryOp actual =
+        assertInstanceOf(BinaryOp.class, astBuilder.buildExpression(expressionContext));
+    assertEquals(expected, actual);
+  }
+
+  @Test
+  void rejectsLogicalExpression() {
+    String testInput = "1 | 2";
     RustParser.ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
     assertThrows(
         UnsupportedConstructException.class, () -> astBuilder.buildExpression(expressionContext));
