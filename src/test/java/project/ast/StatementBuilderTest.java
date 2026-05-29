@@ -44,6 +44,28 @@ public class StatementBuilderTest {
   }
 
   @Test
+  void buildsMutableLetStatement() {
+    String testInput = "let mut x: i32 = 0;";
+    RustParser.StatementContext statementContext = TestHelper.parseStmt(testInput);
+    Let expected = new Let(new Identifier("x"), Type.Int.i32, new Integer(0));
+    Let actual = assertInstanceOf(Let.class, astBuilder.buildStatement(statementContext));
+    assertEquals(expected, actual);
+  }
+
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        ";", // empty statement
+        "fn inner() -> i32 { return 1; }", // nested item
+        "println!();", // macro invocation
+      })
+  void rejectsUnsupportedStatements(String input) {
+    RustParser.StatementContext statementContext = TestHelper.parseStmt(input);
+    assertThrows(
+        UnsupportedConstructException.class, () -> astBuilder.buildStatement(statementContext));
+  }
+
+  @Test
   void rejectsFloatLetStatements() {
     String testInput = "let f: f32 = 1.0;";
     RustParser.StatementContext statementContext = TestHelper.parseStmt(testInput);

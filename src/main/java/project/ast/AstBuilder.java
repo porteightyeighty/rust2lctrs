@@ -137,6 +137,9 @@ public final class AstBuilder {
    */
   public Let buildLetStatement(RustParser.LetStatementContext ctx) {
     Identifier bindingTarget = extractLetBinding(ctx.patternNoTopAlt());
+    if (ctx.type_() == null) {
+      throw new UnsupportedConstructException(ctx, "let bindings must have an explicit type");
+    }
     Type type = extractType(ctx.type_());
     Expression expr = buildExpression(ctx.expression());
     return track(new Let(bindingTarget, type, expr), ctx);
@@ -249,7 +252,7 @@ public final class AstBuilder {
    */
   private Identifier extractPathIdentifier(RustParser.PathExpression_Context ctx) {
     RustParser.PathInExpressionContext path = ctx.pathExpression().pathInExpression();
-    if (path == null || path.pathExprSegment().size() != 1 || path.PATHSEP() != null) {
+    if (path == null || path.pathExprSegment().size() != 1 || !path.PATHSEP().isEmpty()) {
       throw new UnsupportedConstructException(ctx, "Only simple variable references are supported");
     }
     RustParser.PathExprSegmentContext segment = path.pathExprSegment().get(0);
@@ -348,7 +351,7 @@ public final class AstBuilder {
       }
       if (paramPattern.type_() == null) {
         throw new UnsupportedConstructException(
-            param, "Variadic type parameters are not supported");
+            param, "Parameters must have an explicit type");
       }
       Type type = extractType(paramPattern.type_());
       Identifier identifier = extractLetBinding(paramPattern.pattern().patternNoTopAlt().get(0));
