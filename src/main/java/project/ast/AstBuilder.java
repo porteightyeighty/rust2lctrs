@@ -197,20 +197,20 @@ public final class AstBuilder {
   public Expression buildExpression(RustParser.ExpressionContext ctx) {
     return switch (ctx) {
       case RustParser.LiteralExpression_Context c -> buildLiteral(c);
-      case RustParser.ArithmeticOrLogicalExpressionContext c -> buildBinaryOperatorExpression(c);
+      case RustParser.ArithmeticOrLogicalExpressionContext c -> buildArithmeticExpression(c);
+      case RustParser.ComparisonExpressionContext c -> buildComparisonExpression(c);
       case RustParser.PathExpression_Context c -> buildVarExpression(c);
       default -> throw new UnsupportedConstructException(ctx, "Unsupported expression");
     };
   }
 
   /**
-   * Builds a {@link Literal} from a literal-expression parse-tree context. Only
-   * integer and boolean literals are supported.
+   * Builds a {@link Literal} from a literal-expression parse-tree context. Only integer and boolean
+   * literals are supported.
    *
    * @param ctx the literal expression context
    * @return the corresponding {@link Literal} node
-   * @throws UnsupportedConstructException if the literal is not an integer or
-   *                                       boolean literal
+   * @throws UnsupportedConstructException if the literal is not an integer or boolean literal
    */
   public Literal buildLiteral(RustParser.LiteralExpression_Context ctx) {
     RustParser.LiteralExpressionContext litExprCtx = ctx.literalExpression();
@@ -223,8 +223,8 @@ public final class AstBuilder {
     if (litExprCtx.KW_FALSE() != null) {
       return track(new Boolean(false), ctx);
     }
-    throw new UnsupportedConstructException(ctx,
-        "Unsupported literal, only integer and boolean literals are supported");
+    throw new UnsupportedConstructException(
+        ctx, "Unsupported literal, only integer and boolean literals are supported");
   }
 
   /**
@@ -264,15 +264,14 @@ public final class AstBuilder {
   }
 
   /**
-   * Builds a {@link BinaryOp} from an arithmetic-or-logical expression parse-tree context. Only
-   * the four basic arithmetic operators (+, -, *, /) are supported.
+   * Builds a {@link BinaryOp} from an arithmetic expression parse-tree context. Only the five basic
+   * arithmetic operators (+, -, *, /, %) are supported.
    *
    * @param ctx the arithmetic/logical expression context
    * @return the corresponding {@link BinaryOp} node
    * @throws UnsupportedConstructException if the operator is not a basic arithmetic operator
    */
-  public BinaryOp buildBinaryOperatorExpression(
-      RustParser.ArithmeticOrLogicalExpressionContext ctx) {
+  public BinaryOp buildArithmeticExpression(RustParser.ArithmeticOrLogicalExpressionContext ctx) {
     BinaryOp.Op op;
     if (ctx.STAR() != null) {
       op = BinaryOp.Op.MUL;
@@ -282,9 +281,34 @@ public final class AstBuilder {
       op = BinaryOp.Op.DIV;
     } else if (ctx.MINUS() != null) {
       op = BinaryOp.Op.SUB;
+    } else if (ctx.PERCENT() != null) {
+      op = BinaryOp.Op.MOD;
     } else {
       throw new UnsupportedConstructException(
-          ctx, "Only basic (+, -, *, /) arithmetic expressions supported.");
+          ctx, "Only basic (+, -, *, /, %) arithmetic expressions supported.");
+    }
+    Expression left = buildExpression(ctx.expression().get(0));
+    Expression right = buildExpression(ctx.expression().get(1));
+    return track(new BinaryOp(op, left, right), ctx);
+  }
+
+  public BinaryOp buildComparisonExpression(RustParser.ComparisonExpressionContext ctx) {
+    RustParser.ComparisonOperatorContext operatorCtx = ctx.comparisonOperator();
+    BinaryOp.Op op;
+    if (operatorCtx.EQEQ() != null) {
+      op = BinaryOp.Op.EQ;
+    } else if (operatorCtx.NE() != null) {
+      op = BinaryOp.Op.NE;
+    } else if (operatorCtx.GT() != null) {
+      op = BinaryOp.Op.GT;
+    } else if (operatorCtx.LT() != null) {
+      op = BinaryOp.Op.LT;
+    } else if (operatorCtx.GE() != null) {
+      op = BinaryOp.Op.GE;
+    } else if (operatorCtx.LE() != null) {
+      op = BinaryOp.Op.LE;
+    } else {
+      throw new UnsupportedConstructException(ctx, "Unsupported comparison operator");
     }
     Expression left = buildExpression(ctx.expression().get(0));
     Expression right = buildExpression(ctx.expression().get(1));
