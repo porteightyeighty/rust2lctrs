@@ -7,7 +7,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import project.parser.RustParser;
+import project.parser.RustParser.AssignmentExpressionContext;
 
 public class AssignmentBuilderTest {
 
@@ -23,8 +23,7 @@ public class AssignmentBuilderTest {
   @Test
   void buildsAssignmentToLiteral() {
     String testInput = "x = 5";
-    RustParser.AssignmentExpressionContext ctx =
-        (RustParser.AssignmentExpressionContext) TestHelper.parseExpr(testInput);
+    AssignmentExpressionContext ctx = (AssignmentExpressionContext) TestHelper.parseExpr(testInput);
     Assignment expected = new Assignment(new Identifier("x"), new Integer(5));
     assertEquals(expected, astBuilder.buildAssignment(ctx));
   }
@@ -32,8 +31,7 @@ public class AssignmentBuilderTest {
   @Test
   void buildsAssignmentToExpression() {
     String testInput = "x = y + 1";
-    RustParser.AssignmentExpressionContext ctx =
-        (RustParser.AssignmentExpressionContext) TestHelper.parseExpr(testInput);
+    AssignmentExpressionContext ctx = (AssignmentExpressionContext) TestHelper.parseExpr(testInput);
     Assignment expected =
         new Assignment(
             new Identifier("x"),
@@ -49,9 +47,7 @@ public class AssignmentBuilderTest {
         "arr[0] = 5", // index target
       })
   void rejectsNonVariableAssignmentTargets(String input) {
-    RustParser.AssignmentExpressionContext ctx =
-        (RustParser.AssignmentExpressionContext) TestHelper.parseExpr(input);
-    assertThrows(
-        UnsupportedConstructException.class, () -> astBuilder.buildAssignment(ctx));
+    AssignmentExpressionContext ctx = (AssignmentExpressionContext) TestHelper.parseExpr(input);
+    assertThrows(UnsupportedConstructException.class, () -> astBuilder.buildAssignment(ctx));
   }
 }

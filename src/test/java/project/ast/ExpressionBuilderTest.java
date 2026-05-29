@@ -8,7 +8,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import project.parser.RustParser;
+import project.parser.RustParser.ExpressionContext;
 
 public class ExpressionBuilderTest {
 
@@ -24,7 +24,7 @@ public class ExpressionBuilderTest {
   @Test
   void buildsIntLiteralExpression() {
     String testInput = "10";
-    RustParser.ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
+    ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
     Integer expected = new Integer(10);
     Integer actual = assertInstanceOf(Integer.class, astBuilder.buildExpression(expressionContext));
     assertEquals(expected, actual);
@@ -33,7 +33,7 @@ public class ExpressionBuilderTest {
   @Test
   void buildsBoolLiteralExpression() {
     String testInput = "true";
-    RustParser.ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
+    ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
     Boolean expected = new Boolean(true);
     Boolean actual = assertInstanceOf(Boolean.class, astBuilder.buildExpression(expressionContext));
     assertEquals(expected, actual);
@@ -42,7 +42,7 @@ public class ExpressionBuilderTest {
   @Test
   void rejectsFloatLiteral() {
     String testInput = "1.0";
-    RustParser.ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
+    ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
     assertThrows(
         UnsupportedConstructException.class, () -> astBuilder.buildExpression(expressionContext));
   }
@@ -50,7 +50,7 @@ public class ExpressionBuilderTest {
   @Test
   void buildsArithmeticExpression() {
     String testInput = "1 + 2";
-    RustParser.ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
+    ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
     BinaryOp expected = new BinaryOp(BinaryOp.Op.ADD, new Integer(1), new Integer(2));
     BinaryOp actual =
         assertInstanceOf(BinaryOp.class, astBuilder.buildExpression(expressionContext));
@@ -60,7 +60,7 @@ public class ExpressionBuilderTest {
   @Test
   void buildsComparisonExpression() {
     String testInput = "1 == 2";
-    RustParser.ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
+    ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
     BinaryOp expected = new BinaryOp(BinaryOp.Op.EQ, new Integer(1), new Integer(2));
     BinaryOp actual =
         assertInstanceOf(BinaryOp.class, astBuilder.buildExpression(expressionContext));
@@ -70,7 +70,7 @@ public class ExpressionBuilderTest {
   @Test
   void rejectsLogicalExpression() {
     String testInput = "1 | 2";
-    RustParser.ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
+    ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
     assertThrows(
         UnsupportedConstructException.class, () -> astBuilder.buildExpression(expressionContext));
   }
@@ -78,7 +78,7 @@ public class ExpressionBuilderTest {
   @Test
   void buildsVariableExpression() {
     String testInput = "x";
-    RustParser.ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
+    ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
     Variable expected = new Variable(new Identifier("x"));
     Variable actual =
         assertInstanceOf(Variable.class, astBuilder.buildExpression(expressionContext));
@@ -93,7 +93,7 @@ public class ExpressionBuilderTest {
         "x::<i32>", // generic arguments (turbofish)
       })
   void rejectsNonSimplePathExpressions(String input) {
-    RustParser.ExpressionContext expressionContext = TestHelper.parseExpr(input);
+    ExpressionContext expressionContext = TestHelper.parseExpr(input);
     assertThrows(
         UnsupportedConstructException.class, () -> astBuilder.buildExpression(expressionContext));
   }

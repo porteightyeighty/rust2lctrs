@@ -9,7 +9,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import project.parser.RustParser;
+import project.parser.RustParser.BlockExpressionContext;
+import project.parser.RustParser.ItemContext;
 
 public class ItemBuilderTest {
 
@@ -25,7 +26,7 @@ public class ItemBuilderTest {
   @Test
   void buildsBodyBlockWithTrailingOnly() {
     String testInput = "{ return 10; }";
-    RustParser.BlockExpressionContext blockContext = TestHelper.parseBlock(testInput);
+    BlockExpressionContext blockContext = TestHelper.parseBlock(testInput);
     BodyBlock expected = new BodyBlock(List.of(), new Return(new Integer(10)));
     assertEquals(expected, astBuilder.buildBodyBlock(blockContext));
   }
@@ -33,7 +34,7 @@ public class ItemBuilderTest {
   @Test
   void buildsBodyBlock() {
     String testInput = "{ let x: i32 = 0; return 10; }";
-    RustParser.BlockExpressionContext blockContext = TestHelper.parseBlock(testInput);
+    BlockExpressionContext blockContext = TestHelper.parseBlock(testInput);
     Let letStmt = new Let(new Identifier("x"), Type.Int.i32, new Integer(0));
     BodyBlock expected = new BodyBlock(List.of(letStmt), new Return(new Integer(10)));
     assertEquals(expected, astBuilder.buildBodyBlock(blockContext));
@@ -42,21 +43,25 @@ public class ItemBuilderTest {
   @Test
   void buildsFunctionDeclarationWithoutParams() {
     String testInput = "fn x() -> i32 { return 10; }";
-    RustParser.ItemContext itemContext = TestHelper.parseItem(testInput);
+    ItemContext itemContext = TestHelper.parseItem(testInput);
     BodyBlock block = new BodyBlock(List.of(), new Return(new Integer(10)));
-    FunctionDeclaration expected = new FunctionDeclaration(new Identifier("x"), List.of(), block, Type.Int.i32);
-    FunctionDeclaration actual = assertInstanceOf(FunctionDeclaration.class, astBuilder.buildItem(itemContext));
+    FunctionDeclaration expected =
+        new FunctionDeclaration(new Identifier("x"), List.of(), block, Type.Int.i32);
+    FunctionDeclaration actual =
+        assertInstanceOf(FunctionDeclaration.class, astBuilder.buildItem(itemContext));
     assertEquals(expected, actual);
   }
 
   @Test
   void buildsFunctionDeclarationWithParams() {
     String testInput = "fn y(a: i32) -> i32 { return 10; }";
-    RustParser.ItemContext itemmContext = TestHelper.parseItem(testInput);
+    ItemContext itemmContext = TestHelper.parseItem(testInput);
     Parameter param = new Parameter(new Identifier("a"), Type.Int.i32);
     BodyBlock block = new BodyBlock(List.of(), new Return(new Integer(10)));
-    FunctionDeclaration expected = new FunctionDeclaration(new Identifier("y"), List.of(param), block, Type.Int.i32);
-    FunctionDeclaration actual = assertInstanceOf(FunctionDeclaration.class, astBuilder.buildItem(itemmContext));
+    FunctionDeclaration expected =
+        new FunctionDeclaration(new Identifier("y"), List.of(param), block, Type.Int.i32);
+    FunctionDeclaration actual =
+        assertInstanceOf(FunctionDeclaration.class, astBuilder.buildItem(itemmContext));
     assertEquals(expected, actual);
   }
 
@@ -74,14 +79,14 @@ public class ItemBuilderTest {
         "fn x(...) -> i32 { return 10; }", // variadic parameters
       })
   void rejectsUnsupportedFunctionForms(String input) {
-    RustParser.ItemContext ctx = TestHelper.parseItem(input);
+    ItemContext ctx = TestHelper.parseItem(input);
     assertThrows(UnsupportedConstructException.class, () -> astBuilder.buildItem(ctx));
   }
 
   @Test
   void buildsFunctionDeclarationWithMultipleParams() {
     String testInput = "fn z(a: i32, b: bool) -> i32 { return 10; }";
-    RustParser.ItemContext itemContext = TestHelper.parseItem(testInput);
+    ItemContext itemContext = TestHelper.parseItem(testInput);
     Parameter first = new Parameter(new Identifier("a"), Type.Int.i32);
     Parameter second = new Parameter(new Identifier("b"), Type.BOOL);
     BodyBlock block = new BodyBlock(List.of(), new Return(new Integer(10)));
@@ -106,7 +111,7 @@ public class ItemBuilderTest {
         "static S: i32 = 0;", // static item
       })
   void rejectsNonFunctionItems(String input) {
-    RustParser.ItemContext ctx = TestHelper.parseItem(input);
+    ItemContext ctx = TestHelper.parseItem(input);
     assertThrows(UnsupportedConstructException.class, () -> astBuilder.buildItem(ctx));
   }
 
@@ -118,7 +123,7 @@ public class ItemBuilderTest {
         "{ let x: i32 = 0; x }" // expression return
       })
   void rejectsUnsupportedBodyBlockForms(String input) {
-    RustParser.BlockExpressionContext blockExpressionContext = TestHelper.parseBlock(input);
+    BlockExpressionContext blockExpressionContext = TestHelper.parseBlock(input);
     assertThrows(
         UnsupportedConstructException.class,
         () -> astBuilder.buildBodyBlock(blockExpressionContext));

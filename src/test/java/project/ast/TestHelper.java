@@ -10,6 +10,12 @@ import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.Token;
 import project.parser.RustLexer;
 import project.parser.RustParser;
+import project.parser.RustParser.BlockExpressionContext;
+import project.parser.RustParser.CrateContext;
+import project.parser.RustParser.ExpressionContext;
+import project.parser.RustParser.IfExpressionContext;
+import project.parser.RustParser.ItemContext;
+import project.parser.RustParser.StatementContext;
 
 /**
  * Test-only utilities for parsing Rust fragments into ANTLR parse trees.
@@ -32,29 +38,29 @@ public final class TestHelper {
     }
   }
 
-  static RustParser.StatementContext parseStmt(String src) {
+  static StatementContext parseStmt(String src) {
     return parse(src, RustParser::statement);
   }
 
   /** Parses a single expression */
-  static RustParser.ExpressionContext parseExpr(String src) {
+  static ExpressionContext parseExpr(String src) {
     return parse(src, RustParser::expression);
   }
 
   /** Parses a whole crate. */
-  static RustParser.CrateContext parseCrate(String src) {
+  static CrateContext parseCrate(String src) {
     return parse(src, RustParser::crate);
   }
 
-  static RustParser.BlockExpressionContext parseBlock(String src) {
+  static BlockExpressionContext parseBlock(String src) {
     return parse(src, RustParser::blockExpression);
   }
 
-  public static RustParser.IfExpressionContext parseIf(String src) {
+  public static IfExpressionContext parseIf(String src) {
     return parse(src, RustParser::ifExpression);
   }
 
-  static RustParser.ItemContext parseItem(String src) {
+  static ItemContext parseItem(String src) {
     return parse(src, RustParser::item);
   }
 
