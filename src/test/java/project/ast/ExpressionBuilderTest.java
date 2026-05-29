@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import project.parser.RustParser;
 
 public class ExpressionBuilderTest {
@@ -69,6 +71,29 @@ public class ExpressionBuilderTest {
   void rejectsLogicalExpression() {
     String testInput = "1 | 2";
     RustParser.ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
+    assertThrows(
+        UnsupportedConstructException.class, () -> astBuilder.buildExpression(expressionContext));
+  }
+
+  @Test
+  void buildsVariableExpression() {
+    String testInput = "x";
+    RustParser.ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
+    Variable expected = new Variable(new Identifier("x"));
+    Variable actual =
+        assertInstanceOf(Variable.class, astBuilder.buildExpression(expressionContext));
+    assertEquals(expected, actual);
+  }
+
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "foo::bar", // multi-segment path
+        "std::mem::swap", // multi-segment path
+        "x::<i32>", // generic arguments (turbofish)
+      })
+  void rejectsNonSimplePathExpressions(String input) {
+    RustParser.ExpressionContext expressionContext = TestHelper.parseExpr(input);
     assertThrows(
         UnsupportedConstructException.class, () -> astBuilder.buildExpression(expressionContext));
   }
