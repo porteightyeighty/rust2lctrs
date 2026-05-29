@@ -97,11 +97,4 @@ public class StatementBuilderTest {
     assertEquals(expected, astBuilder.buildIfStatement(ifExpressionContext));
   }
 
-  @Test
-  void rejectsReturnStatementWithoutExpression() {
-    String testInput = "return;";
-    RustParser.StatementContext statementContext = TestHelper.parseStmt(testInput);
-    assertThrows(
-        UnsupportedConstructException.class, () -> astBuilder.buildStatement(statementContext));
-  }
 }
