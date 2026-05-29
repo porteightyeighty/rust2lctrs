@@ -4,6 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.util.List;
+import java.util.Optional;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -38,6 +41,35 @@ public class StatementBuilderTest {
     Return expected = new Return(new IntLit(0));
     Return actual = assertInstanceOf(Return.class, astBuilder.buildStatement(statementContext));
     assertEquals(expected, actual);
+  }
+
+  @Test
+  void buildsIfStatement() {
+    String testInput = "if 1 { return 10; }";
+    RustParser.IfExpressionContext ifExpressionContext = TestHelper.parseIf(testInput);
+    If expected = new If(new IntLit(1), new Block(List.of(new Return(new IntLit(10)))), Optional.empty());
+    assertEquals(expected, astBuilder.buildIfStatement(ifExpressionContext));
+  }
+
+  @Test
+  void buildsIfElseStatement() {
+    String testInput = "if 1 {return 10;} else { return 5; }";
+    RustParser.IfExpressionContext ifExpressionContext = TestHelper.parseIf(testInput);
+    Block ifBlock = new Block(List.of(new Return(new IntLit(10))));
+    Block elseBlock = new Block(List.of(new Return(new IntLit(5))));
+    If expected = new If(new IntLit(1), ifBlock, Optional.of(elseBlock));
+    assertEquals(expected, astBuilder.buildIfStatement(ifExpressionContext));
+  }
+
+  @Test
+  void buildsIfElseIfStatement() {
+    String testInput = "if 1 {return 10;} else if 2 { return 5; }";
+    RustParser.IfExpressionContext ifExpressionContext = TestHelper.parseIf(testInput);
+    Block ifBlock = new Block(List.of(new Return(new IntLit(10))));
+    Block secondIfBlock = new Block(List.of(new Return(new IntLit(5))));
+    Block elseIfBlock = new Block(List.of(new If(new IntLit(2), secondIfBlock, Optional.empty())));
+    If expected = new If(new IntLit(1), ifBlock, Optional.of(elseIfBlock));
+    assertEquals(expected, astBuilder.buildIfStatement(ifExpressionContext));
   }
 
   @Test
