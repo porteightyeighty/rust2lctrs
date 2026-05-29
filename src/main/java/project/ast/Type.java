@@ -1,10 +1,13 @@
 package project.ast;
 
 /**
- * Represents a type in the supported fragment. Currently only fixed-width integer types are
+ * Represents a type in the supported fragment. Currently only fixed-width
+ * integer types are
  * supported.
  */
-public sealed interface Type permits Type.Int {
+public sealed interface Type permits Type.Int, Type.Bool {
+
+  Type.Bool BOOL = Type.Bool.bool;
 
   /** The set of primitive integer types recognised by the builder. */
   enum Int implements Type {
@@ -18,5 +21,10 @@ public sealed interface Type permits Type.Int {
     u32,
     u64,
     u128
+  }
+
+  /** The boolean type. */
+  enum Bool implements Type {
+    bool
   }
 }

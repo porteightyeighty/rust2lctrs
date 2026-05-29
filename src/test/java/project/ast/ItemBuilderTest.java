@@ -26,7 +26,7 @@ public class ItemBuilderTest {
   void buildsBodyBlockWithTrailingOnly() {
     String testInput = "{ return 10; }";
     RustParser.BlockExpressionContext blockContext = TestHelper.parseBlock(testInput);
-    BodyBlock expected = new BodyBlock(List.of(), new Return(new IntegerLiteral(10)));
+    BodyBlock expected = new BodyBlock(List.of(), new Return(new Integer(10)));
     assertEquals(expected, astBuilder.buildBodyBlock(blockContext));
   }
 
@@ -34,8 +34,8 @@ public class ItemBuilderTest {
   void buildsBodyBlock() {
     String testInput = "{ let x: i32 = 0; return 10; }";
     RustParser.BlockExpressionContext blockContext = TestHelper.parseBlock(testInput);
-    Let letStmt = new Let(new Identifier("x"), Type.Int.i32, new IntegerLiteral(0));
-    BodyBlock expected = new BodyBlock(List.of(letStmt), new Return(new IntegerLiteral(10)));
+    Let letStmt = new Let(new Identifier("x"), Type.Int.i32, new Integer(0));
+    BodyBlock expected = new BodyBlock(List.of(letStmt), new Return(new Integer(10)));
     assertEquals(expected, astBuilder.buildBodyBlock(blockContext));
   }
 
@@ -43,11 +43,9 @@ public class ItemBuilderTest {
   void buildsFunctionDeclarationWithoutParams() {
     String testInput = "fn x() -> i32 { return 10; }";
     RustParser.ItemContext itemContext = TestHelper.parseItem(testInput);
-    BodyBlock block = new BodyBlock(List.of(), new Return(new IntegerLiteral(10)));
-    FunctionDeclaration expected =
-        new FunctionDeclaration(new Identifier("x"), List.of(), block, Type.Int.i32);
-    FunctionDeclaration actual =
-        assertInstanceOf(FunctionDeclaration.class, astBuilder.buildItem(itemContext));
+    BodyBlock block = new BodyBlock(List.of(), new Return(new Integer(10)));
+    FunctionDeclaration expected = new FunctionDeclaration(new Identifier("x"), List.of(), block, Type.Int.i32);
+    FunctionDeclaration actual = assertInstanceOf(FunctionDeclaration.class, astBuilder.buildItem(itemContext));
     assertEquals(expected, actual);
   }
 
@@ -56,11 +54,9 @@ public class ItemBuilderTest {
     String testInput = "fn y(a: i32) -> i32 { return 10; }";
     RustParser.ItemContext itemmContext = TestHelper.parseItem(testInput);
     Parameter param = new Parameter(new Identifier("a"), Type.Int.i32);
-    BodyBlock block = new BodyBlock(List.of(), new Return(new IntegerLiteral(10)));
-    FunctionDeclaration expected =
-        new FunctionDeclaration(new Identifier("y"), List.of(param), block, Type.Int.i32);
-    FunctionDeclaration actual =
-        assertInstanceOf(FunctionDeclaration.class, astBuilder.buildItem(itemmContext));
+    BodyBlock block = new BodyBlock(List.of(), new Return(new Integer(10)));
+    FunctionDeclaration expected = new FunctionDeclaration(new Identifier("y"), List.of(param), block, Type.Int.i32);
+    FunctionDeclaration actual = assertInstanceOf(FunctionDeclaration.class, astBuilder.buildItem(itemmContext));
     assertEquals(expected, actual);
   }
 
