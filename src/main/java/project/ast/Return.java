@@ -7,7 +7,7 @@ import java.util.Objects;
  *
  * @param value the expression whose value is returned
  */
-public record Return(Expr value) implements Stmt {
+public record Return(Expression value) implements Statement {
   public Return {
     Objects.requireNonNull(value);
   }

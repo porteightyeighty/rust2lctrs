@@ -22,7 +22,7 @@ public class CrateBuilderTest {
   void buildsCrateWithSingleFunction() {
     String testInput = "fn x() -> i32 { return 0; }";
     RustParser.CrateContext crateContext = TestHelper.parseCrate(testInput);
-    BodyBlock block = new BodyBlock(List.of(), new Return(new IntLit(0)));
+    BodyBlock block = new BodyBlock(List.of(), new Return(new IntegerLiteral(0)));
 
     Crate expected =
         new Crate(

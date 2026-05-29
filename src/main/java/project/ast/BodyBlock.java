@@ -11,7 +11,7 @@ import java.util.Objects;
  * @param leading the statements preceding the trailing return (may be empty)
  * @param returnStatement the block's trailing {@code return} statement
  */
-public record BodyBlock(List<Stmt> leading, Return returnStatement) implements Node {
+public record BodyBlock(List<Statement> leading, Return returnStatement) implements Node {
   public BodyBlock {
     Objects.requireNonNull(leading);
     Objects.requireNonNull(returnStatement);
