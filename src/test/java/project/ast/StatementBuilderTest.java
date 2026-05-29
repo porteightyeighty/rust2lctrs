@@ -29,8 +29,8 @@ public class StatementBuilderTest {
   void buildsIntegerLetStatements(String type) {
     String testInput = String.format("let i: %s = 0;", type);
     RustParser.StatementContext statementContext = TestHelper.parseStmt(testInput);
-    LetStmt expected = new LetStmt(new Identifier("i"), Type.Int.valueOf(type), new IntLit(0));
-    LetStmt actual = assertInstanceOf(LetStmt.class, astBuilder.buildStatement(statementContext));
+    Let expected = new Let(new Identifier("i"), Type.Int.valueOf(type), new IntegerLiteral(0));
+    Let actual = assertInstanceOf(Let.class, astBuilder.buildStatement(statementContext));
     assertEquals(expected, actual);
   }
 
@@ -38,7 +38,7 @@ public class StatementBuilderTest {
   void buildsReturnStatement() {
     String testInput = "return 0;";
     RustParser.StatementContext statementContext = TestHelper.parseStmt(testInput);
-    Return expected = new Return(new IntLit(0));
+    Return expected = new Return(new IntegerLiteral(0));
     Return actual = assertInstanceOf(Return.class, astBuilder.buildStatement(statementContext));
     assertEquals(expected, actual);
   }
@@ -47,7 +47,7 @@ public class StatementBuilderTest {
   void buildsIfStatement() {
     String testInput = "if 1 { return 10; }";
     RustParser.IfExpressionContext ifExpressionContext = TestHelper.parseIf(testInput);
-    If expected = new If(new IntLit(1), new Block(List.of(new Return(new IntLit(10)))), Optional.empty());
+    If expected = new If(new IntegerLiteral(1), new Block(List.of(new Return(new IntegerLiteral(10)))), Optional.empty());
     assertEquals(expected, astBuilder.buildIfStatement(ifExpressionContext));
   }
 
@@ -55,9 +55,9 @@ public class StatementBuilderTest {
   void buildsIfElseStatement() {
     String testInput = "if 1 {return 10;} else { return 5; }";
     RustParser.IfExpressionContext ifExpressionContext = TestHelper.parseIf(testInput);
-    Block ifBlock = new Block(List.of(new Return(new IntLit(10))));
-    Block elseBlock = new Block(List.of(new Return(new IntLit(5))));
-    If expected = new If(new IntLit(1), ifBlock, Optional.of(elseBlock));
+    Block ifBlock = new Block(List.of(new Return(new IntegerLiteral(10))));
+    Block elseBlock = new Block(List.of(new Return(new IntegerLiteral(5))));
+    If expected = new If(new IntegerLiteral(1), ifBlock, Optional.of(elseBlock));
     assertEquals(expected, astBuilder.buildIfStatement(ifExpressionContext));
   }
 
@@ -65,10 +65,10 @@ public class StatementBuilderTest {
   void buildsIfElseIfStatement() {
     String testInput = "if 1 {return 10;} else if 2 { return 5; }";
     RustParser.IfExpressionContext ifExpressionContext = TestHelper.parseIf(testInput);
-    Block ifBlock = new Block(List.of(new Return(new IntLit(10))));
-    Block secondIfBlock = new Block(List.of(new Return(new IntLit(5))));
-    Block elseIfBlock = new Block(List.of(new If(new IntLit(2), secondIfBlock, Optional.empty())));
-    If expected = new If(new IntLit(1), ifBlock, Optional.of(elseIfBlock));
+    Block ifBlock = new Block(List.of(new Return(new IntegerLiteral(10))));
+    Block secondIfBlock = new Block(List.of(new Return(new IntegerLiteral(5))));
+    Block elseIfBlock = new Block(List.of(new If(new IntegerLiteral(2), secondIfBlock, Optional.empty())));
+    If expected = new If(new IntegerLiteral(1), ifBlock, Optional.of(elseIfBlock));
     assertEquals(expected, astBuilder.buildIfStatement(ifExpressionContext));
   }
 

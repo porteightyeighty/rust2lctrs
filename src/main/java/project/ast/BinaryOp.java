@@ -9,8 +9,8 @@ import java.util.Objects;
  * @param left the left-hand operand
  * @param right the right-hand operand
  */
-public record BinOp(Op operator, Expr left, Expr right) implements Expr {
-  public BinOp {
+public record BinaryOp(Op operator, Expression left, Expression right) implements Expression {
+  public BinaryOp {
     Objects.requireNonNull(operator);
     Objects.requireNonNull(left);
     Objects.requireNonNull(right);

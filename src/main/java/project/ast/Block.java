@@ -8,7 +8,7 @@ import java.util.Objects;
  *
  * @param leading the statements preceding the trailing return (may be empty)
  */
-public record Block(List<Stmt> statements) implements Node {
+public record Block(List<Statement> statements) implements Node {
   public Block {
     Objects.requireNonNull(statements);
     statements = List.copyOf(statements);
