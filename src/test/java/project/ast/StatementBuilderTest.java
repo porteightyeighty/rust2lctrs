@@ -225,12 +225,29 @@ public class StatementBuilderTest {
     assertEquals(expected, statementBuilder.buildBodyBlock(blockContext));
   }
 
+  @Test
+  void normalisesTrailingExpressionToImplicitReturn() {
+    String testInput = "{ let x: i32 = 0; x }";
+    BlockExpressionContext blockContext = TestHelper.parseBlock(testInput);
+    Let letStmt = new Let(new Identifier("x"), Type.Int.i32, new Integer(0));
+    BodyBlock expected =
+        new BodyBlock(List.of(letStmt), new Return(new Variable(new Identifier("x"))));
+    assertEquals(expected, statementBuilder.buildBodyBlock(blockContext));
+  }
+
+  @Test
+  void implicitAndExplicitReturnsAreEquivalent() {
+    BodyBlock implicit = statementBuilder.buildBodyBlock(TestHelper.parseBlock("{ 10 }"));
+    BodyBlock explicit = statementBuilder.buildBodyBlock(TestHelper.parseBlock("{ return 10; }"));
+    assertEquals(explicit, implicit);
+  }
+
   @ParameterizedTest
   @ValueSource(
       strings = {
         "{}", // empty block
         "{ let x: i32 = 0; }", // missing return
-        "{ let x: i32 = 0; x }" // expression return
+        "{ if true { return 1; } else { return 2; } }" // trailing block expression
       })
   void rejectsUnsupportedBodyBlockForms(String input) {
     BlockExpressionContext blockExpressionContext = TestHelper.parseBlock(input);
