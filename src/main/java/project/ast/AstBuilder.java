@@ -63,12 +63,18 @@ public final class AstBuilder {
   }
 
   /**
-   * Builds the root {@link Crate} from a crate parse-tree context.
+   * Builds the root {@link Crate} from a crate parse-tree context. Only a single top-level function
+   * is supported.
    *
    * @param ctx the top-level crate context produced by the parser
    * @return the corresponding {@link Crate} node
+   * @throws UnsupportedConstructException if the crate contains more than one item
    */
   public Crate buildCrate(CrateContext ctx) {
+    if (ctx.item().size() > 1) {
+      throw new UnsupportedConstructException(
+          ctx, "Only a single top-level function is supported");
+    }
     List<Item> items = new ArrayList<>();
     for (var itemCtx : ctx.item()) {
       items.add(buildItem(itemCtx));
