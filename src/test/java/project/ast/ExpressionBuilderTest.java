@@ -13,12 +13,12 @@ import project.parser.RustParser.ExpressionContext;
 public class ExpressionBuilderTest {
 
   private SpanTable spans;
-  private AstBuilder astBuilder;
+  private ExpressionBuilder expressionBuilder;
 
   @BeforeEach
   void setUp() {
     spans = new SpanTable();
-    astBuilder = new AstBuilder(spans);
+    expressionBuilder = new ExpressionBuilder(new SpanRecorder(spans));
   }
 
   @Test
@@ -26,7 +26,7 @@ public class ExpressionBuilderTest {
     String testInput = "10";
     ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
     Integer expected = new Integer(10);
-    Integer actual = assertInstanceOf(Integer.class, astBuilder.buildExpression(expressionContext));
+    Integer actual = assertInstanceOf(Integer.class, expressionBuilder.buildExpression(expressionContext));
     assertEquals(expected, actual);
   }
 
@@ -35,7 +35,7 @@ public class ExpressionBuilderTest {
     String testInput = "true";
     ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
     Boolean expected = new Boolean(true);
-    Boolean actual = assertInstanceOf(Boolean.class, astBuilder.buildExpression(expressionContext));
+    Boolean actual = assertInstanceOf(Boolean.class, expressionBuilder.buildExpression(expressionContext));
     assertEquals(expected, actual);
   }
 
@@ -44,7 +44,7 @@ public class ExpressionBuilderTest {
     String testInput = "1.0";
     ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
     assertThrows(
-        UnsupportedConstructException.class, () -> astBuilder.buildExpression(expressionContext));
+        UnsupportedConstructException.class, () -> expressionBuilder.buildExpression(expressionContext));
   }
 
   @Test
@@ -53,7 +53,7 @@ public class ExpressionBuilderTest {
     ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
     BinaryOp expected = new BinaryOp(BinaryOp.Op.ADD, new Integer(1), new Integer(2));
     BinaryOp actual =
-        assertInstanceOf(BinaryOp.class, astBuilder.buildExpression(expressionContext));
+        assertInstanceOf(BinaryOp.class, expressionBuilder.buildExpression(expressionContext));
     assertEquals(expected, actual);
   }
 
@@ -63,7 +63,7 @@ public class ExpressionBuilderTest {
     ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
     BinaryOp expected = new BinaryOp(BinaryOp.Op.EQ, new Integer(1), new Integer(2));
     BinaryOp actual =
-        assertInstanceOf(BinaryOp.class, astBuilder.buildExpression(expressionContext));
+        assertInstanceOf(BinaryOp.class, expressionBuilder.buildExpression(expressionContext));
     assertEquals(expected, actual);
   }
 
@@ -72,7 +72,7 @@ public class ExpressionBuilderTest {
     String testInput = "1 | 2";
     ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
     assertThrows(
-        UnsupportedConstructException.class, () -> astBuilder.buildExpression(expressionContext));
+        UnsupportedConstructException.class, () -> expressionBuilder.buildExpression(expressionContext));
   }
 
   @Test
@@ -81,7 +81,7 @@ public class ExpressionBuilderTest {
     ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
     Variable expected = new Variable(new Identifier("x"));
     Variable actual =
-        assertInstanceOf(Variable.class, astBuilder.buildExpression(expressionContext));
+        assertInstanceOf(Variable.class, expressionBuilder.buildExpression(expressionContext));
     assertEquals(expected, actual);
   }
 
@@ -95,6 +95,6 @@ public class ExpressionBuilderTest {
   void rejectsNonSimplePathExpressions(String input) {
     ExpressionContext expressionContext = TestHelper.parseExpr(input);
     assertThrows(
-        UnsupportedConstructException.class, () -> astBuilder.buildExpression(expressionContext));
+        UnsupportedConstructException.class, () -> expressionBuilder.buildExpression(expressionContext));
   }
 }
