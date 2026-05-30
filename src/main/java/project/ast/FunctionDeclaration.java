@@ -19,5 +19,6 @@ public final record FunctionDeclaration(
     Objects.requireNonNull(parameters);
     Objects.requireNonNull(block);
     Objects.requireNonNull(returnType);
+    parameters = List.copyOf(parameters);
   }
 }
