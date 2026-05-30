@@ -1,6 +1,7 @@
 package project.ast;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,22 +33,10 @@ public class CrateBuilderTest {
   }
 
   @Test
-  void buildsCrateWithMultipleFunctions() {
+  void rejectsCrateWithMultipleFunctions() {
     String testInput = "fn f() -> i32 { return 0; } fn g(a: i32) -> i32 { return 1; }";
     CrateContext crateContext = TestHelper.parseCrate(testInput);
-    BodyBlock firstBlock = new BodyBlock(List.of(), new Return(new Integer(0)));
-    BodyBlock secondBlock = new BodyBlock(List.of(), new Return(new Integer(1)));
-
-    Crate expected =
-        new Crate(
-            List.of(
-                new FunctionDeclaration(new Identifier("f"), List.of(), firstBlock, Type.Int.i32),
-                new FunctionDeclaration(
-                    new Identifier("g"),
-                    List.of(new Parameter(new Identifier("a"), Type.Int.i32)),
-                    secondBlock,
-                    Type.Int.i32)));
-    Crate actual = astBuilder.buildCrate(crateContext);
-    assertEquals(expected, actual);
+    assertThrows(
+        UnsupportedConstructException.class, () -> astBuilder.buildCrate(crateContext));
   }
 }
