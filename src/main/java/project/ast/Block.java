@@ -6,7 +6,7 @@ import java.util.Objects;
 /**
  * A scoped block: a sequence of statements.
  *
- * @param statements the statements preceding the trailing return (may be empty)
+ * @param statements the statements within the block (may be empty)
  */
 public record Block(List<Statement> statements) implements Node {
   public Block {
