@@ -12,5 +12,6 @@ import java.util.Objects;
 public record Crate(List<Item> items) implements Node {
   public Crate {
     Objects.requireNonNull(items);
+    items = List.copyOf(items);
   }
 }
