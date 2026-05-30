@@ -162,16 +162,20 @@ public final class AstBuilder {
   }
 
   /**
-   * Builds a {@link Statement} from a statement parse-tree context. Only {@code let} and {@code
-   * return} statements are supported.
+   * Builds a {@link Statement} from a statement parse-tree context. Supported statement forms are
+   * {@code let} bindings, assignments, {@code return}, {@code break}, {@code continue}, and {@code
+   * if}/{@code while}/{@code loop} statements.
    *
    * @param ctx the statement context
    * @return the corresponding {@link Statement} node
-   * @throws UnsupportedConstructException if the statement is not a {@code let} or {@code return}
+   * @throws UnsupportedConstructException if the statement is not one of the supported forms
    */
   public Statement buildStatement(StatementContext ctx) {
     if (ctx.SEMI() != null || ctx.item() != null || ctx.macroInvocationSemi() != null) {
-      throw new UnsupportedConstructException(ctx, "Only let and return statements are supported");
+      throw new UnsupportedConstructException(
+          ctx,
+          "Only let bindings, assignments, return, break, continue, and if/while/loop statements"
+              + " are supported");
     }
     ExpressionStatementContext expressionStatementCtx = ctx.expressionStatement();
     if (expressionStatementCtx != null) {
@@ -187,11 +191,14 @@ public final class AstBuilder {
         case ReturnExpressionContext c -> buildReturnStatement(c);
         case BreakExpressionContext c -> buildBreakStatement(c);
         case ContinueExpressionContext c -> buildContinueStatement(c);
+        case AssignmentExpressionContext c -> buildAssignment(c);
         case ExpressionWithBlock_Context c ->
             extractBlockExpressionStatement(c.expressionWithBlock());
         default ->
             throw new UnsupportedConstructException(
-                ctx, "Only let and return statements are supported");
+                ctx,
+                "Only let bindings, assignments, return, break, continue, and if/while/loop"
+                    + " statements are supported");
       };
     }
     return buildLetStatement(ctx.letStatement());

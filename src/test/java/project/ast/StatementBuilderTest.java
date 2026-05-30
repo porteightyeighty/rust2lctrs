@@ -52,6 +52,16 @@ public class StatementBuilderTest {
     assertEquals(expected, actual);
   }
 
+  @Test
+  void buildsAssignmentStatement() {
+    String testInput = "x = 5;";
+    StatementContext statementContext = TestHelper.parseStmt(testInput);
+    Assignment expected = new Assignment(new Identifier("x"), new Integer(5));
+    Assignment actual =
+        assertInstanceOf(Assignment.class, astBuilder.buildStatement(statementContext));
+    assertEquals(expected, actual);
+  }
+
   @ParameterizedTest
   @ValueSource(
       strings = {
