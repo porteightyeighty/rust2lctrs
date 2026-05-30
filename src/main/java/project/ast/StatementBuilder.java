@@ -43,15 +43,29 @@ final class StatementBuilder {
   }
 
   /**
-   * Builds a {@link BodyBlock} from a block-expression parse-tree context. The block must end with
-   * an explicit {@link Return} statement; trailing expressions are rejected.
+   * Builds a {@link BodyBlock} from a block-expression parse-tree context. The block must yield a
+   * value either through an explicit trailing {@link Return} statement or through an idiomatic
+   * trailing expression (e.g. {@code a}), which is normalised into a synthesised {@link Return} so
+   * that the resulting {@code BodyBlock} always carries a guaranteed trailing return. Trailing
+   * <em>block</em> expressions ({@code if}/{@code loop}/{@code while} used as a value) are
+   * rejected. Unlike {@link #buildBlock}, this is the one place a trailing value expression is
+   * accepted, since only the function body produces the program's result.
    *
    * @param ctx the block expression context
    * @return the corresponding {@link BodyBlock} node
-   * @throws UnsupportedConstructException if the block has a trailing expression or does not end
-   *     with a {@code return} statement
+   * @throws UnsupportedConstructException if the block has a trailing block expression, or has no
+   *     trailing expression and does not end with a {@code return} statement
    */
   BodyBlock buildBodyBlock(BlockExpressionContext ctx) {
+    StatementsContext statementsCtx = ctx.statements();
+    ExpressionContext tailExpr = statementsCtx == null ? null : statementsCtx.expression();
+    if (tailExpr != null) {
+      List<Statement> leading = new ArrayList<>();
+      for (StatementContext statementCtx : statementsCtx.statement()) {
+        leading.add(buildStatement(statementCtx));
+      }
+      return spans.track(new BodyBlock(leading, buildImplicitReturn(tailExpr)), ctx);
+    }
     List<Statement> built = extractStatementsFromBlock(ctx);
     if (built.isEmpty() || !(built.getLast() instanceof Return tail)) {
       throw new UnsupportedConstructException(ctx, "Block must end with a return statement");
@@ -177,6 +191,25 @@ final class StatementBuilder {
       throw new UnsupportedConstructException(ctx, "Return statement must have an expression");
     }
     return spans.track(new Return(expressions.buildExpression(ctx.expression())), ctx);
+  }
+
+  /**
+   * Builds a synthesised {@link Return} from a block's trailing value expression, normalising the
+   * idiomatic implicit-return form ({@code a}) into the explicit form ({@code return a}). The
+   * synthesised node's span is recorded against the expression itself, since there is no {@code
+   * return} keyword in the source. Trailing block expressions are rejected: their value cannot flow
+   * out of the supported {@code if}/{@code loop}/{@code while} statement forms.
+   *
+   * @param ctx the trailing expression context
+   * @return the corresponding synthesised {@link Return} node
+   * @throws UnsupportedConstructException if the trailing expression is a block expression
+   */
+  private Return buildImplicitReturn(ExpressionContext ctx) {
+    if (ctx instanceof ExpressionWithBlock_Context) {
+      throw new UnsupportedConstructException(
+          ctx, "Trailing block expressions are not supported; use an explicit return statement");
+    }
+    return spans.track(new Return(expressions.buildExpression(ctx)), ctx);
   }
 
   /**
