@@ -3,7 +3,7 @@ package project.ast;
 import project.parser.RustParser.Type_Context;
 
 /**
- * Reads {@link Type} sorts from type parse-tree contexts. Shared by the item and statement
+ * Reads {@link Type}s from type parse-tree contexts. Shared by the item and statement
  * builders, since types appear on function signatures, parameters, and {@code let} bindings alike.
  */
 final class TypeReader {
@@ -11,7 +11,7 @@ final class TypeReader {
   private TypeReader() {}
 
   /**
-   * Reads a {@link Type} from a type context. Only the primitive integer sorts and {@code bool} are
+   * Reads a {@link Type} from a type context. Only the primitive integer types and {@code bool} are
    * supported.
    *
    * @param ctx the type context
