@@ -9,35 +9,17 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import project.parser.RustParser.BlockExpressionContext;
 import project.parser.RustParser.ItemContext;
 
 public class ItemBuilderTest {
 
   private SpanTable spans;
-  private AstBuilder astBuilder;
+  private ItemBuilder itemBuilder;
 
   @BeforeEach
   void setUp() {
     spans = new SpanTable();
-    astBuilder = new AstBuilder(spans);
-  }
-
-  @Test
-  void buildsBodyBlockWithTrailingOnly() {
-    String testInput = "{ return 10; }";
-    BlockExpressionContext blockContext = TestHelper.parseBlock(testInput);
-    BodyBlock expected = new BodyBlock(List.of(), new Return(new Integer(10)));
-    assertEquals(expected, astBuilder.buildBodyBlock(blockContext));
-  }
-
-  @Test
-  void buildsBodyBlock() {
-    String testInput = "{ let x: i32 = 0; return 10; }";
-    BlockExpressionContext blockContext = TestHelper.parseBlock(testInput);
-    Let letStmt = new Let(new Identifier("x"), Type.Int.i32, new Integer(0));
-    BodyBlock expected = new BodyBlock(List.of(letStmt), new Return(new Integer(10)));
-    assertEquals(expected, astBuilder.buildBodyBlock(blockContext));
+    itemBuilder = new ItemBuilder(new SpanRecorder(spans));
   }
 
   @Test
@@ -48,7 +30,7 @@ public class ItemBuilderTest {
     FunctionDeclaration expected =
         new FunctionDeclaration(new Identifier("x"), List.of(), block, Type.Int.i32);
     FunctionDeclaration actual =
-        assertInstanceOf(FunctionDeclaration.class, astBuilder.buildItem(itemContext));
+        assertInstanceOf(FunctionDeclaration.class, itemBuilder.buildItem(itemContext));
     assertEquals(expected, actual);
   }
 
@@ -61,7 +43,7 @@ public class ItemBuilderTest {
     FunctionDeclaration expected =
         new FunctionDeclaration(new Identifier("y"), List.of(param), block, Type.Int.i32);
     FunctionDeclaration actual =
-        assertInstanceOf(FunctionDeclaration.class, astBuilder.buildItem(itemmContext));
+        assertInstanceOf(FunctionDeclaration.class, itemBuilder.buildItem(itemmContext));
     assertEquals(expected, actual);
   }
 
@@ -80,7 +62,7 @@ public class ItemBuilderTest {
       })
   void rejectsUnsupportedFunctionForms(String input) {
     ItemContext ctx = TestHelper.parseItem(input);
-    assertThrows(UnsupportedConstructException.class, () -> astBuilder.buildItem(ctx));
+    assertThrows(UnsupportedConstructException.class, () -> itemBuilder.buildItem(ctx));
   }
 
   @Test
@@ -93,7 +75,7 @@ public class ItemBuilderTest {
     FunctionDeclaration expected =
         new FunctionDeclaration(new Identifier("z"), List.of(first, second), block, Type.Int.i32);
     FunctionDeclaration actual =
-        assertInstanceOf(FunctionDeclaration.class, astBuilder.buildItem(itemContext));
+        assertInstanceOf(FunctionDeclaration.class, itemBuilder.buildItem(itemContext));
     assertEquals(expected, actual);
   }
 
@@ -112,20 +94,6 @@ public class ItemBuilderTest {
       })
   void rejectsNonFunctionItems(String input) {
     ItemContext ctx = TestHelper.parseItem(input);
-    assertThrows(UnsupportedConstructException.class, () -> astBuilder.buildItem(ctx));
-  }
-
-  @ParameterizedTest
-  @ValueSource(
-      strings = {
-        "{}", // empty block
-        "{ let x: i32 = 0; }", // missing return
-        "{ let x: i32 = 0; x }" // expression return
-      })
-  void rejectsUnsupportedBodyBlockForms(String input) {
-    BlockExpressionContext blockExpressionContext = TestHelper.parseBlock(input);
-    assertThrows(
-        UnsupportedConstructException.class,
-        () -> astBuilder.buildBodyBlock(blockExpressionContext));
+    assertThrows(UnsupportedConstructException.class, () -> itemBuilder.buildItem(ctx));
   }
 }

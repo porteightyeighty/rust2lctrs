@@ -12,12 +12,12 @@ import project.parser.RustParser.AssignmentExpressionContext;
 public class AssignmentBuilderTest {
 
   private SpanTable spans;
-  private AstBuilder astBuilder;
+  private StatementBuilder statementBuilder;
 
   @BeforeEach
   void setUp() {
     spans = new SpanTable();
-    astBuilder = new AstBuilder(spans);
+    statementBuilder = new StatementBuilder(new SpanRecorder(spans));
   }
 
   @Test
@@ -25,7 +25,7 @@ public class AssignmentBuilderTest {
     String testInput = "x = 5";
     AssignmentExpressionContext ctx = (AssignmentExpressionContext) TestHelper.parseExpr(testInput);
     Assignment expected = new Assignment(new Identifier("x"), new Integer(5));
-    assertEquals(expected, astBuilder.buildAssignment(ctx));
+    assertEquals(expected, statementBuilder.buildAssignment(ctx));
   }
 
   @Test
@@ -36,7 +36,7 @@ public class AssignmentBuilderTest {
         new Assignment(
             new Identifier("x"),
             new BinaryOp(BinaryOp.Op.ADD, new Variable(new Identifier("y")), new Integer(1)));
-    assertEquals(expected, astBuilder.buildAssignment(ctx));
+    assertEquals(expected, statementBuilder.buildAssignment(ctx));
   }
 
   @ParameterizedTest
@@ -48,6 +48,6 @@ public class AssignmentBuilderTest {
       })
   void rejectsNonVariableAssignmentTargets(String input) {
     AssignmentExpressionContext ctx = (AssignmentExpressionContext) TestHelper.parseExpr(input);
-    assertThrows(UnsupportedConstructException.class, () -> astBuilder.buildAssignment(ctx));
+    assertThrows(UnsupportedConstructException.class, () -> statementBuilder.buildAssignment(ctx));
   }
 }
