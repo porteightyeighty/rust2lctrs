@@ -21,7 +21,7 @@ final class TypeReader {
   static Type read(Type_Context ctx) {
     String typeText = ctx.getText();
     return switch (typeText) {
-      case "i8", "i16", "i32", "i64", "i128", "isize", "u8", "u16", "u32", "u64", "u128" ->
+      case "i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128" ->
           Type.Int.valueOf(typeText);
       case "bool" -> Type.BOOL;
       default -> throw new UnsupportedConstructException(ctx, "Unsupported type: " + typeText);

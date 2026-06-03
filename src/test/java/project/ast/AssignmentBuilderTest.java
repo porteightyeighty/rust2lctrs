@@ -3,6 +3,7 @@ package project.ast;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.math.BigInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -24,7 +25,8 @@ public class AssignmentBuilderTest {
   void buildsAssignmentToLiteral() {
     String testInput = "x = 5";
     AssignmentExpressionContext ctx = (AssignmentExpressionContext) TestHelper.parseExpr(testInput);
-    Assignment expected = new Assignment(new Identifier("x"), new Integer(5));
+    Assignment expected =
+        new Assignment(new Identifier("x"), new IntegerLiteral(BigInteger.valueOf(5)));
     assertEquals(expected, statementBuilder.buildAssignment(ctx));
   }
 
@@ -35,7 +37,10 @@ public class AssignmentBuilderTest {
     Assignment expected =
         new Assignment(
             new Identifier("x"),
-            new BinaryOp(BinaryOp.Op.ADD, new Variable(new Identifier("y")), new Integer(1)));
+            new BinaryOp(
+                BinaryOp.Op.ADD,
+                new Variable(new Identifier("y")),
+                new IntegerLiteral(BigInteger.valueOf(1))));
     assertEquals(expected, statementBuilder.buildAssignment(ctx));
   }
 

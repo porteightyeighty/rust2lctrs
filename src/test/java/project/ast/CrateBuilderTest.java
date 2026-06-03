@@ -3,6 +3,7 @@ package project.ast;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.math.BigInteger;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,7 +24,8 @@ public class CrateBuilderTest {
   void buildsCrateWithSingleFunction() {
     String testInput = "fn x() -> i32 { return 0; }";
     CrateContext crateContext = TestHelper.parseCrate(testInput);
-    BodyBlock block = new BodyBlock(List.of(), new Return(new Integer(0)));
+    BodyBlock block =
+        new BodyBlock(List.of(), new Return(new IntegerLiteral(BigInteger.valueOf(0))));
 
     Crate expected =
         new Crate(
@@ -36,7 +38,6 @@ public class CrateBuilderTest {
   void rejectsCrateWithMultipleFunctions() {
     String testInput = "fn f() -> i32 { return 0; } fn g(a: i32) -> i32 { return 1; }";
     CrateContext crateContext = TestHelper.parseCrate(testInput);
-    assertThrows(
-        UnsupportedConstructException.class, () -> astBuilder.buildCrate(crateContext));
+    assertThrows(UnsupportedConstructException.class, () -> astBuilder.buildCrate(crateContext));
   }
 }
