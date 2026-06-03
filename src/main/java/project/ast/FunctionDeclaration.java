@@ -11,7 +11,7 @@ import java.util.Objects;
  * @param block the function body
  * @param returnType the declared return type (always required in the supported fragment)
  */
-public final record FunctionDeclaration(
+public record FunctionDeclaration(
     Identifier identifier, List<Parameter> parameters, BodyBlock block, Type returnType)
     implements Item {
   public FunctionDeclaration {

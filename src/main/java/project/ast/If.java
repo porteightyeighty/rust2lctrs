@@ -10,7 +10,8 @@ import java.util.Optional;
  * @param thenBlock the block executed when the condition holds
  * @param elseBlock the block executed otherwise, empty when no {@code else} is present
  */
-public record If(Expression condition, Block thenBlock, Optional<Block> elseBlock) implements Statement {
+public record If(Expression condition, Block thenBlock, Optional<Block> elseBlock)
+    implements Statement {
   public If {
     Objects.requireNonNull(condition);
     Objects.requireNonNull(thenBlock);
