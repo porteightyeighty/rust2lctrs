@@ -4,9 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.math.BigInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import project.parser.RustParser.ExpressionContext;
 
@@ -25,8 +27,10 @@ public class ExpressionBuilderTest {
   void buildsIntLiteralExpression() {
     String testInput = "10";
     ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
-    Integer expected = new Integer(10);
-    Integer actual = assertInstanceOf(Integer.class, expressionBuilder.buildExpression(expressionContext));
+    IntegerLiteral expected = new IntegerLiteral(BigInteger.valueOf(10));
+    IntegerLiteral actual =
+        assertInstanceOf(
+            IntegerLiteral.class, expressionBuilder.buildExpression(expressionContext));
     assertEquals(expected, actual);
   }
 
@@ -34,9 +38,54 @@ public class ExpressionBuilderTest {
   void buildsBoolLiteralExpression() {
     String testInput = "true";
     ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
-    Boolean expected = new Boolean(true);
-    Boolean actual = assertInstanceOf(Boolean.class, expressionBuilder.buildExpression(expressionContext));
+    BooleanLiteral expected = new BooleanLiteral(true);
+    BooleanLiteral actual =
+        assertInstanceOf(
+            BooleanLiteral.class, expressionBuilder.buildExpression(expressionContext));
     assertEquals(expected, actual);
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    // decimal with underscore separators
+    "1_0,           10",
+    "1_000_000,     1000000",
+    // hexadecimal, mixed case, leading underscore
+    "0xff,          255",
+    "0xFF,          255",
+    "0xdead_beef,   3735928559",
+    "0x_ff,         255",
+    // octal
+    "0o17,          15",
+    "0o755,         493",
+    // binary, leading underscore
+    "0b1010,        10",
+    "0b_1010,       10",
+    // type suffixes are stripped, on any radix
+    "42u8,          42",
+    "100i64,        100",
+    "0xffu32,       255",
+    "1_000usize,    1000",
+    "255i128,       255",
+    "10isize,       10",
+  })
+  void buildsIntLiteralWithRadixUnderscoresAndSuffix(String input, String expectedDecimal) {
+    ExpressionContext expressionContext = TestHelper.parseExpr(input);
+    IntegerLiteral actual =
+        assertInstanceOf(
+            IntegerLiteral.class, expressionBuilder.buildExpression(expressionContext));
+    assertEquals(new BigInteger(expectedDecimal), actual.value());
+  }
+
+  @Test
+  void buildsIntLiteralBeyondLongRange() {
+    // 2^64 - 1 overflows a long; parsing must go through BigInteger.
+    String testInput = "0xffff_ffff_ffff_ffff";
+    ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
+    IntegerLiteral actual =
+        assertInstanceOf(
+            IntegerLiteral.class, expressionBuilder.buildExpression(expressionContext));
+    assertEquals(new BigInteger("18446744073709551615"), actual.value());
   }
 
   @Test
@@ -44,14 +93,19 @@ public class ExpressionBuilderTest {
     String testInput = "1.0";
     ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
     assertThrows(
-        UnsupportedConstructException.class, () -> expressionBuilder.buildExpression(expressionContext));
+        UnsupportedConstructException.class,
+        () -> expressionBuilder.buildExpression(expressionContext));
   }
 
   @Test
   void buildsArithmeticExpression() {
     String testInput = "1 + 2";
     ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
-    BinaryOp expected = new BinaryOp(BinaryOp.Op.ADD, new Integer(1), new Integer(2));
+    BinaryOp expected =
+        new BinaryOp(
+            BinaryOp.Op.ADD,
+            new IntegerLiteral(BigInteger.valueOf(1)),
+            new IntegerLiteral(BigInteger.valueOf(2)));
     BinaryOp actual =
         assertInstanceOf(BinaryOp.class, expressionBuilder.buildExpression(expressionContext));
     assertEquals(expected, actual);
@@ -61,7 +115,11 @@ public class ExpressionBuilderTest {
   void buildsComparisonExpression() {
     String testInput = "1 == 2";
     ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
-    BinaryOp expected = new BinaryOp(BinaryOp.Op.EQ, new Integer(1), new Integer(2));
+    BinaryOp expected =
+        new BinaryOp(
+            BinaryOp.Op.EQ,
+            new IntegerLiteral(BigInteger.valueOf(1)),
+            new IntegerLiteral(BigInteger.valueOf(2)));
     BinaryOp actual =
         assertInstanceOf(BinaryOp.class, expressionBuilder.buildExpression(expressionContext));
     assertEquals(expected, actual);
@@ -72,7 +130,8 @@ public class ExpressionBuilderTest {
     String testInput = "1 | 2";
     ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
     assertThrows(
-        UnsupportedConstructException.class, () -> expressionBuilder.buildExpression(expressionContext));
+        UnsupportedConstructException.class,
+        () -> expressionBuilder.buildExpression(expressionContext));
   }
 
   @Test
@@ -95,6 +154,7 @@ public class ExpressionBuilderTest {
   void rejectsNonSimplePathExpressions(String input) {
     ExpressionContext expressionContext = TestHelper.parseExpr(input);
     assertThrows(
-        UnsupportedConstructException.class, () -> expressionBuilder.buildExpression(expressionContext));
+        UnsupportedConstructException.class,
+        () -> expressionBuilder.buildExpression(expressionContext));
   }
 }

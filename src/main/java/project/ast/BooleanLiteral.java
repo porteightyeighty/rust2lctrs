@@ -5,5 +5,4 @@ package project.ast;
  *
  * @param value the literal value
  */
-public record Boolean(boolean value) implements Literal {
-}
+public record BooleanLiteral(boolean value) implements Literal {}

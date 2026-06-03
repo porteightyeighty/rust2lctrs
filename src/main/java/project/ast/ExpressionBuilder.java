@@ -1,6 +1,8 @@
 package project.ast;
 
+import java.math.BigInteger;
 import java.util.Objects;
+import org.antlr.v4.runtime.tree.TerminalNode;
 import project.parser.RustParser.ArithmeticOrLogicalExpressionContext;
 import project.parser.RustParser.ComparisonExpressionContext;
 import project.parser.RustParser.ComparisonOperatorContext;
@@ -13,9 +15,9 @@ import project.parser.RustParser.PathExpression_Context;
 import project.parser.RustParser.PathInExpressionContext;
 
 /**
- * Builds {@link Expression} nodes from expression parse-tree contexts. Expressions are leaves of the
- * supported fragment: none of them contain blocks or statements, so this builder never calls back
- * into the statement or item builders.
+ * Builds {@link Expression} nodes from expression parse-tree contexts. Expressions are leaves of
+ * the supported fragment: none of them contain blocks or statements, so this builder never calls
+ * back into the statement or item builders.
  */
 final class ExpressionBuilder {
 
@@ -57,14 +59,28 @@ final class ExpressionBuilder {
    */
   Literal buildLiteral(LiteralExpression_Context ctx) {
     LiteralExpressionContext litExprCtx = ctx.literalExpression();
-    if (litExprCtx.INTEGER_LITERAL() != null) {
-      return spans.track(new Integer(Long.parseLong(litExprCtx.INTEGER_LITERAL().getText())), ctx);
+    TerminalNode intLitNode = litExprCtx.INTEGER_LITERAL();
+    if (intLitNode != null) {
+      String intLitText = intLitNode.getText();
+      String s = intLitText.replaceFirst("(?:[iu](?:8|16|32|64|128|size))$", "").replace("_", "");
+      int radix = 10;
+      if (s.startsWith("0x")) {
+        radix = 16;
+        s = s.substring(2);
+      } else if (s.startsWith("0o")) {
+        radix = 8;
+        s = s.substring(2);
+      } else if (s.startsWith("0b")) {
+        radix = 2;
+        s = s.substring(2);
+      }
+      return spans.track(new IntegerLiteral(new BigInteger(s, radix)), ctx);
     }
     if (litExprCtx.KW_TRUE() != null) {
-      return spans.track(new Boolean(true), ctx);
+      return spans.track(new BooleanLiteral(true), ctx);
     }
     if (litExprCtx.KW_FALSE() != null) {
-      return spans.track(new Boolean(false), ctx);
+      return spans.track(new BooleanLiteral(false), ctx);
     }
     throw new UnsupportedConstructException(
         ctx, "Unsupported literal, only integer and boolean literals are supported");
@@ -84,8 +100,8 @@ final class ExpressionBuilder {
 
   /**
    * Extracts a simple variable name from a path expression context. Only single-segment paths with
-   * no generic arguments are supported (i.e. a plain identifier). Exposed for the statement builder,
-   * which reuses it to read an assignment target.
+   * no generic arguments are supported (i.e. a plain identifier). Exposed for the statement
+   * builder, which reuses it to read an assignment target.
    *
    * @param ctx the path expression context
    * @return the {@link Identifier} named by the path
