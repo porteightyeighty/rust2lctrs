@@ -12,9 +12,9 @@ import java.util.List;
  */
 public enum TheorySymbol implements Symbol {
   // Integer arithmetic
-  PLUS("+", List.of(Sort.INT, Sort.INT), Sort.INT),
-  MINUS("-", List.of(Sort.INT, Sort.INT), Sort.INT),
-  TIMES("*", List.of(Sort.INT, Sort.INT), Sort.INT),
+  ADD("+", List.of(Sort.INT, Sort.INT), Sort.INT),
+  SUB("-", List.of(Sort.INT, Sort.INT), Sort.INT),
+  MUL("*", List.of(Sort.INT, Sort.INT), Sort.INT),
   // TODO: Cora's / and % follow SMT-LIB (floor/Euclidean) semantics, which differ from Rust's
   // truncating / and sign-of-dividend % for negative operands.
   DIV("/", List.of(Sort.INT, Sort.INT), Sort.INT),

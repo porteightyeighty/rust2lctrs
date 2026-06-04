@@ -51,7 +51,7 @@ public final class FnAppTest {
   void acceptsTheorySymbolApplication() {
     FnApp app =
         new FnApp(
-            TheorySymbol.PLUS, List.of(new IntValue(BigInteger.ONE), new IntValue(BigInteger.TWO)));
+            TheorySymbol.ADD, List.of(new IntValue(BigInteger.ONE), new IntValue(BigInteger.TWO)));
     assertEquals(Sort.INT, app.sort());
   }
 
@@ -60,8 +60,9 @@ public final class FnAppTest {
     // The arg's own sort() drives the check, so a composite (non-Value) term must slot in by sort.
     FnApp inner =
         new FnApp(
-            TheorySymbol.PLUS, List.of(new IntValue(BigInteger.ONE), new IntValue(BigInteger.TWO)));
-    assertDoesNotThrow(() -> new FnApp(TheorySymbol.LT, List.of(inner, new IntValue(BigInteger.ZERO))));
+            TheorySymbol.ADD, List.of(new IntValue(BigInteger.ONE), new IntValue(BigInteger.TWO)));
+    assertDoesNotThrow(
+        () -> new FnApp(TheorySymbol.LT, List.of(inner, new IntValue(BigInteger.ZERO))));
     assertThrows(
         IllegalArgumentException.class,
         () -> new FnApp(TheorySymbol.AND, List.of(inner, new BoolValue(true))));
