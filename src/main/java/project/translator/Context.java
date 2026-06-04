@@ -53,4 +53,14 @@ final class Context {
     List<Sort> argSorts = scope.stream().map((v) -> v.sort()).toList();
     return new TermSymbol(notation, argSorts, returnSort);
   }
+
+  public Term resolve(String varName) {
+    for (int i = this.scope.size() - 1; i >= 0; i--) {
+      VarDecl varDecl = this.scope.get(i);
+      if (varDecl.name().equals(varName)) {
+        return varDecl;
+      }
+    }
+    throw new IllegalStateException("Unbound variable in scope: " + varName);
+  }
 }
