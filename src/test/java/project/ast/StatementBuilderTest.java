@@ -58,6 +58,15 @@ public class StatementBuilderTest {
   }
 
   @Test
+  void rejectsUninitialisedLetStatement() {
+    String testInput = "let x: i32;";
+    StatementContext statementContext = TestHelper.parseStmt(testInput);
+    assertThrows(
+        UnsupportedConstructException.class,
+        () -> statementBuilder.buildStatement(statementContext));
+  }
+
+  @Test
   void buildsAssignmentStatement() {
     String testInput = "x = 5;";
     StatementContext statementContext = TestHelper.parseStmt(testInput);
