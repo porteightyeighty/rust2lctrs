@@ -7,7 +7,9 @@ public enum Sort {
   /** The integer sort. */
   INT,
   /** The boolean sort. */
-  BOOL;
+  BOOL,
+  /** The non-theory sort. */
+  A;
 
   public static Sort of(Type type) {
     return switch (type) {
