@@ -15,4 +15,9 @@ public class Lctrs {
     this.rules.add(rule);
     return this;
   }
+
+  public Lctrs appendRules(List<Rule> rules) {
+    this.rules.addAll(rules);
+    return this;
+  }
 }
