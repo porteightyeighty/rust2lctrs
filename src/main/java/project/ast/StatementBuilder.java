@@ -174,7 +174,12 @@ final class StatementBuilder {
       throw new UnsupportedConstructException(ctx, "let bindings must have an explicit type");
     }
     Type type = TypeReader.read(ctx.type_());
-    Expression expr = expressions.buildExpression(ctx.expression());
+    ExpressionContext exprCtx = ctx.expression();
+    if (exprCtx == null) {
+      throw new UnsupportedConstructException(
+          ctx, "uninitialised let bindings are not supported; let requires an initialiser");
+    }
+    Expression expr = expressions.buildExpression(exprCtx);
     return spans.track(new Let(bindingTarget, type, expr), ctx);
   }
 
