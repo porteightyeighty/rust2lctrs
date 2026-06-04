@@ -22,11 +22,7 @@ public final class TheorySymbolTest {
   /** Binary integer arithmetic: (INT, INT) -> INT. */
   private static final Set<TheorySymbol> ARITHMETIC =
       EnumSet.of(
-          TheorySymbol.PLUS,
-          TheorySymbol.MINUS,
-          TheorySymbol.TIMES,
-          TheorySymbol.DIV,
-          TheorySymbol.MOD);
+          TheorySymbol.ADD, TheorySymbol.SUB, TheorySymbol.MUL, TheorySymbol.DIV, TheorySymbol.MOD);
 
   /** Binary integer comparisons: (INT, INT) -> BOOL. */
   private static final Set<TheorySymbol> INT_COMPARISON =
@@ -102,13 +98,13 @@ public final class TheorySymbolTest {
 
   @Test
   void argSortsIsImmutable() {
-    List<Sort> argSorts = TheorySymbol.PLUS.argSorts();
+    List<Sort> argSorts = TheorySymbol.ADD.argSorts();
     assertThrows(UnsupportedOperationException.class, () -> argSorts.add(Sort.INT));
   }
 
   @Test
   void argSortsIsStableAcrossCalls() {
-    assertSame(TheorySymbol.PLUS.argSorts(), TheorySymbol.PLUS.argSorts());
+    assertSame(TheorySymbol.ADD.argSorts(), TheorySymbol.ADD.argSorts());
   }
 
   @Test
