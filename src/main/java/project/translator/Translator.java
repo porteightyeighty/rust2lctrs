@@ -121,8 +121,15 @@ public class Translator {
   private void processBlock(Context ctx, BodyBlock block, Term incoming) {
     for (Statement statement : block.leading()) {
       incoming = processStatement(ctx, statement, incoming);
+      if (statement instanceof Return) {
+        // Control diverges here: the tail and any dead leading statements are unreachable.
+        // TODO: Break/Continue diverge too — extend this guard (or signal divergence from
+        // processStatement) in the same commit that lowers them, or dead code after a break
+        // will be processed against a stale configuration.
+        return;
+      }
     }
-    // processStatement(ctx, block.returnStatement(), incoming);
+    processStatement(ctx, block.returnStatement(), incoming);
   }
 
   /**
@@ -141,9 +148,15 @@ public class Translator {
       case Loop stmt -> throw notYetImplemented(stmt);
       case Break stmt -> throw notYetImplemented(stmt);
       case Continue stmt -> throw notYetImplemented(stmt);
-      case Return stmt -> throw notYetImplemented(stmt);
+      case Return stmt -> processReturnStatement(ctx, stmt, incoming);
       case Assignment stmt -> processAssignmentStatement(ctx, stmt, incoming);
     };
+  }
+
+  private Term processReturnStatement(Context ctx, Return ret, Term incoming) {
+    Term value = processExpression(ctx, ret.value());
+    ctx.addRule(new Rule(incoming, value, Optional.empty()));
+    return value;
   }
 
   /**
