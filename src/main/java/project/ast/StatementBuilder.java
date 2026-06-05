@@ -169,6 +169,10 @@ final class StatementBuilder {
    * @return the corresponding {@link Let} node
    */
   Let buildLetStatement(LetStatementContext ctx) {
+    // TODO: reject shadowing here. A `let` that rebinds a name already live in scope (a param or
+    // an enclosing/earlier `let`) collapses into a single LCTRS variable downstream, because the
+    // translator keys variables by name+sort. Detecting it needs scope tracking threaded through
+    // this builder (params + enclosing lets); deferred until the single-function core is complete.
     Identifier bindingTarget = BindingReader.boundIdentifier(ctx.patternNoTopAlt());
     if (ctx.type_() == null) {
       throw new UnsupportedConstructException(ctx, "let bindings must have an explicit type");
