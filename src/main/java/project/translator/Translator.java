@@ -3,18 +3,25 @@ package project.translator;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import project.ast.Assignment;
 import project.ast.BinaryOp;
 import project.ast.BodyBlock;
 import project.ast.BooleanLiteral;
+import project.ast.Break;
+import project.ast.Continue;
 import project.ast.Crate;
 import project.ast.Expression;
 import project.ast.FunctionDeclaration;
+import project.ast.If;
 import project.ast.IntegerLiteral;
 import project.ast.Item;
 import project.ast.Let;
+import project.ast.Loop;
 import project.ast.Parameter;
+import project.ast.Return;
 import project.ast.Statement;
 import project.ast.Variable;
+import project.ast.While;
 import project.lctrs.BoolValue;
 import project.lctrs.FnApp;
 import project.lctrs.IntValue;
@@ -27,14 +34,34 @@ import project.lctrs.TermSymbol;
 import project.lctrs.TheorySymbol;
 import project.lctrs.VarDecl;
 
+/**
+ * Lowers a {@link Crate} to an {@link Lctrs} by walking the AST and emitting constrained rewrite
+ * rules over program-point function symbols, following the encoding of Fuhs, Kop &amp; Nishida
+ * (2017), §3 and Appendix A.
+ *
+ * <p>Each statement is translated against an <em>incoming</em> configuration — a term rooted at the
+ * current program-point function symbol applied to the live scope — and yields the configuration
+ * that the next statement flows into. Per-function state (scope, signature, rules) lives in {@link
+ * Context}.
+ */
 public class Translator {
 
   final Crate crate;
 
+  /**
+   * Creates a translator for a single crate.
+   *
+   * @param crate the AST to translate
+   */
   public Translator(Crate crate) {
     this.crate = crate;
   }
 
+  /**
+   * Translates the whole crate into an LCTRS by lowering each top-level item in turn.
+   *
+   * @return the resulting LCTRS
+   */
   public Lctrs translate() {
     Lctrs lctrs = new Lctrs();
     for (Item item : crate.items()) {
@@ -43,11 +70,17 @@ public class Translator {
     return lctrs;
   }
 
+  /**
+   * Lowers a single top-level item to its rewrite rules.
+   *
+   * @param item the item to translate
+   * @return the rules produced for the item
+   */
   private List<Rule> processItem(Item item) {
     return switch (item) {
       case FunctionDeclaration fn -> {
-        // A function's return sort is the shared output sort of its whole program-point family,
-        // so the Context is constructed per function once that sort is known.
+        // A function's return sort is the shared output sort of its whole program-point family, so
+        // the Context is constructed per function once that sort is known.
         Context ctx = new Context(Sort.of(fn.returnType()));
         processFunctionDeclaration(ctx, fn);
         yield ctx.rules();
@@ -55,6 +88,14 @@ public class Translator {
     };
   }
 
+  /**
+   * Lowers a function: seeds the scope with its parameters, hand-rolls the entry program-point
+   * symbol (named after the function so the family starts at the actual function name), and
+   * translates the body against that initial configuration.
+   *
+   * @param ctx the per-function translation state
+   * @param functionDeclaration the function to translate
+   */
   private void processFunctionDeclaration(Context ctx, FunctionDeclaration functionDeclaration) {
     for (Parameter parameter : functionDeclaration.parameters()) {
       ctx.addToScope(VarDecl.of(parameter));
@@ -69,6 +110,14 @@ public class Translator {
     processBlock(ctx, functionDeclaration.block(), incoming);
   }
 
+  /**
+   * Lowers the statements of a block in sequence, threading each statement's outgoing configuration
+   * into the next as its incoming configuration.
+   *
+   * @param ctx the per-function translation state
+   * @param block the block to translate
+   * @param incoming the configuration flowing into the first statement
+   */
   private void processBlock(Context ctx, BodyBlock block, Term incoming) {
     for (Statement statement : block.leading()) {
       incoming = processStatement(ctx, statement, incoming);
@@ -76,13 +125,72 @@ public class Translator {
     // processStatement(ctx, block.returnStatement(), incoming);
   }
 
+  /**
+   * Dispatches a statement to its translation rule.
+   *
+   * @param ctx the per-function translation state
+   * @param statement the statement to translate
+   * @param incoming the configuration flowing into the statement
+   * @return the configuration flowing out to the next statement
+   */
   private Term processStatement(Context ctx, Statement statement, Term incoming) {
     return switch (statement) {
       case Let stmt -> processLetStatement(ctx, stmt, incoming);
-      default -> null;
+      case If stmt -> throw notYetImplemented(stmt);
+      case While stmt -> throw notYetImplemented(stmt);
+      case Loop stmt -> throw notYetImplemented(stmt);
+      case Break stmt -> throw notYetImplemented(stmt);
+      case Continue stmt -> throw notYetImplemented(stmt);
+      case Return stmt -> throw notYetImplemented(stmt);
+      case Assignment stmt -> processAssignmentStatement(ctx, stmt, incoming);
     };
   }
 
+  /**
+   * Lowers an assignment to a reassignment rule: evaluates the right-hand side, then rewrites the
+   * incoming configuration to a fresh program point whose configuration replaces the target's slot
+   * with the new value, leaving the other variables unchanged.
+   *
+   * @param ctx the per-function translation state
+   * @param assignment the assignment to translate
+   * @param incoming the configuration flowing into the assignment
+   * @return the configuration at the fresh program point, over the unchanged scope
+   */
+  private Term processAssignmentStatement(Context ctx, Assignment assignment, Term incoming) {
+    String name = assignment.target().name();
+    Term value = processExpression(ctx, assignment.value());
+
+    // Fails if variable is not in scope
+    ctx.resolve(name);
+
+    Symbol to = ctx.advance();
+    Term rhs = new FnApp(to, ctx.argsWithValue(name, value));
+    ctx.addRule(new Rule(incoming, rhs, Optional.empty()));
+
+    return new FnApp(to, ctx.argsFromScope());
+  }
+
+  /**
+   * Builds the exception thrown for in-scope statements whose translation rule is not yet written.
+   *
+   * @param stmt the statement that has no rule yet
+   * @return an exception naming the unimplemented statement kind
+   */
+  private static UnsupportedOperationException notYetImplemented(Statement stmt) {
+    return new UnsupportedOperationException(
+        "Translator: " + stmt.getClass().getSimpleName() + " not yet implemented");
+  }
+
+  /**
+   * Lowers a {@code let} binding: evaluates the bound expression over the pre-binding scope, brings
+   * the new variable into scope, and rewrites the incoming configuration to a fresh program point
+   * whose configuration extends the scope with the bound value.
+   *
+   * @param ctx the per-function translation state
+   * @param let the let binding to translate
+   * @param incoming the configuration flowing into the binding
+   * @return the configuration at the fresh program point, over the extended scope
+   */
   private Term processLetStatement(Context ctx, Let let, Term incoming) {
     List<Term> oldArgs = ctx.argsFromScope();
     Term value = processExpression(ctx, let.value());
@@ -92,20 +200,29 @@ public class Translator {
     rhsArgs.add(value);
     Term rhs = new FnApp(to, rhsArgs);
     ctx.addRule(new Rule(incoming, rhs, Optional.empty()));
-    return rhs;
+    return new FnApp(to, ctx.argsFromScope());
   }
 
+  /**
+   * Translates an expression to a theory term over the current scope. Literals become theory
+   * values, binary operations become applications of the corresponding theory symbol, and variables
+   * resolve to their declaration in scope.
+   *
+   * @param ctx the per-function translation state
+   * @param expression the expression to translate
+   * @return the term denoting the expression
+   */
   private Term processExpression(Context ctx, Expression expression) {
     return switch (expression) {
-      case IntegerLiteral l -> new IntValue(l.value());
-      case BooleanLiteral l -> new BoolValue(l.value());
-      case BinaryOp op -> {
-        Term left = processExpression(ctx, op.left());
-        Term right = processExpression(ctx, op.right());
-        Symbol theorySymbol = theorySymbolFor(op.operator(), left.sort());
+      case IntegerLiteral expr -> new IntValue(expr.value());
+      case BooleanLiteral expr -> new BoolValue(expr.value());
+      case BinaryOp expr -> {
+        Term left = processExpression(ctx, expr.left());
+        Term right = processExpression(ctx, expr.right());
+        Symbol theorySymbol = theorySymbolFor(expr.operator(), left.sort());
         yield new FnApp(theorySymbol, List.of(left, right));
       }
-      case Variable v -> ctx.resolve(v.name().name());
+      case Variable expr -> ctx.resolve(expr.name().name());
     };
   }
 
@@ -116,7 +233,7 @@ public class Translator {
    * @param operandSort the shared sort of both operands for equality operators
    * @return the corresponding theory symbol
    */
-  private static TheorySymbol theorySymbolFor(BinaryOp.Op op, Sort operandSort) {
+  static TheorySymbol theorySymbolFor(BinaryOp.Op op, Sort operandSort) {
     return switch (op) {
       case ADD -> TheorySymbol.ADD;
       case SUB -> TheorySymbol.SUB;
