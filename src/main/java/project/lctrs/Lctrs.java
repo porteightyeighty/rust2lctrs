@@ -20,4 +20,13 @@ public class Lctrs {
     this.rules.addAll(rules);
     return this;
   }
+
+  /**
+   * Returns an immutable snapshot of the rules accumulated in this LCTRS.
+   *
+   * @return the rewrite rules, in insertion order
+   */
+  public List<Rule> rules() {
+    return List.copyOf(rules);
+  }
 }
