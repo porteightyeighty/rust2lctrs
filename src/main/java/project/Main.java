@@ -7,8 +7,11 @@ import org.antlr.v4.runtime.TokenStream;
 import project.ast.AstBuilder;
 import project.ast.Crate;
 import project.ast.SpanTable;
+import project.lctrs.Lctrs;
+import project.lctrs.Serialiser;
 import project.parser.RustLexer;
 import project.parser.RustParser;
+import project.translator.Translator;
 
 public class Main {
   static void main() {
@@ -22,6 +25,8 @@ public class Main {
     SpanTable spanTable = new SpanTable();
     AstBuilder astBuilder = new AstBuilder(spanTable);
     Crate crate = astBuilder.buildCrate(crateCtx);
-    System.out.println(crate);
+    Translator translator = new Translator(crate);
+    Lctrs lctrs = translator.translate();
+    System.out.println(Serialiser.serialise(lctrs));
   }
 }

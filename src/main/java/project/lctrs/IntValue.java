@@ -17,4 +17,9 @@ public record IntValue(BigInteger value) implements Value {
   public Sort sort() {
     return Sort.INT;
   }
+
+  @Override
+  public String render() {
+    return value.toString();
+  }
 }
