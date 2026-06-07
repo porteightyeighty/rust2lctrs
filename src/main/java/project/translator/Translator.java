@@ -69,27 +69,28 @@ public class Translator {
   public Lctrs translate() {
     Lctrs lctrs = new Lctrs();
     for (Item item : crate.items()) {
-      lctrs.appendRules(processItem(item));
+      processItem(lctrs, item);
     }
     return lctrs;
   }
 
   /**
-   * Lowers a single top-level item to its rewrite rules.
+   * Lowers a single top-level item, appending its term symbols and rewrite rules to the LCTRS.
    *
+   * @param lctrs the LCTRS being assembled
    * @param item the item to translate
-   * @return the rules produced for the item
    */
-  private List<Rule> processItem(Item item) {
-    return switch (item) {
+  private void processItem(Lctrs lctrs, Item item) {
+    switch (item) {
       case FunctionDeclaration fn -> {
         // A function's return sort is the shared output sort of its whole program-point family, so
         // the Context is constructed per function once that sort is known.
         Context ctx = new Context(Sort.of(fn.returnType()));
         processFunctionDeclaration(ctx, fn);
-        yield ctx.rules();
+        lctrs.appendSymbols(ctx.sigma());
+        lctrs.appendRules(ctx.rules());
       }
-    };
+    }
   }
 
   /**
@@ -110,6 +111,9 @@ public class Translator {
         functionDeclaration.parameters().stream().map(p -> Sort.of(p.type())).toList();
     Symbol entry =
         new TermSymbol(functionDeclaration.identifier().name(), argSorts, functionReturnType);
+    // advance() never mints the entry symbol, so register it explicitly or the signature would
+    // omit the function's own program-point symbol.
+    ctx.register(entry);
     Term incoming = new FnApp(entry, ctx.argsFromScope());
     processBlock(ctx, functionDeclaration.block(), incoming);
   }
