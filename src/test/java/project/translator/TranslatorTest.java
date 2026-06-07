@@ -1,15 +1,15 @@
 package project.translator;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static project.translator.Ast.I32;
-import static project.translator.Ast.add;
-import static project.translator.Ast.body;
-import static project.translator.Ast.intLit;
-import static project.translator.Ast.let;
-import static project.translator.Ast.param;
-import static project.translator.Ast.ret;
-import static project.translator.Ast.translateFn;
-import static project.translator.Ast.var;
+import static project.translator.AstHelper.I32;
+import static project.translator.AstHelper.add;
+import static project.translator.AstHelper.block;
+import static project.translator.AstHelper.intLit;
+import static project.translator.AstHelper.let;
+import static project.translator.AstHelper.param;
+import static project.translator.AstHelper.ret;
+import static project.translator.AstHelper.translateFn;
+import static project.translator.AstHelper.var;
 
 import java.math.BigInteger;
 import java.util.List;
@@ -39,7 +39,7 @@ class TranslatorTest {
             "f",
             List.of(param("n", I32)),
             I32,
-            body(ret(var("x")), let("x", I32, add(var("n"), intLit(1)))));
+            block(let("x", I32, add(var("n"), intLit(1))), ret(var("x"))));
 
     VarDecl n = new VarDecl("n", Sort.INT);
     VarDecl x = new VarDecl("x", Sort.INT);
@@ -67,7 +67,7 @@ class TranslatorTest {
             "f",
             List.of(param("n", I32)),
             I32,
-            body(ret(var("x")), let("x", I32, add(var("n"), intLit(1))), let("y", I32, var("x"))));
+            block(let("x", I32, add(var("n"), intLit(1))), let("y", I32, var("x")), ret(var("x"))));
 
     VarDecl n = new VarDecl("n", Sort.INT);
     VarDecl x = new VarDecl("x", Sort.INT);
