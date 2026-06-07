@@ -2,6 +2,8 @@ package project.translator;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import project.lctrs.Rule;
 import project.lctrs.Sort;
 import project.lctrs.Symbol;
@@ -25,6 +27,8 @@ import project.lctrs.VarDecl;
  * @see Translator
  */
 final class Context {
+
+  private static final Logger LOG = LoggerFactory.getLogger(Context.class);
 
   private int counter = 0;
   private List<VarDecl> scope = new ArrayList<>();
@@ -114,6 +118,7 @@ final class Context {
    * @param r the rule to accumulate
    */
   void addRule(Rule r) {
+    Log.DEBUG("Adding rule {}", r);
     rules.add(r);
   }
 
