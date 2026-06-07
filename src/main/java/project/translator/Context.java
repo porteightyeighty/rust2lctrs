@@ -118,7 +118,7 @@ final class Context {
    * @param r the rule to accumulate
    */
   void addRule(Rule r) {
-    Log.DEBUG("Adding rule {}", r);
+    LOG.debug("Adding rule {}", r);
     rules.add(r);
   }
 
