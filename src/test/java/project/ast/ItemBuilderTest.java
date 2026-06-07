@@ -27,7 +27,7 @@ public class ItemBuilderTest {
   void buildsFunctionDeclarationWithoutParams() {
     String testInput = "fn x() -> i32 { return 10; }";
     ItemContext itemContext = TestHelper.parseItem(testInput);
-    BodyBlock block = new BodyBlock(List.of(), new Return(new IntegerLiteral(BigInteger.valueOf(10))));
+    Block block = new Block(List.of(new Return(new IntegerLiteral(BigInteger.valueOf(10)))));
     FunctionDeclaration expected =
         new FunctionDeclaration(new Identifier("x"), List.of(), block, Type.Int.i32);
     FunctionDeclaration actual =
@@ -40,7 +40,7 @@ public class ItemBuilderTest {
     String testInput = "fn y(a: i32) -> i32 { return 10; }";
     ItemContext itemmContext = TestHelper.parseItem(testInput);
     Parameter param = new Parameter(new Identifier("a"), Type.Int.i32);
-    BodyBlock block = new BodyBlock(List.of(), new Return(new IntegerLiteral(BigInteger.valueOf(10))));
+    Block block = new Block(List.of(new Return(new IntegerLiteral(BigInteger.valueOf(10)))));
     FunctionDeclaration expected =
         new FunctionDeclaration(new Identifier("y"), List.of(param), block, Type.Int.i32);
     FunctionDeclaration actual =
@@ -72,7 +72,7 @@ public class ItemBuilderTest {
     ItemContext itemContext = TestHelper.parseItem(testInput);
     Parameter first = new Parameter(new Identifier("a"), Type.Int.i32);
     Parameter second = new Parameter(new Identifier("b"), Type.BOOL);
-    BodyBlock block = new BodyBlock(List.of(), new Return(new IntegerLiteral(BigInteger.valueOf(10))));
+    Block block = new Block(List.of(new Return(new IntegerLiteral(BigInteger.valueOf(10)))));
     FunctionDeclaration expected =
         new FunctionDeclaration(new Identifier("z"), List.of(first, second), block, Type.Int.i32);
     FunctionDeclaration actual =

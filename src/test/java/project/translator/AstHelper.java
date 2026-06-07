@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Optional;
 import project.ast.Assignment;
 import project.ast.BinaryOp;
-import project.ast.BodyBlock;
+import project.ast.Block;
 import project.ast.BooleanLiteral;
 import project.ast.Break;
 import project.ast.Continue;
@@ -24,22 +24,19 @@ import project.ast.Statement;
 import project.ast.Type;
 import project.ast.Variable;
 import project.ast.While;
-import project.ast.Block;
 import project.lctrs.Lctrs;
 
 /**
- * Test-only DSL for hand-building {@link project.ast} fragments without going through the
- * ANTLR parser or {@link project.ast.AstBuilder}. Keeps {@code translate()}-driven tests
- * readable: a whole function is one nested factory call rather than a page of {@code new}
- * expressions.
+ * Test-only DSL for hand-building {@link project.ast} fragments without going through the ANTLR
+ * parser or {@link project.ast.AstBuilder}. Keeps {@code translate()}-driven tests readable: a
+ * whole function is one nested factory call rather than a page of {@code new} expressions.
  *
- * <p>Static factories only — meant to be statically imported:
- * {@code import static project.translator.Ast.*;}. Names are short on purpose; this is glue,
- * not production code.
+ * <p>Static factories only — meant to be statically imported: {@code import static
+ * project.translator.Ast.*;}. Names are short on purpose; this is glue, not production code.
  */
-final class Ast {
+final class AstHelper {
 
-  private Ast() {}
+  private AstHelper() {}
 
   // --- types (the two the fragment has) ------------------------------------
 
@@ -130,14 +127,9 @@ final class Ast {
 
   // --- blocks --------------------------------------------------------------
 
-  /** A scoped (non-function) block, as used by {@code if}/{@code while}/{@code loop}. */
+  /** A scoped block. */
   static Block block(Statement... statements) {
     return new Block(List.of(statements));
-  }
-
-  /** A function body: zero or more leading statements followed by the tail return. */
-  static BodyBlock body(Return tail, Statement... leading) {
-    return new BodyBlock(List.of(leading), tail);
   }
 
   // --- functions and crates ------------------------------------------------
@@ -146,8 +138,7 @@ final class Ast {
     return new Parameter(id(name), type);
   }
 
-  static FunctionDeclaration fn(
-      String name, List<Parameter> params, Type returnType, BodyBlock body) {
+  static FunctionDeclaration fn(String name, List<Parameter> params, Type returnType, Block body) {
     return new FunctionDeclaration(id(name), params, body, returnType);
   }
 
@@ -158,8 +149,8 @@ final class Ast {
   // --- one-call convenience for the common case ----------------------------
 
   /**
-   * Builds a single-function crate and translates it, returning the resulting LCTRS so the test
-   * can assert over {@link Lctrs#rules()}.
+   * Builds a single-function crate and translates it, returning the resulting LCTRS so the test can
+   * assert over {@link Lctrs#rules()}.
    *
    * @param name the function name (also the entry program-point symbol)
    * @param params the parameter list
@@ -167,8 +158,7 @@ final class Ast {
    * @param body the function body
    * @return the translated LCTRS
    */
-  static Lctrs translateFn(
-      String name, List<Parameter> params, Type returnType, BodyBlock body) {
+  static Lctrs translateFn(String name, List<Parameter> params, Type returnType, Block body) {
     return new Translator(crate(fn(name, params, returnType, body))).translate();
   }
 }

@@ -152,9 +152,7 @@ public class StatementBuilderTest {
         new Block(
             List.of(
                 new If(
-                    new IntegerLiteral(BigInteger.valueOf(2)),
-                    secondIfBlock,
-                    Optional.empty())));
+                    new IntegerLiteral(BigInteger.valueOf(2)), secondIfBlock, Optional.empty())));
     If expected =
         new If(new IntegerLiteral(BigInteger.valueOf(1)), ifBlock, Optional.of(elseIfBlock));
     assertEquals(expected, statementBuilder.buildIfStatement(ifExpressionContext));
@@ -243,54 +241,20 @@ public class StatementBuilderTest {
   }
 
   @Test
-  void buildsBodyBlockWithTrailingOnly() {
-    String testInput = "{ return 10; }";
-    BlockExpressionContext blockContext = TestHelper.parseBlock(testInput);
-    BodyBlock expected =
-        new BodyBlock(List.of(), new Return(new IntegerLiteral(BigInteger.valueOf(10))));
-    assertEquals(expected, statementBuilder.buildBodyBlock(blockContext));
-  }
-
-  @Test
-  void buildsBodyBlock() {
-    String testInput = "{ let x: i32 = 0; return 10; }";
-    BlockExpressionContext blockContext = TestHelper.parseBlock(testInput);
-    Let letStmt =
-        new Let(new Identifier("x"), Type.Int.i32, new IntegerLiteral(BigInteger.valueOf(0)));
-    BodyBlock expected =
-        new BodyBlock(List.of(letStmt), new Return(new IntegerLiteral(BigInteger.valueOf(10))));
-    assertEquals(expected, statementBuilder.buildBodyBlock(blockContext));
-  }
-
-  @Test
   void normalisesTrailingExpressionToImplicitReturn() {
     String testInput = "{ let x: i32 = 0; x }";
     BlockExpressionContext blockContext = TestHelper.parseBlock(testInput);
     Let letStmt =
         new Let(new Identifier("x"), Type.Int.i32, new IntegerLiteral(BigInteger.valueOf(0)));
-    BodyBlock expected =
-        new BodyBlock(List.of(letStmt), new Return(new Variable(new Identifier("x"))));
-    assertEquals(expected, statementBuilder.buildBodyBlock(blockContext));
+    Return ret = new Return(new Variable(new Identifier("x")));
+    Block expected = new Block(List.of(letStmt, ret));
+    assertEquals(expected, statementBuilder.buildBlock(blockContext));
   }
 
   @Test
   void implicitAndExplicitReturnsAreEquivalent() {
-    BodyBlock implicit = statementBuilder.buildBodyBlock(TestHelper.parseBlock("{ 10 }"));
-    BodyBlock explicit = statementBuilder.buildBodyBlock(TestHelper.parseBlock("{ return 10; }"));
+    Block implicit = statementBuilder.buildBlock(TestHelper.parseBlock("{ 10 }"));
+    Block explicit = statementBuilder.buildBlock(TestHelper.parseBlock("{ return 10; }"));
     assertEquals(explicit, implicit);
-  }
-
-  @ParameterizedTest
-  @ValueSource(
-      strings = {
-        "{}", // empty block
-        "{ let x: i32 = 0; }", // missing return
-        "{ if true { return 1; } else { return 2; } }" // trailing block expression
-      })
-  void rejectsUnsupportedBodyBlockForms(String input) {
-    BlockExpressionContext blockExpressionContext = TestHelper.parseBlock(input);
-    assertThrows(
-        UnsupportedConstructException.class,
-        () -> statementBuilder.buildBodyBlock(blockExpressionContext));
   }
 }

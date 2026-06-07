@@ -3,9 +3,11 @@ package project.translator;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import project.ast.Assignment;
 import project.ast.BinaryOp;
-import project.ast.BodyBlock;
+import project.ast.Block;
 import project.ast.BooleanLiteral;
 import project.ast.Break;
 import project.ast.Continue;
@@ -45,6 +47,8 @@ import project.lctrs.VarDecl;
  * Context}.
  */
 public class Translator {
+
+  private static final Logger LOG = LoggerFactory.getLogger(Translator.class);
 
   final Crate crate;
 
@@ -118,8 +122,8 @@ public class Translator {
    * @param block the block to translate
    * @param incoming the configuration flowing into the first statement
    */
-  private void processBlock(Context ctx, BodyBlock block, Term incoming) {
-    for (Statement statement : block.leading()) {
+  private void processBlock(Context ctx, Block block, Term incoming) {
+    for (Statement statement : block.statements()) {
       incoming = processStatement(ctx, statement, incoming);
       if (statement instanceof Return) {
         // Control diverges here: the tail and any dead leading statements are unreachable.
@@ -129,7 +133,6 @@ public class Translator {
         return;
       }
     }
-    processStatement(ctx, block.returnStatement(), incoming);
   }
 
   /**
@@ -141,6 +144,10 @@ public class Translator {
    * @return the configuration flowing out to the next statement
    */
   private Term processStatement(Context ctx, Statement statement, Term incoming) {
+    LOG.debug(
+        "Lowering {} with incoming configuration {}",
+        statement.getClass().getSimpleName(),
+        incoming);
     return switch (statement) {
       case Let stmt -> processLetStatement(ctx, stmt, incoming);
       case If stmt -> throw notYetImplemented(stmt);

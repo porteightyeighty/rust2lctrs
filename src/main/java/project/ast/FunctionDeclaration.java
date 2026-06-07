@@ -12,7 +12,7 @@ import java.util.Objects;
  * @param returnType the declared return type (always required in the supported fragment)
  */
 public record FunctionDeclaration(
-    Identifier identifier, List<Parameter> parameters, BodyBlock block, Type returnType)
+    Identifier identifier, List<Parameter> parameters, Block block, Type returnType)
     implements Item {
   public FunctionDeclaration {
     Objects.requireNonNull(identifier);
