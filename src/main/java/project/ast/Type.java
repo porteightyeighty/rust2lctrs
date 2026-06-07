@@ -1,8 +1,7 @@
 package project.ast;
 
 /**
- * Represents a type in the supported fragment. Currently only fixed-width
- * integer types are
+ * Represents a type in the supported fragment. Currently only fixed-width integer types are
  * supported.
  */
 public sealed interface Type permits Type.Int, Type.Bool {

@@ -4,8 +4,8 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * A program-defined term symbol, such as a program-point function symbol introduced when encoding
- * a function's control flow. Unlike {@link TheorySymbol}, its meaning comes from the rewrite rules,
+ * A program-defined term symbol, such as a program-point function symbol introduced when encoding a
+ * function's control flow. Unlike {@link TheorySymbol}, its meaning comes from the rewrite rules,
  * not the underlying theory.
  *
  * @param notation how the symbol is written in Cora's input syntax
