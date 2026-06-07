@@ -3,8 +3,8 @@ package project.ast;
 import project.parser.RustParser.Type_Context;
 
 /**
- * Reads {@link Type}s from type parse-tree contexts. Shared by the item and statement
- * builders, since types appear on function signatures, parameters, and {@code let} bindings alike.
+ * Reads {@link Type}s from type parse-tree contexts. Shared by the item and statement builders,
+ * since types appear on function signatures, parameters, and {@code let} bindings alike.
  */
 final class TypeReader {
 
