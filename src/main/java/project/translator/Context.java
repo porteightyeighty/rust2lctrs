@@ -54,8 +54,28 @@ final class Context {
   Symbol advance() {
     counter++;
     Symbol s = symbolFor(counter);
-    sigma.add(s);
+    register(s);
     return s;
+  }
+
+  /**
+   * Records a symbol in the terms signature. Used for symbols not minted by {@link #advance()},
+   * such as the function's hand-rolled entry program-point symbol, so the signature stays complete.
+   *
+   * @param s the term symbol to add to the signature
+   */
+  void register(Symbol s) {
+    sigma.add(s);
+  }
+
+  /**
+   * Returns an immutable snapshot of the terms signature accumulated so far, in mint order (the
+   * entry symbol first, then {@code u1}, {@code u2}, …).
+   *
+   * @return the accumulated term symbols
+   */
+  List<Symbol> sigma() {
+    return List.copyOf(sigma);
   }
 
   /**

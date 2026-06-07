@@ -5,11 +5,26 @@ import project.ast.Type;
 /** A sort in the many-sorted LCTRS signature. */
 public enum Sort {
   /** The integer sort. */
-  INT,
+  INT("Int"),
   /** The boolean sort. */
-  BOOL,
+  BOOL("Bool"),
   /** The non-theory sort. */
-  A;
+  A("A");
+
+  private final String notation;
+
+  Sort(String notation) {
+    this.notation = notation;
+  }
+
+  /**
+   * Returns this sort's spelling in Cora's input format.
+   *
+   * @return the Cora notation for this sort
+   */
+  public String notation() {
+    return notation;
+  }
 
   public static Sort of(Type type) {
     return switch (type) {

@@ -6,8 +6,14 @@ package project.lctrs;
  * @param value the boolean this term denotes
  */
 public record BoolValue(boolean value) implements Value {
+
   @Override
   public Sort sort() {
     return Sort.BOOL;
+  }
+
+  @Override
+  public String render() {
+    return String.valueOf(value);
   }
 }

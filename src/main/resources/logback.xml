@@ -6,9 +6,7 @@
       <pattern>%d{HH:mm:ss.SSS} %-5level %logger{0} - %msg%n</pattern>
     </encoder>
   </appender>
-  <root level="INFO">
+  <root level="${LOG_LEVEL:-WARN}">
     <appender-ref ref="STDERR"/>
   </root>
-  <logger name="project.translator" level="DEBUG"/>
-  <logger name="project.context" level="DEBUG"/>
 </configuration>
