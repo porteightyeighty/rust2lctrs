@@ -24,8 +24,7 @@ public class CrateBuilderTest {
   void buildsCrateWithSingleFunction() {
     String testInput = "fn x() -> i32 { return 0; }";
     CrateContext crateContext = TestHelper.parseCrate(testInput);
-    BodyBlock block =
-        new BodyBlock(List.of(), new Return(new IntegerLiteral(BigInteger.valueOf(0))));
+    Block block = new Block(List.of(new Return(new IntegerLiteral(BigInteger.valueOf(0)))));
 
     Crate expected =
         new Crate(

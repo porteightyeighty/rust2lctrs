@@ -44,8 +44,7 @@ final class ItemBuilder {
    */
   Crate buildCrate(CrateContext ctx) {
     if (ctx.item().size() > 1) {
-      throw new UnsupportedConstructException(
-          ctx, "Only a single top-level function is supported");
+      throw new UnsupportedConstructException(ctx, "Only a single top-level function is supported");
     }
     List<Item> items = new ArrayList<>();
     for (var itemCtx : ctx.item()) {
@@ -104,7 +103,7 @@ final class ItemBuilder {
     IdentifierContext identifierContext = ctx.identifier();
     Identifier id = new Identifier(identifierContext.getText());
     List<Parameter> functionParams = extractParameters(ctx.functionParameters());
-    BodyBlock block = statements.buildBodyBlock(ctx.blockExpression());
+    Block block = statements.buildBlock(ctx.blockExpression());
     return spans.track(new FunctionDeclaration(id, functionParams, block, returnType), ctx);
   }
 
