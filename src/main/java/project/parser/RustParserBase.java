@@ -33,4 +33,3 @@ public abstract class RustParserBase extends Parser {
     return _input.LA(1) == RustParser.LT;
   }
 }
-
