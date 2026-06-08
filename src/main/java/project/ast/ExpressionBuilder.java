@@ -7,9 +7,11 @@ import project.parser.RustParser.ArithmeticOrLogicalExpressionContext;
 import project.parser.RustParser.ComparisonExpressionContext;
 import project.parser.RustParser.ComparisonOperatorContext;
 import project.parser.RustParser.ExpressionContext;
+import project.parser.RustParser.GroupedExpressionContext;
 import project.parser.RustParser.IdentifierContext;
 import project.parser.RustParser.LiteralExpressionContext;
 import project.parser.RustParser.LiteralExpression_Context;
+import project.parser.RustParser.NegationExpressionContext;
 import project.parser.RustParser.PathExprSegmentContext;
 import project.parser.RustParser.PathExpression_Context;
 import project.parser.RustParser.PathInExpressionContext;
@@ -45,6 +47,8 @@ final class ExpressionBuilder {
       case ArithmeticOrLogicalExpressionContext c -> buildArithmeticExpression(c);
       case ComparisonExpressionContext c -> buildComparisonExpression(c);
       case PathExpression_Context c -> buildVarExpression(c);
+      case NegationExpressionContext c -> buildNegation(c);
+      case GroupedExpressionContext c -> buildGrouped(c);
       default -> throw new UnsupportedConstructException(ctx, "Unsupported expression");
     };
   }
@@ -84,6 +88,47 @@ final class ExpressionBuilder {
     }
     throw new UnsupportedConstructException(
         ctx, "Unsupported literal, only integer and boolean literals are supported");
+  }
+
+  /**
+   * Builds an expression from a unary negation context. Only arithmetic negation ({@code -e}) is
+   * supported; boolean not ({@code !e}) shares this grammar rule but is not yet in the fragment.
+   *
+   * <p>There is no unary-minus theory symbol, so negation is desugared here rather than carried as
+   * a dedicated AST node: a negated integer literal folds into a single negative {@link
+   * IntegerLiteral}, and any other operand becomes {@code 0 - e} over the binary {@link
+   * BinaryOp.Op#SUB}.
+   *
+   * @param ctx the negation-expression context
+   * @return the corresponding {@link Expression} node
+   * @throws UnsupportedConstructException if the operator is boolean not ({@code !})
+   */
+  Expression buildNegation(NegationExpressionContext ctx) {
+    if (ctx.MINUS() == null) {
+      throw new UnsupportedConstructException(ctx, "Boolean not (!) is not supported");
+    }
+    Expression operand = buildExpression(ctx.expression());
+    if (operand instanceof IntegerLiteral literal) {
+      return spans.track(new IntegerLiteral(literal.value().negate()), ctx);
+    }
+    IntegerLiteral zero = spans.track(new IntegerLiteral(BigInteger.ZERO), ctx);
+    return spans.track(new BinaryOp(BinaryOp.Op.SUB, zero, operand), ctx);
+  }
+
+  /**
+   * Builds an expression from a parenthesised group. Parentheses carry no semantics of their own —
+   * operator precedence is already resolved in the parse tree — so the group is its inner
+   * expression with no wrapping AST node. Inner attributes ({@code (#![...] e)}) are out of scope.
+   *
+   * @param ctx the grouped-expression context
+   * @return the {@link Expression} node for the inner expression
+   * @throws UnsupportedConstructException if the group carries inner attributes
+   */
+  Expression buildGrouped(GroupedExpressionContext ctx) {
+    if (!ctx.innerAttribute().isEmpty()) {
+      throw new UnsupportedConstructException(ctx, "Inner attributes are not supported");
+    }
+    return buildExpression(ctx.expression());
   }
 
   /**
