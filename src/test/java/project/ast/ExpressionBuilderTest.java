@@ -144,6 +144,91 @@ public class ExpressionBuilderTest {
     assertEquals(expected, actual);
   }
 
+  @Test
+  void foldsNegatedIntLiteralIntoNegativeLiteral() {
+    String testInput = "-5";
+    ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
+    IntegerLiteral actual =
+        assertInstanceOf(
+            IntegerLiteral.class, expressionBuilder.buildExpression(expressionContext));
+    assertEquals(BigInteger.valueOf(-5), actual.value());
+  }
+
+  @Test
+  void desugarsNegatedVariableToZeroMinusOperand() {
+    String testInput = "-x";
+    ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
+    BinaryOp expected =
+        new BinaryOp(
+            BinaryOp.Op.SUB,
+            new IntegerLiteral(BigInteger.ZERO),
+            new Variable(new Identifier("x")));
+    BinaryOp actual =
+        assertInstanceOf(BinaryOp.class, expressionBuilder.buildExpression(expressionContext));
+    assertEquals(expected, actual);
+  }
+
+  @Test
+  void desugarsNegatedGroupedSubexpressionToZeroMinusOperand() {
+    String testInput = "-(x + 1)";
+    ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
+    BinaryOp actual =
+        assertInstanceOf(BinaryOp.class, expressionBuilder.buildExpression(expressionContext));
+    assertEquals(BinaryOp.Op.SUB, actual.operator());
+    assertEquals(new IntegerLiteral(BigInteger.ZERO), actual.left());
+    assertInstanceOf(BinaryOp.class, actual.right());
+  }
+
+  @Test
+  void unwrapsGroupedExpression() {
+    String testInput = "(1 + 2)";
+    ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
+    BinaryOp expected =
+        new BinaryOp(
+            BinaryOp.Op.ADD,
+            new IntegerLiteral(BigInteger.valueOf(1)),
+            new IntegerLiteral(BigInteger.valueOf(2)));
+    BinaryOp actual =
+        assertInstanceOf(BinaryOp.class, expressionBuilder.buildExpression(expressionContext));
+    assertEquals(expected, actual);
+  }
+
+  @Test
+  void groupingOverridesPrecedence() {
+    // Without parens this is 1 + (2 * 3); the group must force (1 + 2) * 3.
+    String testInput = "(1 + 2) * 3";
+    ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
+    BinaryOp actual =
+        assertInstanceOf(BinaryOp.class, expressionBuilder.buildExpression(expressionContext));
+    assertEquals(BinaryOp.Op.MUL, actual.operator());
+    assertEquals(
+        new BinaryOp(
+            BinaryOp.Op.ADD,
+            new IntegerLiteral(BigInteger.valueOf(1)),
+            new IntegerLiteral(BigInteger.valueOf(2))),
+        actual.left());
+    assertEquals(new IntegerLiteral(BigInteger.valueOf(3)), actual.right());
+  }
+
+  @Test
+  void foldsDoubleNegationOfLiteral() {
+    String testInput = "--5";
+    ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
+    IntegerLiteral actual =
+        assertInstanceOf(
+            IntegerLiteral.class, expressionBuilder.buildExpression(expressionContext));
+    assertEquals(BigInteger.valueOf(5), actual.value());
+  }
+
+  @Test
+  void rejectsBooleanNot() {
+    String testInput = "!x";
+    ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
+    assertThrows(
+        UnsupportedConstructException.class,
+        () -> expressionBuilder.buildExpression(expressionContext));
+  }
+
   @ParameterizedTest
   @ValueSource(
       strings = {
