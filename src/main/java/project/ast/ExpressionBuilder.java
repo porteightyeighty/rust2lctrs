@@ -45,6 +45,8 @@ final class ExpressionBuilder {
       case ArithmeticOrLogicalExpressionContext c -> buildArithmeticExpression(c);
       case ComparisonExpressionContext c -> buildComparisonExpression(c);
       case PathExpression_Context c -> buildVarExpression(c);
+      // TODO: unary minus (NegationExpressionContext) is rejected here, so negative integers must
+      // be written as a subtraction (e.g. `x - 1`). In-scope arithmetically; add a Negation rule.
       default -> throw new UnsupportedConstructException(ctx, "Unsupported expression");
     };
   }

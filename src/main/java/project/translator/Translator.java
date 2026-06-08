@@ -166,22 +166,32 @@ public class Translator {
   }
 
   private Term processIfStatement(Context ctx, If stmt, Term incoming) {
-    if (stmt.elseBlock().isPresent()) {
-      throw new UnsupportedOperationException("else blocks not yet implemented");
-    }
+    boolean elsePresent = stmt.elseBlock().isPresent();
     Constraint phi = new Constraint(processExpression(ctx, stmt.condition()));
     Constraint notPhi = new Constraint(new FnApp(TheorySymbol.NOT, List.of(phi.formula())));
     List<Term> preScope = ctx.argsFromScope();
     Symbol uThen = ctx.advance();
-    Symbol uMerge = ctx.advance();
     ctx.addRule(new Rule(incoming, new FnApp(uThen, preScope), Optional.of(phi)));
-    ctx.addRule(new Rule(incoming, new FnApp(uMerge, preScope), Optional.of(notPhi)));
-    Optional<Term> blockOut = processBlock(ctx, stmt.thenBlock(), new FnApp(uThen, preScope));
-    Term merge = new FnApp(uMerge, preScope);
-    if (blockOut.isPresent()) {
-      ctx.addRule(new Rule(blockOut.get(), merge, Optional.empty()));
-    }
+    Optional<Term> thenBlockOut = processBlock(ctx, stmt.thenBlock(), new FnApp(uThen, preScope));
     ctx.shrinkScope(preScope.size());
+    Optional<Term> elseBlockOut = Optional.empty();
+    if (elsePresent) {
+      Symbol uElse = ctx.advance();
+      ctx.addRule(new Rule(incoming, new FnApp(uElse, preScope), Optional.of(notPhi)));
+      elseBlockOut = processBlock(ctx, stmt.elseBlock().get(), new FnApp(uElse, preScope));
+      ctx.shrinkScope(preScope.size());
+    }
+    Symbol uMerge = ctx.advance();
+    Term merge = new FnApp(uMerge, preScope);
+    if (!elsePresent) {
+      ctx.addRule(new Rule(incoming, merge, Optional.of(notPhi)));
+    }
+    if (thenBlockOut.isPresent()) {
+      ctx.addRule(new Rule(thenBlockOut.get(), merge, Optional.empty()));
+    }
+    if (elseBlockOut.isPresent()) {
+      ctx.addRule(new Rule(elseBlockOut.get(), merge, Optional.empty()));
+    }
     return merge;
   }
 
