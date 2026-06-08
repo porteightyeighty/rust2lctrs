@@ -25,6 +25,7 @@ import project.ast.Statement;
 import project.ast.Variable;
 import project.ast.While;
 import project.lctrs.BoolValue;
+import project.lctrs.Constraint;
 import project.lctrs.FnApp;
 import project.lctrs.IntValue;
 import project.lctrs.Lctrs;
@@ -38,8 +39,7 @@ import project.lctrs.VarDecl;
 
 /**
  * Lowers a {@link Crate} to an {@link Lctrs} by walking the AST and emitting constrained rewrite
- * rules over program-point function symbols, following the encoding of Fuhs, Kop &amp; Nishida
- * (2017), §3 and Appendix A.
+ * rules over program-point function symbols
  *
  * <p>Each statement is translated against an <em>incoming</em> configuration — a term rooted at the
  * current program-point function symbol applied to the live scope — and yields the configuration
@@ -126,7 +126,7 @@ public class Translator {
    * @param block the block to translate
    * @param incoming the configuration flowing into the first statement
    */
-  private void processBlock(Context ctx, Block block, Term incoming) {
+  private Optional<Term> processBlock(Context ctx, Block block, Term incoming) {
     for (Statement statement : block.statements()) {
       incoming = processStatement(ctx, statement, incoming);
       if (statement instanceof Return) {
@@ -134,9 +134,10 @@ public class Translator {
         // TODO: Break/Continue diverge too — extend this guard (or signal divergence from
         // processStatement) in the same commit that lowers them, or dead code after a break
         // will be processed against a stale configuration.
-        return;
+        return Optional.empty();
       }
     }
+    return Optional.of(incoming);
   }
 
   /**
@@ -154,7 +155,7 @@ public class Translator {
         incoming);
     return switch (statement) {
       case Let stmt -> processLetStatement(ctx, stmt, incoming);
-      case If stmt -> throw notYetImplemented(stmt);
+      case If stmt -> processIfStatement(ctx, stmt, incoming);
       case While stmt -> throw notYetImplemented(stmt);
       case Loop stmt -> throw notYetImplemented(stmt);
       case Break stmt -> throw notYetImplemented(stmt);
@@ -162,6 +163,26 @@ public class Translator {
       case Return stmt -> processReturnStatement(ctx, stmt, incoming);
       case Assignment stmt -> processAssignmentStatement(ctx, stmt, incoming);
     };
+  }
+
+  private Term processIfStatement(Context ctx, If stmt, Term incoming) {
+    if (stmt.elseBlock().isPresent()) {
+      throw new UnsupportedOperationException("else blocks not yet implemented");
+    }
+    Constraint phi = new Constraint(processExpression(ctx, stmt.condition()));
+    Constraint notPhi = new Constraint(new FnApp(TheorySymbol.NOT, List.of(phi.formula())));
+    List<Term> preScope = ctx.argsFromScope();
+    Symbol uThen = ctx.advance();
+    Symbol uMerge = ctx.advance();
+    ctx.addRule(new Rule(incoming, new FnApp(uThen, preScope), Optional.of(phi)));
+    ctx.addRule(new Rule(incoming, new FnApp(uMerge, preScope), Optional.of(notPhi)));
+    Optional<Term> blockOut = processBlock(ctx, stmt.thenBlock(), new FnApp(uThen, preScope));
+    Term merge = new FnApp(uMerge, preScope);
+    if (blockOut.isPresent()) {
+      ctx.addRule(new Rule(blockOut.get(), merge, Optional.empty()));
+    }
+    ctx.shrinkScope(preScope.size());
+    return merge;
   }
 
   private Term processReturnStatement(Context ctx, Return ret, Term incoming) {

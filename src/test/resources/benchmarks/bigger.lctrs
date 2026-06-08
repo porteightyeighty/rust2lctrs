@@ -1,0 +1,8 @@
+bigger :: Int -> Int -> Int
+u1 :: Int -> Int -> Int
+u2 :: Int -> Int -> Int
+
+bigger(x, y) -> u1(x, y) | (x ≥ y)
+bigger(x, y) -> u2(x, y) | ¬((x ≥ y))
+u1(x, y) -> x
+u2(x, y) -> y
