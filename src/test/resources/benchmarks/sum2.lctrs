@@ -1,0 +1,5 @@
+sum2 :: Int -> Int -> Int
+u1 :: Int -> Int -> Int
+
+sum2(a, b) -> u1((a + b), b)
+u1(a, b) -> a
