@@ -20,7 +20,7 @@ public final class Serialiser {
   private Serialiser() {}
 
   /**
-   * Serialises a complete LCTRS: its signature followed by two blank lines and then its rules.
+   * Serialises a complete LCTRS: its signature followed by a blank line and then its rules.
    *
    * @param lctrs the system to serialise
    * @return the LCTRS in Cora's input format
@@ -28,7 +28,6 @@ public final class Serialiser {
   public static String serialise(Lctrs lctrs) {
     StringBuilder out = new StringBuilder();
     out.append(serialiseSignature(lctrs.sigma()));
-    out.append(System.lineSeparator());
     out.append(System.lineSeparator());
     out.append(serialiseRules(lctrs.rules()));
     return out.toString();
