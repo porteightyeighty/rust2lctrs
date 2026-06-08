@@ -84,9 +84,9 @@ final class SerialiserTest {
     assertEquals("f(n) -> u1(n, (n < 1))", Serialiser.serialise(lctrs.rules().get(0)));
   }
 
-  /** A whole LCTRS is the signature, two blank lines, then the rules. */
+  /** A whole LCTRS is the signature, a blank line, then the rules. */
   @Test
-  void fullLctrsHasSignatureTwoBlankLinesThenRules() {
+  void fullLctrsHasSignatureBlankLineThenRules() {
     Lctrs lctrs =
         translateFn(
             "f",
@@ -98,7 +98,6 @@ final class SerialiserTest {
         "f :: Int -> Int"
             + ls()
             + "u1 :: Int -> Int -> Int"
-            + ls()
             + ls()
             + ls()
             + "f(n) -> u1(n, (n + 1))"
