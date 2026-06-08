@@ -1,0 +1,15 @@
+bigger2 :: Int -> Int -> Int
+u1 :: Int -> Int -> Int
+u2 :: Int -> Int -> Int
+u3 :: Int -> Int -> Int
+u4 :: Int -> Int -> Int
+u5 :: Int -> Int -> Int
+
+bigger2(x, y) -> u1(x, y) | (x > y)
+u1(x, y) -> x
+bigger2(x, y) -> u2(x, y) | ¬((x > y))
+u2(x, y) -> u3(x, y) | (x < y)
+u3(x, y) -> y
+u2(x, y) -> u4(x, y) | ¬((x < y))
+u4(x, y) -> u5(x, y)
+u5(x, y) -> 0
