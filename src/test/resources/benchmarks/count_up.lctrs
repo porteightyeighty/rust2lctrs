@@ -1,0 +1,12 @@
+start :: Int -> Int
+u1 :: Int -> Int -> Int
+u2 :: Int -> Int -> Int
+u3 :: Int -> Int -> Int
+u4 :: Int -> Int -> Int
+
+start(x) -> u1(x, 0)
+u1(x, y) -> u2(x, y) | (x > y)
+u2(x, y) -> u3(x, (y + 1))
+u1(x, y) -> u4(x, y) | ¬((x > y))
+u3(x, y) -> u1(x, y)
+u4(x, y) -> y
