@@ -39,7 +39,8 @@ import project.lctrs.VarDecl;
 
 /**
  * Lowers a {@link Crate} to an {@link Lctrs} by walking the AST and emitting constrained rewrite
- * rules over program-point function symbols
+ * rules over program-point function symbols, following the encoding of Fuhs, Kop &amp; Nishida
+ * (2017).
  *
  * <p>Each statement is translated against an <em>incoming</em> configuration — a term rooted at the
  * current program-point function symbol applied to the live scope — and yields the configuration
@@ -128,14 +129,13 @@ public class Translator {
    */
   private Optional<Term> processBlock(Context ctx, Block block, Term incoming) {
     for (Statement statement : block.statements()) {
-      incoming = processStatement(ctx, statement, incoming);
-      if (statement instanceof Return) {
-        // Control diverges here: the tail and any dead leading statements are unreachable.
-        // TODO: Break/Continue diverge too — extend this guard (or signal divergence from
-        // processStatement) in the same commit that lowers them, or dead code after a break
-        // will be processed against a stale configuration.
+      Optional<Term> outgoing = processStatement(ctx, statement, incoming);
+      if (outgoing.isEmpty()) {
+        // Control diverges at this statement (a return, or an if both of whose branches diverge):
+        // the tail and any dead trailing statements are unreachable, so stop lowering the block.
         return Optional.empty();
       }
+      incoming = outgoing.get();
     }
     return Optional.of(incoming);
   }
@@ -146,26 +146,70 @@ public class Translator {
    * @param ctx the per-function translation state
    * @param statement the statement to translate
    * @param incoming the configuration flowing into the statement
-   * @return the configuration flowing out to the next statement
+   * @return the configuration flowing out to the next statement, or empty if control diverges here
    */
-  private Term processStatement(Context ctx, Statement statement, Term incoming) {
+  private Optional<Term> processStatement(Context ctx, Statement statement, Term incoming) {
     LOG.debug(
         "Lowering {} with incoming configuration {}",
         statement.getClass().getSimpleName(),
         incoming);
     return switch (statement) {
-      case Let stmt -> processLetStatement(ctx, stmt, incoming);
+      case Let stmt -> Optional.of(processLetStatement(ctx, stmt, incoming));
       case If stmt -> processIfStatement(ctx, stmt, incoming);
-      case While stmt -> throw notYetImplemented(stmt);
+      case While stmt -> Optional.of(processWhileStatement(ctx, stmt, incoming));
       case Loop stmt -> throw notYetImplemented(stmt);
       case Break stmt -> throw notYetImplemented(stmt);
       case Continue stmt -> throw notYetImplemented(stmt);
-      case Return stmt -> processReturnStatement(ctx, stmt, incoming);
-      case Assignment stmt -> processAssignmentStatement(ctx, stmt, incoming);
+      case Return stmt -> {
+        processReturnStatement(ctx, stmt, incoming);
+        yield Optional.empty();
+      }
+      case Assignment stmt -> Optional.of(processAssignmentStatement(ctx, stmt, incoming));
     };
   }
 
-  private Term processIfStatement(Context ctx, If stmt, Term incoming) {
+  /**
+   * Lowers a {@code while} loop. Mints a loop-head program point reached from the incoming
+   * configuration when the condition holds, lowers the body against it, and feeds the body's
+   * outgoing configuration back to the incoming configuration to close the loop. A merge program
+   * point is reached when the condition fails, and is where control resumes after the loop.
+   *
+   * @param ctx the per-function translation state
+   * @param stmt the {@code while} statement to translate
+   * @param incoming the configuration flowing into the loop
+   * @return the configuration at the merge point, over the scope live before the loop
+   */
+  private Term processWhileStatement(Context ctx, While stmt, Term incoming) {
+    Constraint phi = new Constraint(processExpression(ctx, stmt.condition()));
+    Constraint notPhi = new Constraint(new FnApp(TheorySymbol.NOT, List.of(phi.formula())));
+    List<Term> preScope = ctx.argsFromScope();
+    Symbol uWhile = ctx.advance();
+    ctx.addRule(new Rule(incoming, new FnApp(uWhile, preScope), Optional.of(phi)));
+    Optional<Term> whileBlockOut = processBlock(ctx, stmt.block(), new FnApp(uWhile, preScope));
+    ctx.shrinkScope(preScope.size());
+    Symbol uMerge = ctx.advance();
+    Term merge = new FnApp(uMerge, preScope);
+    ctx.addRule(new Rule(incoming, merge, Optional.of(notPhi)));
+    if (whileBlockOut.isPresent()) {
+      ctx.addRule(new Rule(whileBlockOut.get(), incoming, Optional.empty()));
+    }
+    return merge;
+  }
+
+  /**
+   * Lowers an {@code if}/{@code else}. Mints a then program point reached when the condition holds
+   * and, if an else block is present, an else program point reached when it fails; each branch's
+   * body is lowered against its program point. Branches that fall through, plus the false
+   * fall-through when there is no else, rewrite to a shared merge program point where control
+   * resumes. When an else is present and both branches diverge nothing reaches the merge, so no
+   * merge point is minted and the whole statement diverges.
+   *
+   * @param ctx the per-function translation state
+   * @param stmt the {@code if} statement to translate
+   * @param incoming the configuration flowing into the statement
+   * @return the configuration at the merge point, or empty if control diverges here
+   */
+  private Optional<Term> processIfStatement(Context ctx, If stmt, Term incoming) {
     boolean elsePresent = stmt.elseBlock().isPresent();
     Constraint phi = new Constraint(processExpression(ctx, stmt.condition()));
     Constraint notPhi = new Constraint(new FnApp(TheorySymbol.NOT, List.of(phi.formula())));
@@ -181,6 +225,13 @@ public class Translator {
       elseBlockOut = processBlock(ctx, stmt.elseBlock().get(), new FnApp(uElse, preScope));
       ctx.shrinkScope(preScope.size());
     }
+    // The merge point is reachable from the false fall-through (when there is no else) and from
+    // whichever branches fall through. If an else is present and both branches diverge, nothing
+    // reaches the merge: the whole if diverges, so don't mint an orphan uMerge.
+    boolean mergeReachable = !elsePresent || thenBlockOut.isPresent() || elseBlockOut.isPresent();
+    if (!mergeReachable) {
+      return Optional.empty();
+    }
     Symbol uMerge = ctx.advance();
     Term merge = new FnApp(uMerge, preScope);
     if (!elsePresent) {
@@ -192,7 +243,7 @@ public class Translator {
     if (elseBlockOut.isPresent()) {
       ctx.addRule(new Rule(elseBlockOut.get(), merge, Optional.empty()));
     }
-    return merge;
+    return Optional.of(merge);
   }
 
   private Term processReturnStatement(Context ctx, Return ret, Term incoming) {
