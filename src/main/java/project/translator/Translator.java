@@ -163,7 +163,7 @@ public class Translator {
       case Let stmt -> Optional.of(processLetStatement(ctx, stmt, incoming));
       case If stmt -> processIfStatement(ctx, stmt, incoming);
       case While stmt -> Optional.of(processWhileStatement(ctx, stmt, incoming));
-      case Loop stmt -> throw notYetImplemented(stmt);
+      case Loop stmt -> processLoopStatement(ctx, stmt, incoming);
       case Break stmt -> {
         ctx.addBreakPoint(incoming);
         yield Optional.empty();
@@ -175,6 +175,28 @@ public class Translator {
       }
       case Assignment stmt -> Optional.of(processAssignmentStatement(ctx, stmt, incoming));
     };
+  }
+
+  private Optional<Term> processLoopStatement(Context ctx, Loop stmt, Term incoming) {
+    List<Term> preScope = ctx.argsFromScope();
+    Symbol uLoop = ctx.advance();
+    Term continueTarget = new FnApp(uLoop, preScope);
+    ctx.enterLoop(continueTarget);
+    ctx.addRule(new Rule(incoming, continueTarget, Optional.empty()));
+    Optional<Term> loopBlockOut = processBlock(ctx, stmt.block(), continueTarget);
+    LoopContext loop = ctx.leaveLoop();
+    if (loopBlockOut.isPresent()) {
+      ctx.addRule(new Rule(loopBlockOut.get(), incoming, Optional.empty()));
+    }
+    if (loop.breakPoints().isEmpty()) {
+      return Optional.empty();
+    }
+    Symbol uMerge = ctx.advance();
+    Term merge = new FnApp(uMerge, preScope);
+    for (Term site : loop.breakPoints()) {
+      ctx.addRule(new Rule(site, merge, Optional.empty()));
+    }
+    return Optional.of(merge);
   }
 
   /**
