@@ -38,6 +38,7 @@ final class Context {
   private final List<Rule> rules = new ArrayList<>();
   private final Sort returnSort;
   private final Deque<Integer> scopeMarks = new ArrayDeque<>();
+  private final Deque<LoopContext> loopContexts = new ArrayDeque<>();
 
   /**
    * Creates a context for a single function.
@@ -192,6 +193,27 @@ final class Context {
       throw new IllegalStateException("leaveScope() called with no open scope");
     }
     shrinkScope(mark);
+  }
+
+  void enterLoop(Term continueTarget) {
+    LoopContext loopContext = new LoopContext(continueTarget);
+    this.loopContexts.addFirst(loopContext);
+  }
+
+  LoopContext leaveLoop() {
+    LoopContext loop = loopContexts.pollFirst();
+    if (loop != null) {
+      return loop;
+    }
+    throw new IllegalStateException("leaveLoop() called with no open loop");
+  }
+
+  void addBreakPoint(Term breakTarget) {
+    LoopContext current = loopContexts.peekFirst();
+    if (current == null) {
+      throw new IllegalStateException("addBreakPoint() called with no open loop");
+    }
+    current.addBreakPoint(breakTarget);
   }
 
   /**
