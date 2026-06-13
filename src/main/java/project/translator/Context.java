@@ -216,6 +216,14 @@ final class Context {
     current.addBreakPoint(breakTarget);
   }
 
+  Term getCurrentContinueTarget() {
+    LoopContext loop = loopContexts.peekFirst();
+    if (loop != null) {
+      return loop.continueTarget();
+    }
+    throw new IllegalStateException("getCurrentContinueTarget() called with no open loop");
+  }
+
   /**
    * Builds a program-point function symbol {@code u<counter>} whose argument sorts are the sorts of
    * the current scope variables and whose result sort is the function's shared return sort.
