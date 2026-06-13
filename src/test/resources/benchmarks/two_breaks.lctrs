@@ -1,0 +1,20 @@
+two_breaks :: Int -> Int
+u1 :: Int -> Int
+u2 :: Int -> Int
+u3 :: Int -> Int
+u4 :: Int -> Int
+u5 :: Int -> Int
+u6 :: Int -> Int
+u7 :: Int -> Int
+
+two_breaks(x) -> u1(x) | (x < 100)
+u1(x) -> u2(x) | (x = 42)
+u1(x) -> u3(x) | ¬((x = 42))
+u3(x) -> u4((x + 7))
+u4(x) -> u5(x) | (x > 80)
+u4(x) -> u6(x) | ¬((x > 80))
+two_breaks(x) -> u7(x) | ¬((x < 100))
+u6(x) -> two_breaks(x)
+u2(x) -> u7(x)
+u5(x) -> u7(x)
+u7(x) -> x
