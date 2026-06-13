@@ -168,7 +168,10 @@ public class Translator {
         ctx.addBreakPoint(incoming);
         yield Optional.empty();
       }
-      case Continue stmt -> throw notYetImplemented(stmt);
+      case Continue stmt -> {
+        ctx.addRule(new Rule(incoming, ctx.getCurrentContinueTarget(), Optional.empty()));
+        yield Optional.empty();
+      }
       case Return stmt -> {
         processReturnStatement(ctx, stmt, incoming);
         yield Optional.empty();
@@ -215,8 +218,7 @@ public class Translator {
     Constraint notPhi = new Constraint(new FnApp(TheorySymbol.NOT, List.of(phi.formula())));
     List<Term> preScope = ctx.argsFromScope();
     Symbol uWhile = ctx.advance();
-    Term continueTarget = new FnApp(uWhile, preScope);
-    ctx.enterLoop(continueTarget);
+    ctx.enterLoop(incoming);
     ctx.addRule(new Rule(incoming, new FnApp(uWhile, preScope), Optional.of(phi)));
     Optional<Term> whileBlockOut = processBlock(ctx, stmt.block(), new FnApp(uWhile, preScope));
     LoopContext loop = ctx.leaveLoop();
