@@ -164,7 +164,10 @@ public class Translator {
       case If stmt -> processIfStatement(ctx, stmt, incoming);
       case While stmt -> Optional.of(processWhileStatement(ctx, stmt, incoming));
       case Loop stmt -> throw notYetImplemented(stmt);
-      case Break stmt -> throw notYetImplemented(stmt);
+      case Break stmt -> {
+        ctx.addBreakPoint(incoming);
+        yield Optional.empty();
+      }
       case Continue stmt -> throw notYetImplemented(stmt);
       case Return stmt -> {
         processReturnStatement(ctx, stmt, incoming);
@@ -190,13 +193,20 @@ public class Translator {
     Constraint notPhi = new Constraint(new FnApp(TheorySymbol.NOT, List.of(phi.formula())));
     List<Term> preScope = ctx.argsFromScope();
     Symbol uWhile = ctx.advance();
+    Term continueTarget = new FnApp(uWhile, preScope);
+    ctx.enterLoop(continueTarget);
     ctx.addRule(new Rule(incoming, new FnApp(uWhile, preScope), Optional.of(phi)));
     Optional<Term> whileBlockOut = processBlock(ctx, stmt.block(), new FnApp(uWhile, preScope));
+    LoopContext loop = ctx.leaveLoop();
     Symbol uMerge = ctx.advance();
     Term merge = new FnApp(uMerge, preScope);
     ctx.addRule(new Rule(incoming, merge, Optional.of(notPhi)));
     if (whileBlockOut.isPresent()) {
       ctx.addRule(new Rule(whileBlockOut.get(), incoming, Optional.empty()));
+    }
+
+    for (Term site : loop.breakPoints()) {
+      ctx.addRule(new Rule(site, merge, Optional.empty()));
     }
     return merge;
   }
