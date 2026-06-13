@@ -128,16 +128,22 @@ public class Translator {
    * @param incoming the configuration flowing into the first statement
    */
   private Optional<Term> processBlock(Context ctx, Block block, Term incoming) {
-    for (Statement statement : block.statements()) {
-      Optional<Term> outgoing = processStatement(ctx, statement, incoming);
-      if (outgoing.isEmpty()) {
-        // Control diverges at this statement (a return, or an if both of whose branches diverge):
-        // the tail and any dead trailing statements are unreachable, so stop lowering the block.
-        return Optional.empty();
+    ctx.enterScope();
+    try {
+      for (Statement statement : block.statements()) {
+        Optional<Term> outgoing = processStatement(ctx, statement, incoming);
+        if (outgoing.isEmpty()) {
+          // Control diverges at this statement (a return, or an if both of whose branches diverge):
+          // the tail and any dead trailing statements are unreachable, so stop lowering the block.
+          return Optional.empty();
+        }
+        incoming = outgoing.get();
       }
-      incoming = outgoing.get();
+      return Optional.of(incoming);
+    } finally {
+      // Bindings made inside the block fall out of scope on exit, including on the divergent path.
+      ctx.leaveScope();
     }
-    return Optional.of(incoming);
   }
 
   /**
@@ -186,7 +192,6 @@ public class Translator {
     Symbol uWhile = ctx.advance();
     ctx.addRule(new Rule(incoming, new FnApp(uWhile, preScope), Optional.of(phi)));
     Optional<Term> whileBlockOut = processBlock(ctx, stmt.block(), new FnApp(uWhile, preScope));
-    ctx.shrinkScope(preScope.size());
     Symbol uMerge = ctx.advance();
     Term merge = new FnApp(uMerge, preScope);
     ctx.addRule(new Rule(incoming, merge, Optional.of(notPhi)));
@@ -217,13 +222,11 @@ public class Translator {
     Symbol uThen = ctx.advance();
     ctx.addRule(new Rule(incoming, new FnApp(uThen, preScope), Optional.of(phi)));
     Optional<Term> thenBlockOut = processBlock(ctx, stmt.thenBlock(), new FnApp(uThen, preScope));
-    ctx.shrinkScope(preScope.size());
     Optional<Term> elseBlockOut = Optional.empty();
     if (elsePresent) {
       Symbol uElse = ctx.advance();
       ctx.addRule(new Rule(incoming, new FnApp(uElse, preScope), Optional.of(notPhi)));
       elseBlockOut = processBlock(ctx, stmt.elseBlock().get(), new FnApp(uElse, preScope));
-      ctx.shrinkScope(preScope.size());
     }
     // The merge point is reachable from the false fall-through (when there is no else) and from
     // whichever branches fall through. If an else is present and both branches diverge, nothing
