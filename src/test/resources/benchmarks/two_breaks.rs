@@ -1,3 +1,4 @@
+// cora: MAYBE
 fn two_breaks(mut x: i32) -> i32 {
     while x < 100 {
         if x == 42 {
