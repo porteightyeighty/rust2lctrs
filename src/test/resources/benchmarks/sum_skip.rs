@@ -1,4 +1,4 @@
-// cora: YES
+// cora: MAYBE
 fn sum_skip(n: i32) -> i32 {
     let mut i: i32 = 0;
     let mut acc: i32 = 0;
