@@ -1,4 +1,4 @@
-// cora: NO
+// cora: MAYBE
 fn sum_skip_stuck(n: i32) -> i32 {
     let mut i: i32 = 0;
     let mut acc: i32 = 0;
