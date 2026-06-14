@@ -183,9 +183,9 @@ public class Translator {
   /**
    * Lowers an unconditional {@code loop}. Mints a loop-head program point that the incoming
    * configuration unconditionally enters, lowers the body against it, and feeds any fall-through
-   * back to the head to close the loop. A {@code loop} is exited only via {@code break}: if the body
-   * records no break sites the loop diverges and nothing flows out; otherwise a merge program point
-   * is minted that every break site rewrites to, and control resumes there.
+   * back to the head to close the loop. A {@code loop} is exited only via {@code break}: if the
+   * body records no break sites the loop diverges and nothing flows out; otherwise a merge program
+   * point is minted that every break site rewrites to, and control resumes there.
    *
    * @param ctx the per-function translation state
    * @param stmt the {@code loop} statement to translate
