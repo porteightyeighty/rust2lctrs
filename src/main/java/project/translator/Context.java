@@ -1,6 +1,8 @@
 package project.translator;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +37,8 @@ final class Context {
   private final List<Symbol> sigma = new ArrayList<>();
   private final List<Rule> rules = new ArrayList<>();
   private final Sort returnSort;
+  private final Deque<Integer> scopeMarks = new ArrayDeque<>();
+  private final Deque<LoopContext> loopContexts = new ArrayDeque<>();
 
   /**
    * Creates a context for a single function.
@@ -128,7 +132,7 @@ final class Context {
    *
    * @param newSize the number of variables to retain, counting from the outermost
    */
-  void shrinkScope(int newSize) {
+  private void shrinkScope(int newSize) {
     scope = new ArrayList<>(scope.subList(0, newSize));
   }
 
@@ -167,6 +171,57 @@ final class Context {
       }
     }
     throw new IllegalStateException("Unbound variable in scope: " + varName);
+  }
+
+  /**
+   * Opens a lexical scope, recording the current scope size so the bindings made inside can be
+   * dropped on the matching {@link #leaveScope()}.
+   */
+  void enterScope() {
+    scopeMarks.addFirst(scope.size());
+  }
+
+  /**
+   * Closes the innermost lexical scope, truncating the scope back to where it was on the matching
+   * {@link #enterScope()} and dropping any bindings made inside.
+   *
+   * @throws IllegalStateException if no scope is currently open
+   */
+  void leaveScope() {
+    Integer mark = scopeMarks.pollFirst();
+    if (mark == null) {
+      throw new IllegalStateException("leaveScope() called with no open scope");
+    }
+    shrinkScope(mark);
+  }
+
+  void enterLoop(Term continueTarget) {
+    LoopContext loopContext = new LoopContext(continueTarget);
+    this.loopContexts.addFirst(loopContext);
+  }
+
+  LoopContext leaveLoop() {
+    LoopContext loop = loopContexts.pollFirst();
+    if (loop != null) {
+      return loop;
+    }
+    throw new IllegalStateException("leaveLoop() called with no open loop");
+  }
+
+  void addBreakPoint(Term breakTarget) {
+    LoopContext current = loopContexts.peekFirst();
+    if (current == null) {
+      throw new IllegalStateException("addBreakPoint() called with no open loop");
+    }
+    current.addBreakPoint(breakTarget);
+  }
+
+  Term getCurrentContinueTarget() {
+    LoopContext loop = loopContexts.peekFirst();
+    if (loop != null) {
+      return loop.continueTarget();
+    }
+    throw new IllegalStateException("getCurrentContinueTarget() called with no open loop");
   }
 
   /**
