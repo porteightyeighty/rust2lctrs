@@ -195,11 +195,24 @@ final class Context {
     shrinkScope(mark);
   }
 
+  /**
+   * Opens a loop, pushing a fresh {@link LoopContext} so nested {@code break}/{@code continue}
+   * statements resolve to this loop until the matching {@link #leaveLoop()}.
+   *
+   * @param continueTarget the configuration a {@code continue} in this loop jumps back to
+   */
   void enterLoop(Term continueTarget) {
     LoopContext loopContext = new LoopContext(continueTarget);
     this.loopContexts.addFirst(loopContext);
   }
 
+  /**
+   * Closes the innermost loop and returns its context, so the caller can wire up the recorded break
+   * sites to the loop's merge point.
+   *
+   * @return the context of the loop just closed
+   * @throws IllegalStateException if no loop is currently open
+   */
   LoopContext leaveLoop() {
     LoopContext loop = loopContexts.pollFirst();
     if (loop != null) {
@@ -208,6 +221,12 @@ final class Context {
     throw new IllegalStateException("leaveLoop() called with no open loop");
   }
 
+  /**
+   * Records a {@code break} site on the innermost open loop.
+   *
+   * @param breakTarget the configuration at the {@code break} site
+   * @throws IllegalStateException if no loop is currently open
+   */
   void addBreakPoint(Term breakTarget) {
     LoopContext current = loopContexts.peekFirst();
     if (current == null) {
@@ -216,6 +235,12 @@ final class Context {
     current.addBreakPoint(breakTarget);
   }
 
+  /**
+   * Returns the configuration a {@code continue} jumps back to in the innermost open loop.
+   *
+   * @return the innermost loop's continue target
+   * @throws IllegalStateException if no loop is currently open
+   */
   Term getCurrentContinueTarget() {
     LoopContext loop = loopContexts.peekFirst();
     if (loop != null) {

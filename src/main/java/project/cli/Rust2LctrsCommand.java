@@ -23,6 +23,10 @@ import project.parser.RustLexer;
 import project.parser.RustParser;
 import project.translator.Translator;
 
+/**
+ * The {@code rust2lctrs} command: reads a Rust source file, runs it through the parse → AST →
+ * translate pipeline, and serialises the resulting LCTRS to a file or stdout.
+ */
 @Command(
     name = "rust2lctrs",
     mixinStandardHelpOptions = true,
