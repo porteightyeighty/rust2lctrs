@@ -16,6 +16,13 @@ public record VarDecl(String name, Sort sort) implements Term {
     Objects.requireNonNull(sort);
   }
 
+  /**
+   * Creates a variable term for a function parameter, taking its name and mapping its type to the
+   * corresponding sort.
+   *
+   * @param parameter the function parameter
+   * @return the variable term denoting that parameter
+   */
   public static VarDecl of(Parameter parameter) {
     return new VarDecl(parameter.identifier().name(), Sort.of(parameter.type()));
   }

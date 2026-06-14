@@ -13,6 +13,7 @@ public class Lctrs {
   List<Symbol> sigma;
   List<Rule> rules;
 
+  /** Creates an empty LCTRS with no signature symbols and no rules. */
   public Lctrs() {
     this.sigma = new ArrayList<>();
     this.rules = new ArrayList<>();
@@ -29,11 +30,23 @@ public class Lctrs {
     return this;
   }
 
+  /**
+   * Appends a single rewrite rule.
+   *
+   * @param rule the rule to add
+   * @return this LCTRS, for chaining
+   */
   public Lctrs appendRule(Rule rule) {
     this.rules.add(rule);
     return this;
   }
 
+  /**
+   * Appends rewrite rules, in order.
+   *
+   * @param rules the rules to add
+   * @return this LCTRS, for chaining
+   */
   public Lctrs appendRules(List<Rule> rules) {
     this.rules.addAll(rules);
     return this;

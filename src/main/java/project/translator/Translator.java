@@ -180,6 +180,19 @@ public class Translator {
     };
   }
 
+  /**
+   * Lowers an unconditional {@code loop}. Mints a loop-head program point that the incoming
+   * configuration unconditionally enters, lowers the body against it, and feeds any fall-through
+   * back to the head to close the loop. A {@code loop} is exited only via {@code break}: if the
+   * body records no break sites the loop diverges and nothing flows out; otherwise a merge program
+   * point is minted that every break site rewrites to, and control resumes there.
+   *
+   * @param ctx the per-function translation state
+   * @param stmt the {@code loop} statement to translate
+   * @param incoming the configuration flowing into the loop
+   * @return the configuration at the merge point, or empty if the loop has no {@code break} and so
+   *     diverges
+   */
   private Optional<Term> processLoopStatement(Context ctx, Loop stmt, Term incoming) {
     List<Term> preScope = ctx.argsFromScope();
     Symbol uLoop = ctx.advance();
@@ -283,6 +296,16 @@ public class Translator {
     return Optional.of(merge);
   }
 
+  /**
+   * Lowers a {@code return}: evaluates the returned expression and rewrites the incoming
+   * configuration directly to that value, leaving the program-point family for the returned value's
+   * sort. Control diverges here, so the caller discards anything after it.
+   *
+   * @param ctx the per-function translation state
+   * @param ret the return statement to translate
+   * @param incoming the configuration flowing into the return
+   * @return the term the configuration rewrites to (the returned value)
+   */
   private Term processReturnStatement(Context ctx, Return ret, Term incoming) {
     Term value = processExpression(ctx, ret.value());
     ctx.addRule(new Rule(incoming, value, Optional.empty()));

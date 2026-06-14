@@ -26,6 +26,12 @@ public enum Sort {
     return notation;
   }
 
+  /**
+   * Maps an AST {@link Type} to its corresponding LCTRS sort.
+   *
+   * @param type the source-language type
+   * @return the sort encoding that type: {@link #INT} for integers, {@link #BOOL} for booleans
+   */
   public static Sort of(Type type) {
     return switch (type) {
       case Type.Int _ -> INT;
