@@ -1,15 +1,10 @@
 package project.testsupport;
 
-import org.antlr.v4.runtime.CharStream;
-import org.antlr.v4.runtime.CharStreams;
-import org.antlr.v4.runtime.CommonTokenStream;
-import org.antlr.v4.runtime.TokenStream;
 import project.ast.AstBuilder;
 import project.ast.Crate;
 import project.ast.SpanTable;
 import project.lctrs.Serialiser;
-import project.parser.RustLexer;
-import project.parser.RustParser;
+import project.parser.RustParsing;
 import project.translator.Translator;
 
 /**
@@ -29,12 +24,8 @@ public final class Translate {
    * @return the LCTRS rendered in Cora's input format
    */
   public static String toLctrs(String source) {
-    CharStream inputStream = CharStreams.fromString(source);
-    RustLexer lexer = new RustLexer(inputStream);
-    TokenStream tokens = new CommonTokenStream(lexer);
-    RustParser parser = new RustParser(tokens);
     AstBuilder astBuilder = new AstBuilder(new SpanTable());
-    Crate crate = astBuilder.buildCrate(parser.crate());
+    Crate crate = astBuilder.buildCrate(RustParsing.parse(source));
     return Serialiser.serialise(new Translator(crate).translate());
   }
 }

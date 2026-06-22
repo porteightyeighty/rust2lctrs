@@ -4,10 +4,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
-import org.antlr.v4.runtime.CharStream;
-import org.antlr.v4.runtime.CharStreams;
-import org.antlr.v4.runtime.CommonTokenStream;
-import org.antlr.v4.runtime.TokenStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import picocli.CommandLine.Command;
@@ -19,8 +15,8 @@ import project.ast.SpanTable;
 import project.ast.UnsupportedConstructException;
 import project.lctrs.Lctrs;
 import project.lctrs.Serialiser;
-import project.parser.RustLexer;
-import project.parser.RustParser;
+import project.parser.RustParsing;
+import project.parser.SyntaxErrorException;
 import project.translator.Translator;
 
 /**
@@ -48,7 +44,8 @@ public class Rust2LctrsCommand implements Callable<Integer> {
    * result to {@code outputPath} or, when no output file is given, prints it to stdout so it can be
    * piped to the next command.
    *
-   * @return {@code 0} on success, {@code 1} for I/O failure, {@code 2} for out-of-scope Rust
+   * @return {@code 0} on success, {@code 1} for I/O failure, {@code 2} for out-of-scope Rust,
+   *     {@code 3} for malformed (unparseable) Rust
    */
   @Override
   public Integer call() {
@@ -66,6 +63,9 @@ public class Rust2LctrsCommand implements Callable<Integer> {
     } catch (UnsupportedConstructException e) {
       LOG.error("Out-of-scope Rust: {}", e.getMessage());
       return 2;
+    } catch (SyntaxErrorException e) {
+      LOG.error("Malformed Rust: {}", e.getMessage());
+      return 3;
     }
 
     if (outputPath == null) {
@@ -89,13 +89,9 @@ public class Rust2LctrsCommand implements Callable<Integer> {
    * @return the translated LCTRS
    */
   private static Lctrs translate(String source) {
-    CharStream inputStream = CharStreams.fromString(source);
-    RustLexer lexer = new RustLexer(inputStream);
-    TokenStream tokens = new CommonTokenStream(lexer);
-    RustParser parser = new RustParser(tokens);
     SpanTable spanTable = new SpanTable();
     AstBuilder astBuilder = new AstBuilder(spanTable);
-    Crate crate = astBuilder.buildCrate(parser.crate());
+    Crate crate = astBuilder.buildCrate(RustParsing.parse(source));
     return new Translator(crate).translate();
   }
 }
