@@ -55,7 +55,7 @@ final class SerialiserTest {
             block(let("x", I32, add(var("n"), intLit(1))), ret(var("x"))));
 
     assertEquals("f(n) -> u1(n, (n + 1))", Serialiser.serialise(lctrs.rules().get(0)));
-    assertEquals("u1(n, x) -> x", Serialiser.serialise(lctrs.rules().get(1)));
+    assertEquals("u1(n, x) -> ret(x)", Serialiser.serialise(lctrs.rules().get(1)));
   }
 
   /** Nested binary applications nest their parentheses. */
@@ -95,14 +95,18 @@ final class SerialiserTest {
             block(let("x", I32, add(var("n"), intLit(1))), ret(var("x"))));
 
     String expected =
-        "f :: Int -> Int"
+        "f :: Int -> result"
             + ls()
-            + "u1 :: Int -> Int -> Int"
+            + "ret :: Int -> result"
+            + ls()
+            + "err :: result"
+            + ls()
+            + "u1 :: Int -> Int -> result"
             + ls()
             + ls()
             + "f(n) -> u1(n, (n + 1))"
             + ls()
-            + "u1(n, x) -> x"
+            + "u1(n, x) -> ret(x)"
             + ls();
     assertEquals(expected, Serialiser.serialise(lctrs));
   }

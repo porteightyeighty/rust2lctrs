@@ -1,8 +1,10 @@
-bigger :: Int -> Int -> Int
-u1 :: Int -> Int -> Int
-u2 :: Int -> Int -> Int
+bigger :: Int -> Int -> result
+ret :: Int -> result
+err :: result
+u1 :: Int -> Int -> result
+u2 :: Int -> Int -> result
 
 bigger(x, y) -> u1(x, y) | (x ≥ y)
-u1(x, y) -> x
+u1(x, y) -> ret(x)
 bigger(x, y) -> u2(x, y) | ¬((x ≥ y))
-u2(x, y) -> y
+u2(x, y) -> ret(y)

@@ -43,13 +43,14 @@ class TranslatorTest {
 
     VarDecl n = new VarDecl("n", Sort.INT);
     VarDecl x = new VarDecl("x", Sort.INT);
-    FnApp entry = new FnApp(new TermSymbol("f", List.of(Sort.INT), Sort.INT), List.of(n));
+    FnApp entry = new FnApp(new TermSymbol("f", List.of(Sort.INT), Sort.RESULT), List.of(n));
     FnApp nPlusOne = new FnApp(TheorySymbol.ADD, List.of(n, new IntValue(BigInteger.ONE)));
-    TermSymbol u1Symbol = new TermSymbol("u1", List.of(Sort.INT, Sort.INT), Sort.INT);
+    TermSymbol u1Symbol = new TermSymbol("u1", List.of(Sort.INT, Sort.INT), Sort.RESULT);
     FnApp u1 = new FnApp(u1Symbol, List.of(n, nPlusOne));
     FnApp u1scope = new FnApp(u1Symbol, List.of(n, x));
+    FnApp retX = new FnApp(new TermSymbol("ret", List.of(Sort.INT), Sort.RESULT), List.of(x));
     Rule expected1 = new Rule(entry, u1, Optional.empty());
-    Rule expected2 = new Rule(u1scope, x, Optional.empty());
+    Rule expected2 = new Rule(u1scope, retX, Optional.empty());
     assertEquals(List.of(expected1, expected2), lctrs.rules());
   }
 
@@ -72,19 +73,20 @@ class TranslatorTest {
     VarDecl n = new VarDecl("n", Sort.INT);
     VarDecl x = new VarDecl("x", Sort.INT);
     VarDecl y = new VarDecl("y", Sort.INT);
-    FnApp entry = new FnApp(new TermSymbol("f", List.of(Sort.INT), Sort.INT), List.of(n));
+    FnApp entry = new FnApp(new TermSymbol("f", List.of(Sort.INT), Sort.RESULT), List.of(n));
     FnApp nPlusOne = new FnApp(TheorySymbol.ADD, List.of(n, new IntValue(BigInteger.ONE)));
-    TermSymbol u1Symbol = new TermSymbol("u1", List.of(Sort.INT, Sort.INT), Sort.INT);
+    TermSymbol u1Symbol = new TermSymbol("u1", List.of(Sort.INT, Sort.INT), Sort.RESULT);
     FnApp u1 = new FnApp(u1Symbol, List.of(n, nPlusOne));
     FnApp u1scope = new FnApp(u1Symbol, List.of(n, x));
-    TermSymbol u2Symbol = new TermSymbol("u2", List.of(Sort.INT, Sort.INT, Sort.INT), Sort.INT);
+    TermSymbol u2Symbol = new TermSymbol("u2", List.of(Sort.INT, Sort.INT, Sort.INT), Sort.RESULT);
 
     FnApp u2 = new FnApp(u2Symbol, List.of(n, x, x));
     FnApp u2scope = new FnApp(u2Symbol, List.of(n, x, y));
+    FnApp retX = new FnApp(new TermSymbol("ret", List.of(Sort.INT), Sort.RESULT), List.of(x));
 
     Rule expected1 = new Rule(entry, u1, Optional.empty());
     Rule expected2 = new Rule(u1scope, u2, Optional.empty());
-    Rule expected3 = new Rule(u2scope, x, Optional.empty());
+    Rule expected3 = new Rule(u2scope, retX, Optional.empty());
 
     assertEquals(List.of(expected1, expected2, expected3), lctrs.rules());
   }

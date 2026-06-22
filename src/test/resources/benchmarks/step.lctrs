@@ -1,10 +1,12 @@
-step :: Int -> Int
-u1 :: Int -> Int -> Int
-u2 :: Int -> Int -> Int
-u3 :: Int -> Int -> Int
-u4 :: Int -> Int -> Int
-u5 :: Int -> Int -> Int
-u6 :: Int -> Int -> Int
+step :: Int -> result
+ret :: Int -> result
+err :: result
+u1 :: Int -> Int -> result
+u2 :: Int -> Int -> result
+u3 :: Int -> Int -> result
+u4 :: Int -> Int -> result
+u5 :: Int -> Int -> result
+u6 :: Int -> Int -> result
 
 step(x) -> u1(x, 0)
 u1(x, y) -> u2(x, y) | (x > 0)
@@ -13,4 +15,4 @@ u1(x, y) -> u4(x, y) | ¬((x > 0))
 u4(x, y) -> u5(x, (x - 1))
 u3(x, y) -> u6(x, y)
 u5(x, y) -> u6(x, y)
-u6(x, y) -> y
+u6(x, y) -> ret(y)

@@ -1,5 +1,7 @@
-sum :: Int -> Int -> Int
-u1 :: Int -> Int -> Int -> Int
+sum :: Int -> Int -> result
+ret :: Int -> result
+err :: result
+u1 :: Int -> Int -> Int -> result
 
 sum(a, b) -> u1(a, b, (a + b))
-u1(a, b, x) -> x
+u1(a, b, x) -> ret(x)

@@ -1,17 +1,19 @@
-nested_break :: Int -> Int
-u1 :: Int -> Int -> Int
-u2 :: Int -> Int -> Int
-u3 :: Int -> Int -> Int
-u4 :: Int -> Int -> Int
-u5 :: Int -> Int -> Int -> Int
-u6 :: Int -> Int -> Int -> Int
-u7 :: Int -> Int -> Int -> Int
-u8 :: Int -> Int -> Int -> Int
-u9 :: Int -> Int -> Int -> Int
-u10 :: Int -> Int -> Int -> Int
-u11 :: Int -> Int -> Int -> Int
-u12 :: Int -> Int -> Int -> Int
-u13 :: Int -> Int -> Int
+nested_break :: Int -> result
+ret :: Int -> result
+err :: result
+u1 :: Int -> Int -> result
+u2 :: Int -> Int -> result
+u3 :: Int -> Int -> result
+u4 :: Int -> Int -> result
+u5 :: Int -> Int -> Int -> result
+u6 :: Int -> Int -> Int -> result
+u7 :: Int -> Int -> Int -> result
+u8 :: Int -> Int -> Int -> result
+u9 :: Int -> Int -> Int -> result
+u10 :: Int -> Int -> Int -> result
+u11 :: Int -> Int -> Int -> result
+u12 :: Int -> Int -> Int -> result
+u13 :: Int -> Int -> result
 
 nested_break(x) -> u1(x, 0)
 u1(x, total) -> u2(x, total) | (x > 0)
@@ -30,4 +32,4 @@ u11(x, total, y) -> u12((x - 1), total, y)
 u1(x, total) -> u13(x, total) | ¬((x > 0))
 u12(x, total, y) -> u1(x, total)
 u3(x, total) -> u13(x, total)
-u13(x, total) -> total
+u13(x, total) -> ret(total)

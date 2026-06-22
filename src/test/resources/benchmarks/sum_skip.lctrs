@@ -1,12 +1,14 @@
-sum_skip :: Int -> Int
-u1 :: Int -> Int -> Int
-u2 :: Int -> Int -> Int -> Int
-u3 :: Int -> Int -> Int -> Int
-u4 :: Int -> Int -> Int -> Int
-u5 :: Int -> Int -> Int -> Int
-u6 :: Int -> Int -> Int -> Int
-u7 :: Int -> Int -> Int -> Int
-u8 :: Int -> Int -> Int -> Int
+sum_skip :: Int -> result
+ret :: Int -> result
+err :: result
+u1 :: Int -> Int -> result
+u2 :: Int -> Int -> Int -> result
+u3 :: Int -> Int -> Int -> result
+u4 :: Int -> Int -> Int -> result
+u5 :: Int -> Int -> Int -> result
+u6 :: Int -> Int -> Int -> result
+u7 :: Int -> Int -> Int -> result
+u8 :: Int -> Int -> Int -> result
 
 sum_skip(n) -> u1(n, 0)
 u1(n, i) -> u2(n, i, 0)
@@ -18,4 +20,4 @@ u4(n, i, acc) -> u6(n, i, acc) | ¬((i = 5))
 u6(n, i, acc) -> u7(n, i, (acc + i))
 u2(n, i, acc) -> u8(n, i, acc) | ¬((i < n))
 u7(n, i, acc) -> u2(n, i, acc)
-u8(n, i, acc) -> acc
+u8(n, i, acc) -> ret(acc)

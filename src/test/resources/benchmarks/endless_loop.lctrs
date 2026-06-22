@@ -1,9 +1,11 @@
-endless_loop :: Int
-u1 :: Int -> Int
-u2 :: Int -> Int
-u3 :: Int -> Int
+endless_loop :: result
+ret :: Int -> result
+err :: result
+u1 :: Int -> result
+u2 :: Int -> result
+u3 :: Int -> result
 
-endless_loop() -> u1(0)
+endless_loop -> u1(0)
 u1(x) -> u2(x)
 u2(x) -> u3((x + 1))
 u3(x) -> u1(x)

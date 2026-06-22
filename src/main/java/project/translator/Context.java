@@ -37,6 +37,8 @@ final class Context {
   private final List<Symbol> sigma = new ArrayList<>();
   private final List<Rule> rules = new ArrayList<>();
   private final Sort returnSort;
+  private Symbol ret;
+  private Symbol err;
   private final Deque<Integer> scopeMarks = new ArrayDeque<>();
   private final Deque<LoopContext> loopContexts = new ArrayDeque<>();
 
@@ -70,6 +72,41 @@ final class Context {
    */
   void register(Symbol s) {
     sigma.add(s);
+  }
+
+  /**
+   * Records the function's two primary result symbols — {@code ret}, which wraps a returned value
+   * into the {@code result} sort, and the nullary {@code err} error sink — and registers both in
+   * the signature. Following Fuhs, Kop &amp; Nishida (2017), §8.1, every accepted function has
+   * exactly this pair, so they are per-function fixtures held alongside {@link #returnSort}.
+   *
+   * @param ret the {@code ret :: <returnSort> -> result} symbol
+   * @param err the nullary {@code err :: result} symbol
+   */
+  void setResultSymbols(Symbol ret, Symbol err) {
+    this.ret = ret;
+    this.err = err;
+    register(ret);
+    register(err);
+  }
+
+  /**
+   * Returns the function's {@code ret} symbol, which wraps a returned value into the {@code result}
+   * sort.
+   *
+   * @return the {@code ret} symbol
+   */
+  Symbol ret() {
+    return ret;
+  }
+
+  /**
+   * Returns the function's nullary {@code err} error sink.
+   *
+   * @return the {@code err} symbol
+   */
+  Symbol err() {
+    return err;
   }
 
   /**
