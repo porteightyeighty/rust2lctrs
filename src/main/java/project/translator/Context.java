@@ -6,7 +6,9 @@ import java.util.Deque;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import project.ast.Type;
 import project.lctrs.Rule;
+import project.lctrs.ScopedVar;
 import project.lctrs.Sort;
 import project.lctrs.Symbol;
 import project.lctrs.Term;
@@ -33,7 +35,7 @@ final class Context {
   private static final Logger LOG = LoggerFactory.getLogger(Context.class);
 
   private int counter = 0;
-  private List<VarDecl> scope = new ArrayList<>();
+  private List<ScopedVar> scope = new ArrayList<>();
   private final List<Symbol> sigma = new ArrayList<>();
   private final List<Rule> rules = new ArrayList<>();
   private final Sort returnSort;
@@ -125,7 +127,7 @@ final class Context {
    * @return the scope variables as configuration arguments
    */
   List<Term> argsFromScope() {
-    return List.<Term>copyOf(scope);
+    return scope.stream().<Term>map(ScopedVar::varDecl).toList();
   }
 
   /**
@@ -144,9 +146,9 @@ final class Context {
    * @return the scope arguments with the innermost named slot replaced
    */
   List<Term> argsWithValue(String name, Term value) {
-    List<Term> args = new ArrayList<>(scope);
+    List<Term> args = new ArrayList<>(argsFromScope());
     for (int i = scope.size() - 1; i >= 0; i--) {
-      if (scope.get(i).name().equals(name)) {
+      if (scope.get(i).varDecl().name().equals(name)) {
         args.set(i, value);
         return args;
       }
@@ -159,8 +161,9 @@ final class Context {
    *
    * @param var the variable declaration to bring into scope
    */
-  void addToScope(VarDecl var) {
-    scope.add(var);
+  void addToScope(VarDecl var, Type sourceType) {
+    ScopedVar scopedVar = new ScopedVar(var, sourceType);
+    scope.add(scopedVar);
   }
 
   /**
@@ -200,11 +203,11 @@ final class Context {
    * @return the matching variable declaration
    * @throws IllegalStateException if no variable of that name is in scope
    */
-  VarDecl resolve(String varName) {
+  ScopedVar resolve(String varName) {
     for (int i = scope.size() - 1; i >= 0; i--) {
-      VarDecl varDecl = scope.get(i);
-      if (varDecl.name().equals(varName)) {
-        return varDecl;
+      ScopedVar scopedVar = scope.get(i);
+      if (scopedVar.varDecl().name().equals(varName)) {
+        return scopedVar;
       }
     }
     throw new IllegalStateException("Unbound variable in scope: " + varName);
@@ -295,7 +298,7 @@ final class Context {
    */
   private Symbol symbolFor(int counter) {
     String notation = "u" + String.valueOf(counter);
-    List<Sort> argSorts = scope.stream().map((v) -> v.sort()).toList();
+    List<Sort> argSorts = scope.stream().map((v) -> v.varDecl().sort()).toList();
     return new TermSymbol(notation, argSorts, returnSort);
   }
 }

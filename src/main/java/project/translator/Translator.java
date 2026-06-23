@@ -105,7 +105,7 @@ public class Translator {
    */
   private void processFunctionDeclaration(Context ctx, FunctionDeclaration functionDeclaration) {
     for (Parameter parameter : functionDeclaration.parameters()) {
-      ctx.addToScope(VarDecl.of(parameter));
+      ctx.addToScope(VarDecl.of(parameter), parameter.type());
     }
     Sort functionReturnSort = Sort.of(functionDeclaration.returnType());
     // Want to hand roll the first symbol so that we start with the actual function name
@@ -361,7 +361,8 @@ public class Translator {
   private Term processLetStatement(Context ctx, Let let, Term incoming) {
     List<Term> oldArgs = ctx.argsFromScope();
     Term value = processExpression(ctx, let.value());
-    ctx.addToScope(new VarDecl(let.identifier().name(), Sort.of(let.type())));
+    VarDecl varDecl = new VarDecl(let.identifier().name(), Sort.of(let.type()));
+    ctx.addToScope(varDecl, let.type());
     Symbol to = ctx.advance();
     List<Term> rhsArgs = new ArrayList<>(oldArgs);
     rhsArgs.add(value);
@@ -457,7 +458,7 @@ public class Translator {
         Symbol theorySymbol = theorySymbolFor(expr.operator(), left.sort());
         yield new FnApp(theorySymbol, List.of(left, right));
       }
-      case Variable expr -> ctx.resolve(expr.name().name());
+      case Variable expr -> ctx.resolve(expr.name().name()).varDecl();
     };
   }
 
