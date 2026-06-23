@@ -20,20 +20,6 @@ public final class Serialiser {
   private Serialiser() {}
 
   /**
-   * Serialises a complete LCTRS: its signature followed by a blank line and then its rules.
-   *
-   * @param lctrs the system to serialise
-   * @return the LCTRS in Cora's input format
-   */
-  public static String serialise(Lctrs lctrs) {
-    StringBuilder out = new StringBuilder();
-    out.append(serialiseSignature(lctrs.sigma()));
-    out.append(System.lineSeparator());
-    out.append(serialiseRules(lctrs.rules()));
-    return out.toString();
-  }
-
-  /**
    * Serialises the signature, one symbol per line as {@code notation :: s₁ -> … -> sₙ -> result}.
    *
    * @param signature the symbols to declare, in output order
@@ -68,6 +54,20 @@ public final class Serialiser {
       out.append(serialise(currentRule));
       out.append(System.lineSeparator());
     }
+    return out.toString();
+  }
+
+  /**
+   * Serialises a complete LCTRS: its signature followed by a blank line and then its rules.
+   *
+   * @param lctrs the system to serialise
+   * @return the LCTRS in Cora's input format
+   */
+  public static String serialise(Lctrs lctrs) {
+    StringBuilder out = new StringBuilder();
+    out.append(serialiseSignature(lctrs.sigma()));
+    out.append(System.lineSeparator());
+    out.append(serialiseRules(lctrs.rules()));
     return out.toString();
   }
 
@@ -119,6 +119,9 @@ public final class Serialiser {
           + " "
           + serialise(f.args().get(1))
           + ")";
+    }
+    if (f.args().isEmpty()) {
+      return f.symbol().notation();
     }
     return f.symbol().notation()
         + f.args().stream().map(Serialiser::serialise).collect(Collectors.joining(", ", "(", ")"));

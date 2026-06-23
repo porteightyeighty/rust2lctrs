@@ -1,5 +1,6 @@
 package project.translator;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -22,6 +23,7 @@ import project.ast.Loop;
 import project.ast.Parameter;
 import project.ast.Return;
 import project.ast.Statement;
+import project.ast.Type;
 import project.ast.Variable;
 import project.ast.While;
 import project.lctrs.BoolValue;
@@ -86,7 +88,7 @@ public class Translator {
       case FunctionDeclaration fn -> {
         // A function's return sort is the shared output sort of its whole program-point family, so
         // the Context is constructed per function once that sort is known.
-        Context ctx = new Context(Sort.of(fn.returnType()));
+        Context ctx = new Context(Sort.RESULT);
         processFunctionDeclaration(ctx, fn);
         lctrs.appendSymbols(ctx.sigma());
         lctrs.appendRules(ctx.rules());
@@ -104,17 +106,25 @@ public class Translator {
    */
   private void processFunctionDeclaration(Context ctx, FunctionDeclaration functionDeclaration) {
     for (Parameter parameter : functionDeclaration.parameters()) {
-      ctx.addToScope(VarDecl.of(parameter));
+      ctx.addToScope(VarDecl.of(parameter), parameter.type());
     }
-    Sort functionReturnType = Sort.of(functionDeclaration.returnType());
+    Sort functionReturnSort = Sort.of(functionDeclaration.returnType());
     // Want to hand roll the first symbol so that we start with the actual function name
     List<Sort> argSorts =
         functionDeclaration.parameters().stream().map(p -> Sort.of(p.type())).toList();
-    Symbol entry =
-        new TermSymbol(functionDeclaration.identifier().name(), argSorts, functionReturnType);
+    // The entry symbol heads the program-point family, so its codomain is the shared result sort,
+    // not the function's value return sort. The value sort (functionReturnSort) survives only as
+    // ret's argument sort below.
+    Symbol entry = new TermSymbol(functionDeclaration.identifier().name(), argSorts, Sort.RESULT);
     // advance() never mints the entry symbol, so register it explicitly or the signature would
     // omit the function's own program-point symbol.
     ctx.register(entry);
+    // register return and error symbols for the function (FKN §8.1: ret wraps the value into the
+    // result sort, err is the nullary error sink). Held on the Context so return lowering shares
+    // one definition instead of rebuilding it.
+    Symbol ret = new TermSymbol("ret", List.of(functionReturnSort), Sort.RESULT);
+    Symbol err = new TermSymbol("err", List.of(), Sort.RESULT);
+    ctx.setResultSymbols(ret, err);
     Term incoming = new FnApp(entry, ctx.argsFromScope());
     processBlock(ctx, functionDeclaration.block(), incoming);
   }
@@ -154,6 +164,7 @@ public class Translator {
    * @param incoming the configuration flowing into the statement
    * @return the configuration flowing out to the next statement, or empty if control diverges here
    */
+  @SuppressWarnings("unused")
   private Optional<Term> processStatement(Context ctx, Statement statement, Term incoming) {
     LOG.debug(
         "Lowering {} with incoming configuration {}",
@@ -227,8 +238,9 @@ public class Translator {
    * @return the configuration at the merge point, over the scope live before the loop
    */
   private Term processWhileStatement(Context ctx, While stmt, Term incoming) {
-    Constraint phi = new Constraint(processExpression(ctx, stmt.condition()));
-    Constraint notPhi = new Constraint(new FnApp(TheorySymbol.NOT, List.of(phi.formula())));
+    BranchGuards guards = conditionGuards(ctx, stmt.condition(), incoming);
+    Constraint phi = guards.whenTrue();
+    Constraint notPhi = guards.whenFalse();
     List<Term> preScope = ctx.argsFromScope();
     Symbol uWhile = ctx.advance();
     ctx.enterLoop(incoming);
@@ -263,8 +275,9 @@ public class Translator {
    */
   private Optional<Term> processIfStatement(Context ctx, If stmt, Term incoming) {
     boolean elsePresent = stmt.elseBlock().isPresent();
-    Constraint phi = new Constraint(processExpression(ctx, stmt.condition()));
-    Constraint notPhi = new Constraint(new FnApp(TheorySymbol.NOT, List.of(phi.formula())));
+    BranchGuards guards = conditionGuards(ctx, stmt.condition(), incoming);
+    Constraint phi = guards.whenTrue();
+    Constraint notPhi = guards.whenFalse();
     List<Term> preScope = ctx.argsFromScope();
     Symbol uThen = ctx.advance();
     ctx.addRule(new Rule(incoming, new FnApp(uThen, preScope), Optional.of(phi)));
@@ -298,18 +311,19 @@ public class Translator {
 
   /**
    * Lowers a {@code return}: evaluates the returned expression and rewrites the incoming
-   * configuration directly to that value, leaving the program-point family for the returned value's
-   * sort. Control diverges here, so the caller discards anything after it.
+   * configuration to {@code ret(value)}, the normal-completion term of the function's {@code
+   * result} sort (FKN §8.1). Control diverges here, so the caller discards anything after it.
    *
    * @param ctx the per-function translation state
    * @param ret the return statement to translate
    * @param incoming the configuration flowing into the return
-   * @return the term the configuration rewrites to (the returned value)
+   * @return the term the configuration rewrites to ({@code ret(value)})
    */
   private Term processReturnStatement(Context ctx, Return ret, Term incoming) {
     Term value = processExpression(ctx, ret.value());
-    ctx.addRule(new Rule(incoming, value, Optional.empty()));
-    return value;
+    Term wrapped = new FnApp(ctx.ret(), List.of(value));
+    emitDivSafe(ctx, ret.value(), incoming, wrapped);
+    return wrapped;
   }
 
   /**
@@ -331,20 +345,8 @@ public class Translator {
 
     Symbol to = ctx.advance();
     Term rhs = new FnApp(to, ctx.argsWithValue(name, value));
-    ctx.addRule(new Rule(incoming, rhs, Optional.empty()));
-
+    emitDivSafe(ctx, assignment.value(), incoming, rhs);
     return new FnApp(to, ctx.argsFromScope());
-  }
-
-  /**
-   * Builds the exception thrown for in-scope statements whose translation rule is not yet written.
-   *
-   * @param stmt the statement that has no rule yet
-   * @return an exception naming the unimplemented statement kind
-   */
-  private static UnsupportedOperationException notYetImplemented(Statement stmt) {
-    return new UnsupportedOperationException(
-        "Translator: " + stmt.getClass().getSimpleName() + " not yet implemented");
   }
 
   /**
@@ -360,13 +362,82 @@ public class Translator {
   private Term processLetStatement(Context ctx, Let let, Term incoming) {
     List<Term> oldArgs = ctx.argsFromScope();
     Term value = processExpression(ctx, let.value());
-    ctx.addToScope(new VarDecl(let.identifier().name(), Sort.of(let.type())));
+    VarDecl varDecl = new VarDecl(let.identifier().name(), Sort.of(let.type()));
+    ctx.addToScope(varDecl, let.type());
     Symbol to = ctx.advance();
     List<Term> rhsArgs = new ArrayList<>(oldArgs);
     rhsArgs.add(value);
     Term rhs = new FnApp(to, rhsArgs);
-    ctx.addRule(new Rule(incoming, rhs, Optional.empty()));
+    emitDivSafe(ctx, let.value(), incoming, rhs);
     return new FnApp(to, ctx.argsFromScope());
+  }
+
+  /**
+   * Emits the error rule {@code incoming -> err [¬safety]} when {@code e} can divide or take a
+   * modulus by zero, and returns the safety formula so callers can guard their normal-path rules
+   * with it. When {@code e} cannot fault, emits nothing and returns empty.
+   *
+   * @param ctx the per-function translation state
+   * @param e the expression about to be evaluated into a rule's right-hand side
+   * @param incoming the configuration flowing into the statement
+   * @return the safety formula to conjoin onto the normal-path guard(s), or empty if {@code e}
+   *     cannot fault
+   */
+  private Optional<Term> emitErrIfFaulty(Context ctx, Expression e, Term incoming) {
+    Optional<Term> safety = errorFree(ctx, e);
+    if (safety.isPresent()) {
+      ctx.addRule(
+          new Rule(
+              incoming,
+              new FnApp(ctx.err(), List.of()),
+              Optional.of(new Constraint(new FnApp(TheorySymbol.NOT, List.of(safety.get()))))));
+    }
+    return safety;
+  }
+
+  /**
+   * Emits the rule(s) for a statement that rewrites {@code incoming} to {@code safeRhs} after
+   * evaluating {@code e}. When {@code e} can divide or take a modulus by zero this is the FKN pair
+   * the error rule plus the normal rewrite guarded by the divisors being non-zero; otherwise it is
+   * the single unguarded rule.
+   *
+   * @param ctx the per-function translation state
+   * @param e the expression evaluated into {@code safeRhs}
+   * @param incoming the configuration flowing into the statement
+   * @param safeRhs the configuration the statement rewrites to on the normal path
+   */
+  private void emitDivSafe(Context ctx, Expression e, Term incoming, Term safeRhs) {
+    Optional<Term> safety = emitErrIfFaulty(ctx, e, incoming);
+    ctx.addRule(new Rule(incoming, safeRhs, safety.map(Constraint::new)));
+  }
+
+  /**
+   * The two branch guards for a condition, each already conjoined with the condition's safety
+   * formula so that the true, false and error guards partition the cases without overlap.
+   *
+   * @param whenTrue the guard under which the condition's true branch is taken
+   * @param whenFalse the guard under which the condition's false branch is taken
+   */
+  private record BranchGuards(Constraint whenTrue, Constraint whenFalse) {}
+
+  /**
+   * Builds the true/false branch guards for a condition and, when the condition can divide or take
+   * a modulus by zero, emits the shared error rule {@code incoming -> err [¬safety]} (§8.1). The
+   * returned guards are {@code safety ∧ cond} and {@code safety ∧ ¬cond}, so a faulting condition
+   * routes to {@code err} rather than to either branch.
+   *
+   * @param ctx the per-function translation state
+   * @param condition the branching condition
+   * @param incoming the configuration flowing into the branch
+   * @return the guards for the true and false branches
+   */
+  private BranchGuards conditionGuards(Context ctx, Expression condition, Term incoming) {
+    Term cond = processExpression(ctx, condition);
+    Optional<Term> safety = emitErrIfFaulty(ctx, condition, incoming);
+    Term whenTrue = conjoin(safety, Optional.of(cond)).orElseThrow();
+    Term whenFalse =
+        conjoin(safety, Optional.of(new FnApp(TheorySymbol.NOT, List.of(cond)))).orElseThrow();
+    return new BranchGuards(new Constraint(whenTrue), new Constraint(whenFalse));
   }
 
   /**
@@ -388,8 +459,110 @@ public class Translator {
         Symbol theorySymbol = theorySymbolFor(expr.operator(), left.sort());
         yield new FnApp(theorySymbol, List.of(left, right));
       }
-      case Variable expr -> ctx.resolve(expr.name().name());
+      case Variable expr -> ctx.resolve(expr.name().name()).varDecl();
     };
+  }
+
+  private Optional<Type.Int> inferWidth(Context ctx, Expression expression) {
+    return switch (expression) {
+      case Variable v ->
+          ctx.resolve(v.name().name()).sourceType() instanceof Type.Int i
+              ? Optional.of(i)
+              : Optional.empty();
+      case IntegerLiteral e -> Optional.empty();
+      case BooleanLiteral e -> Optional.empty();
+      case BinaryOp e -> inferWidth(ctx, e.left()).or(() -> inferWidth(ctx, e.right()));
+    };
+  }
+
+  private Optional<Term> withinWidth(Context ctx, Expression expression) {
+    return inferWidth(ctx, expression)
+        .map(
+            w -> {
+              Term t = processExpression(ctx, expression);
+              Term lo = new FnApp(TheorySymbol.LE, List.of(new IntValue(w.min()), t));
+              Term hi = new FnApp(TheorySymbol.LE, List.of(t, new IntValue(w.max())));
+              return new FnApp(TheorySymbol.AND, List.of(lo, hi));
+            });
+  }
+
+  private Optional<Term> errorFree(Context ctx, Expression expression) {
+    return switch (expression) {
+      case IntegerLiteral e -> Optional.empty();
+      case BooleanLiteral e -> Optional.empty();
+      case Variable e -> Optional.empty();
+      case BinaryOp expr -> {
+        // Each node carries its own bound (withinWidth below); recursing collects the operands' own
+        // overflow clauses, so this node and its children are bounded in separate roles.
+        Optional<Term> leftFree = errorFree(ctx, expr.left());
+        Optional<Term> rightFree = errorFree(ctx, expr.right());
+        Optional<Term> combined = conjoin(leftFree, rightFree);
+        Optional<Term> clause =
+            switch (expr.operator()) {
+              // Encodes Rust's *debug* semantics: overflowing +,-,* panics. In release these
+              // wrap (two's-complement), which is equally well-defined, so guarding the width
+              // here is a deliberate choice of the panicking model — unlike DIV/MOD below, whose
+              // checks fire in release too and so are unconditional Rust semantics.
+              case ADD, SUB, MUL -> withinWidth(ctx, expression);
+              case DIV, MOD -> {
+                Term divisorNonZero =
+                    new FnApp(
+                        TheorySymbol.NEQ_INT,
+                        List.of(
+                            processExpression(ctx, expr.right()),
+                            new IntValue(BigInteger.valueOf(0))));
+                // Rust panics on MIN / -1 and MIN % -1: the true quotient MAX+1 is unrepresentable.
+                // A result bound only catches DIV (MIN / -1 lands out of range); MIN % -1 evaluates
+                // to 0, which is in range, so it would slip through. Guard the precise overflow
+                // condition for both operators instead: unsafe iff left = MIN and right = -1.
+                yield conjoin(Optional.of(divisorNonZero), notMinOverNegOne(ctx, expr));
+              }
+              // Comparisons (GT..NE): bool-valued, so no overflow clause; operands are already
+              // bounded via combined.
+              default -> Optional.empty();
+            };
+        yield conjoin(combined, clause);
+      }
+    };
+  }
+
+  /**
+   * The DIV/MOD overflow guard {@code ¬(left = MIN ∧ right = -1)}, where MIN is the minimum value
+   * of the operands' integer width. Empty when that width cannot be inferred (e.g. literal-only
+   * operands), matching {@link #withinWidth}'s convention of guarding only width-tracked terms.
+   *
+   * @param ctx the per-function translation state
+   * @param expr the division or remainder expression to guard
+   * @return the negated MIN/-1 condition, or empty if the operand width is unknown
+   */
+  private Optional<Term> notMinOverNegOne(Context ctx, BinaryOp expr) {
+    return inferWidth(ctx, expr)
+        .map(
+            w -> {
+              Term leftIsMin =
+                  new FnApp(
+                      TheorySymbol.EQ_INT,
+                      List.of(processExpression(ctx, expr.left()), new IntValue(w.min())));
+              Term rightIsNegOne =
+                  new FnApp(
+                      TheorySymbol.EQ_INT,
+                      List.of(
+                          processExpression(ctx, expr.right()),
+                          new IntValue(BigInteger.valueOf(-1))));
+              return new FnApp(
+                  TheorySymbol.NOT,
+                  List.of(new FnApp(TheorySymbol.AND, List.of(leftIsMin, rightIsNegOne))));
+            });
+  }
+
+  private Optional<Term> conjoin(Optional<Term> a, Optional<Term> b) {
+    if (a.isEmpty()) {
+      return b;
+    }
+    if (b.isEmpty()) {
+      return a;
+    }
+    return Optional.of(new FnApp(TheorySymbol.AND, List.of(a.get(), b.get())));
   }
 
   /**

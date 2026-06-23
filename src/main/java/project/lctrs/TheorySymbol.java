@@ -15,8 +15,10 @@ public enum TheorySymbol implements Symbol {
   ADD("+", List.of(Sort.INT, Sort.INT), Sort.INT),
   SUB("-", List.of(Sort.INT, Sort.INT), Sort.INT),
   MUL("*", List.of(Sort.INT, Sort.INT), Sort.INT),
-  // TODO: Cora's / and % follow SMT-LIB (floor/Euclidean) semantics, which differ from Rust's
-  // truncating / and sign-of-dividend % for negative operands.
+  // TODO: Cora's / and % are Euclidean (Boute): mod always lands in [0, |d|) and the divisor
+  // sign is discarded (verified in charlie/smt/{Division,Modulo}.java). Rust's / truncates toward
+  // zero and % takes the sign of the dividend, so the two diverge for any negative dividend (e.g.
+  // -7 % 2 is -1 in Rust, 1 in Cora). Mixed-sign / and % are currently unresolved.
   DIV("/", List.of(Sort.INT, Sort.INT), Sort.INT),
   MOD("%", List.of(Sort.INT, Sort.INT), Sort.INT),
 
