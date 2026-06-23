@@ -1,12 +1,15 @@
-count_up :: Int -> Int
-u1 :: Int -> Int -> Int
-u2 :: Int -> Int -> Int
-u3 :: Int -> Int -> Int
-u4 :: Int -> Int -> Int
+count_up :: Int -> result
+ret :: Int -> result
+err :: result
+u1 :: Int -> Int -> result
+u2 :: Int -> Int -> result
+u3 :: Int -> Int -> result
+u4 :: Int -> Int -> result
 
 count_up(x) -> u1(x, 0)
 u1(x, y) -> u2(x, y) | (x > y)
-u2(x, y) -> u3(x, (y + 1))
+u2(x, y) -> err | ¬(((-2147483648 ≤ (y + 1)) ∧ ((y + 1) ≤ 2147483647)))
+u2(x, y) -> u3(x, (y + 1)) | ((-2147483648 ≤ (y + 1)) ∧ ((y + 1) ≤ 2147483647))
 u1(x, y) -> u4(x, y) | ¬((x > y))
 u3(x, y) -> u1(x, y)
-u4(x, y) -> y
+u4(x, y) -> ret(y)

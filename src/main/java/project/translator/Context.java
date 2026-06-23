@@ -6,7 +6,9 @@ import java.util.Deque;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import project.ast.Type;
 import project.lctrs.Rule;
+import project.lctrs.ScopedVar;
 import project.lctrs.Sort;
 import project.lctrs.Symbol;
 import project.lctrs.Term;
@@ -33,10 +35,12 @@ final class Context {
   private static final Logger LOG = LoggerFactory.getLogger(Context.class);
 
   private int counter = 0;
-  private List<VarDecl> scope = new ArrayList<>();
+  private List<ScopedVar> scope = new ArrayList<>();
   private final List<Symbol> sigma = new ArrayList<>();
   private final List<Rule> rules = new ArrayList<>();
   private final Sort returnSort;
+  private Symbol ret;
+  private Symbol err;
   private final Deque<Integer> scopeMarks = new ArrayDeque<>();
   private final Deque<LoopContext> loopContexts = new ArrayDeque<>();
 
@@ -73,6 +77,41 @@ final class Context {
   }
 
   /**
+   * Records the function's two primary result symbols — {@code ret}, which wraps a returned value
+   * into the {@code result} sort, and the nullary {@code err} error sink — and registers both in
+   * the signature. Following Fuhs, Kop &amp; Nishida (2017), §8.1, every accepted function has
+   * exactly this pair, so they are per-function fixtures held alongside {@link #returnSort}.
+   *
+   * @param ret the {@code ret :: <returnSort> -> result} symbol
+   * @param err the nullary {@code err :: result} symbol
+   */
+  void setResultSymbols(Symbol ret, Symbol err) {
+    this.ret = ret;
+    this.err = err;
+    register(ret);
+    register(err);
+  }
+
+  /**
+   * Returns the function's {@code ret} symbol, which wraps a returned value into the {@code result}
+   * sort.
+   *
+   * @return the {@code ret} symbol
+   */
+  Symbol ret() {
+    return ret;
+  }
+
+  /**
+   * Returns the function's nullary {@code err} error sink.
+   *
+   * @return the {@code err} symbol
+   */
+  Symbol err() {
+    return err;
+  }
+
+  /**
    * Returns an immutable snapshot of the terms signature accumulated so far, in mint order (the
    * entry symbol first, then {@code u1}, {@code u2}, …).
    *
@@ -88,7 +127,7 @@ final class Context {
    * @return the scope variables as configuration arguments
    */
   List<Term> argsFromScope() {
-    return List.<Term>copyOf(scope);
+    return scope.stream().<Term>map(ScopedVar::varDecl).toList();
   }
 
   /**
@@ -107,9 +146,9 @@ final class Context {
    * @return the scope arguments with the innermost named slot replaced
    */
   List<Term> argsWithValue(String name, Term value) {
-    List<Term> args = new ArrayList<>(scope);
+    List<Term> args = new ArrayList<>(argsFromScope());
     for (int i = scope.size() - 1; i >= 0; i--) {
-      if (scope.get(i).name().equals(name)) {
+      if (scope.get(i).varDecl().name().equals(name)) {
         args.set(i, value);
         return args;
       }
@@ -122,8 +161,9 @@ final class Context {
    *
    * @param var the variable declaration to bring into scope
    */
-  void addToScope(VarDecl var) {
-    scope.add(var);
+  void addToScope(VarDecl var, Type sourceType) {
+    ScopedVar scopedVar = new ScopedVar(var, sourceType);
+    scope.add(scopedVar);
   }
 
   /**
@@ -163,11 +203,11 @@ final class Context {
    * @return the matching variable declaration
    * @throws IllegalStateException if no variable of that name is in scope
    */
-  VarDecl resolve(String varName) {
+  ScopedVar resolve(String varName) {
     for (int i = scope.size() - 1; i >= 0; i--) {
-      VarDecl varDecl = scope.get(i);
-      if (varDecl.name().equals(varName)) {
-        return varDecl;
+      ScopedVar scopedVar = scope.get(i);
+      if (scopedVar.varDecl().name().equals(varName)) {
+        return scopedVar;
       }
     }
     throw new IllegalStateException("Unbound variable in scope: " + varName);
@@ -258,7 +298,7 @@ final class Context {
    */
   private Symbol symbolFor(int counter) {
     String notation = "u" + String.valueOf(counter);
-    List<Sort> argSorts = scope.stream().map((v) -> v.sort()).toList();
+    List<Sort> argSorts = scope.stream().map((v) -> v.varDecl().sort()).toList();
     return new TermSymbol(notation, argSorts, returnSort);
   }
 }

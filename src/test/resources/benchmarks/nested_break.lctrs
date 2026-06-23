@@ -1,17 +1,19 @@
-nested_break :: Int -> Int
-u1 :: Int -> Int -> Int
-u2 :: Int -> Int -> Int
-u3 :: Int -> Int -> Int
-u4 :: Int -> Int -> Int
-u5 :: Int -> Int -> Int -> Int
-u6 :: Int -> Int -> Int -> Int
-u7 :: Int -> Int -> Int -> Int
-u8 :: Int -> Int -> Int -> Int
-u9 :: Int -> Int -> Int -> Int
-u10 :: Int -> Int -> Int -> Int
-u11 :: Int -> Int -> Int -> Int
-u12 :: Int -> Int -> Int -> Int
-u13 :: Int -> Int -> Int
+nested_break :: Int -> result
+ret :: Int -> result
+err :: result
+u1 :: Int -> Int -> result
+u2 :: Int -> Int -> result
+u3 :: Int -> Int -> result
+u4 :: Int -> Int -> result
+u5 :: Int -> Int -> Int -> result
+u6 :: Int -> Int -> Int -> result
+u7 :: Int -> Int -> Int -> result
+u8 :: Int -> Int -> Int -> result
+u9 :: Int -> Int -> Int -> result
+u10 :: Int -> Int -> Int -> result
+u11 :: Int -> Int -> Int -> result
+u12 :: Int -> Int -> Int -> result
+u13 :: Int -> Int -> result
 
 nested_break(x) -> u1(x, 0)
 u1(x, total) -> u2(x, total) | (x > 0)
@@ -21,13 +23,16 @@ u4(x, total) -> u5(x, total, x)
 u5(x, total, y) -> u6(x, total, y) | (y > 0)
 u6(x, total, y) -> u7(x, total, y) | (y = 3)
 u6(x, total, y) -> u8(x, total, y) | ¬((y = 3))
-u8(x, total, y) -> u9(x, (total + 1), y)
-u9(x, total, y) -> u10(x, total, (y - 1))
+u8(x, total, y) -> err | ¬(((-2147483648 ≤ (total + 1)) ∧ ((total + 1) ≤ 2147483647)))
+u8(x, total, y) -> u9(x, (total + 1), y) | ((-2147483648 ≤ (total + 1)) ∧ ((total + 1) ≤ 2147483647))
+u9(x, total, y) -> err | ¬(((-2147483648 ≤ (y - 1)) ∧ ((y - 1) ≤ 2147483647)))
+u9(x, total, y) -> u10(x, total, (y - 1)) | ((-2147483648 ≤ (y - 1)) ∧ ((y - 1) ≤ 2147483647))
 u5(x, total, y) -> u11(x, total, y) | ¬((y > 0))
 u10(x, total, y) -> u5(x, total, y)
 u7(x, total, y) -> u11(x, total, y)
-u11(x, total, y) -> u12((x - 1), total, y)
+u11(x, total, y) -> err | ¬(((-2147483648 ≤ (x - 1)) ∧ ((x - 1) ≤ 2147483647)))
+u11(x, total, y) -> u12((x - 1), total, y) | ((-2147483648 ≤ (x - 1)) ∧ ((x - 1) ≤ 2147483647))
 u1(x, total) -> u13(x, total) | ¬((x > 0))
 u12(x, total, y) -> u1(x, total)
 u3(x, total) -> u13(x, total)
-u13(x, total) -> total
+u13(x, total) -> ret(total)

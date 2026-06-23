@@ -9,7 +9,9 @@ public enum Sort {
   /** The boolean sort. */
   BOOL("Bool"),
   /** The non-theory sort. */
-  A("A");
+  A("A"),
+  /** The result sort. */
+  RESULT("result");
 
   private final String notation;
 

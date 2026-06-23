@@ -44,6 +44,11 @@ final class SerialiserTest {
     return System.lineSeparator();
   }
 
+  /** The i32 within-width bound on {@code t}, as rendered: {@code ((MIN ≤ t) ∧ (t ≤ MAX))}. */
+  private static String i32Bound(String t) {
+    return "((-2147483648 ≤ " + t + ") ∧ (" + t + " ≤ 2147483647))";
+  }
+
   /** Binary theory symbols render infix and parenthesised; program-point symbols stay prefix. */
   @Test
   void infixBinaryWithinPrefixApplication() {
@@ -54,8 +59,11 @@ final class SerialiserTest {
             I32,
             block(let("x", I32, add(var("n"), intLit(1))), ret(var("x"))));
 
-    assertEquals("f(n) -> u1(n, (n + 1))", Serialiser.serialise(lctrs.rules().get(0)));
-    assertEquals("u1(n, x) -> x", Serialiser.serialise(lctrs.rules().get(1)));
+    // n + 1 can overflow, so the entry splits: err rule first, then the guarded normal rule.
+    String bound = i32Bound("(n + 1)");
+    assertEquals("f(n) -> err | ¬(" + bound + ")", Serialiser.serialise(lctrs.rules().get(0)));
+    assertEquals("f(n) -> u1(n, (n + 1)) | " + bound, Serialiser.serialise(lctrs.rules().get(1)));
+    assertEquals("u1(n, x) -> ret(x)", Serialiser.serialise(lctrs.rules().get(2)));
   }
 
   /** Nested binary applications nest their parentheses. */
@@ -68,7 +76,10 @@ final class SerialiserTest {
             I32,
             block(let("x", I32, add(var("n"), mul(var("n"), intLit(2)))), ret(var("x"))));
 
-    assertEquals("f(n) -> u1(n, (n + (n * 2)))", Serialiser.serialise(lctrs.rules().get(0)));
+    // The normal (guarded) rule is at index 1; index 0 is the err rule on the negated bound.
+    String bound = "(" + i32Bound("(n * 2)") + " ∧ " + i32Bound("(n + (n * 2))") + ")";
+    assertEquals(
+        "f(n) -> u1(n, (n + (n * 2))) | " + bound, Serialiser.serialise(lctrs.rules().get(1)));
   }
 
   /** Comparisons are binary theory symbols, so they render infix. */
@@ -94,15 +105,25 @@ final class SerialiserTest {
             I32,
             block(let("x", I32, add(var("n"), intLit(1))), ret(var("x"))));
 
+    String bound = i32Bound("(n + 1)");
     String expected =
-        "f :: Int -> Int"
+        "f :: Int -> result"
             + ls()
-            + "u1 :: Int -> Int -> Int"
+            + "ret :: Int -> result"
+            + ls()
+            + "err :: result"
+            + ls()
+            + "u1 :: Int -> Int -> result"
             + ls()
             + ls()
-            + "f(n) -> u1(n, (n + 1))"
+            + "f(n) -> err | ¬("
+            + bound
+            + ")"
             + ls()
-            + "u1(n, x) -> x"
+            + "f(n) -> u1(n, (n + 1)) | "
+            + bound
+            + ls()
+            + "u1(n, x) -> ret(x)"
             + ls();
     assertEquals(expected, Serialiser.serialise(lctrs));
   }
