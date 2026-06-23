@@ -15,22 +15,42 @@ import java.math.BigInteger;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import project.lctrs.Constraint;
 import project.lctrs.FnApp;
 import project.lctrs.IntValue;
 import project.lctrs.Lctrs;
 import project.lctrs.Rule;
 import project.lctrs.Sort;
+import project.lctrs.Term;
 import project.lctrs.TermSymbol;
 import project.lctrs.TheorySymbol;
 import project.lctrs.VarDecl;
 
 class TranslatorTest {
 
+  private static final IntValue I32_MIN = new IntValue(BigInteger.valueOf(Integer.MIN_VALUE));
+  private static final IntValue I32_MAX = new IntValue(BigInteger.valueOf(Integer.MAX_VALUE));
+
+  /** The i32 within-width bound on {@code t}: {@code (MIN <= t) AND (t <= MAX)}. */
+  private static FnApp i32Bound(Term t) {
+    return new FnApp(
+        TheorySymbol.AND,
+        List.of(
+            new FnApp(TheorySymbol.LE, List.of(I32_MIN, t)),
+            new FnApp(TheorySymbol.LE, List.of(t, I32_MAX))));
+  }
+
+  /** The nullary error sink {@code err}. */
+  private static FnApp err() {
+    return new FnApp(new TermSymbol("err", List.of(), Sort.RESULT), List.of());
+  }
+
   /**
-   * {@code fn f(n: i32) -> i32 { let x = n + 1; x }} lowers to a single reassignment-free rule
-   * {@code f(n) -> u1(n, n + 1)}. The point of interest is that the bound value on the right-hand
-   * side is evaluated over the <em>pre-binding</em> scope: the first slot is the live variable
-   * {@code n} and the second is {@code n + 1}, never {@code x}.
+   * {@code fn f(n: i32) -> i32 { let x = n + 1; x }}. The point of interest is that the bound value
+   * on the right-hand side is evaluated over the <em>pre-binding</em> scope: the first slot is the
+   * live variable {@code n} and the second is {@code n + 1}, never {@code x}. Because {@code n + 1}
+   * can overflow, the entry splits into a guarded normal rule and an {@code err} rule on the
+   * negated bound.
    */
   @Test
   void letBindingEvaluatesValueOverPreBindingScope() {
@@ -49,9 +69,13 @@ class TranslatorTest {
     FnApp u1 = new FnApp(u1Symbol, List.of(n, nPlusOne));
     FnApp u1scope = new FnApp(u1Symbol, List.of(n, x));
     FnApp retX = new FnApp(new TermSymbol("ret", List.of(Sort.INT), Sort.RESULT), List.of(x));
-    Rule expected1 = new Rule(entry, u1, Optional.empty());
-    Rule expected2 = new Rule(u1scope, retX, Optional.empty());
-    assertEquals(List.of(expected1, expected2), lctrs.rules());
+    FnApp bound = i32Bound(nPlusOne);
+    Rule errRule =
+        new Rule(
+            entry, err(), Optional.of(new Constraint(new FnApp(TheorySymbol.NOT, List.of(bound)))));
+    Rule normalRule = new Rule(entry, u1, Optional.of(new Constraint(bound)));
+    Rule retRule = new Rule(u1scope, retX, Optional.empty());
+    assertEquals(List.of(errRule, normalRule, retRule), lctrs.rules());
   }
 
   /**
@@ -84,10 +108,16 @@ class TranslatorTest {
     FnApp u2scope = new FnApp(u2Symbol, List.of(n, x, y));
     FnApp retX = new FnApp(new TermSymbol("ret", List.of(Sort.INT), Sort.RESULT), List.of(x));
 
-    Rule expected1 = new Rule(entry, u1, Optional.empty());
+    FnApp bound = i32Bound(nPlusOne);
+    Rule errRule =
+        new Rule(
+            entry, err(), Optional.of(new Constraint(new FnApp(TheorySymbol.NOT, List.of(bound)))));
+    // Only the first let (n + 1) can overflow; let y = x carries no bound, so rules 3 and 4 thread
+    // configurations unconstrained.
+    Rule normalRule = new Rule(entry, u1, Optional.of(new Constraint(bound)));
     Rule expected2 = new Rule(u1scope, u2, Optional.empty());
     Rule expected3 = new Rule(u2scope, retX, Optional.empty());
 
-    assertEquals(List.of(expected1, expected2, expected3), lctrs.rules());
+    assertEquals(List.of(errRule, normalRule, expected2, expected3), lctrs.rules());
   }
 }

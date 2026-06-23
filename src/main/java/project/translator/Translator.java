@@ -23,6 +23,7 @@ import project.ast.Loop;
 import project.ast.Parameter;
 import project.ast.Return;
 import project.ast.Statement;
+import project.ast.Type;
 import project.ast.Variable;
 import project.ast.While;
 import project.lctrs.BoolValue;
@@ -462,27 +463,96 @@ public class Translator {
     };
   }
 
-  @SuppressWarnings("unused")
+  private Optional<Type.Int> inferWidth(Context ctx, Expression expression) {
+    return switch (expression) {
+      case Variable v ->
+          ctx.resolve(v.name().name()).sourceType() instanceof Type.Int i
+              ? Optional.of(i)
+              : Optional.empty();
+      case IntegerLiteral e -> Optional.empty();
+      case BooleanLiteral e -> Optional.empty();
+      case BinaryOp e -> inferWidth(ctx, e.left()).or(() -> inferWidth(ctx, e.right()));
+    };
+  }
+
+  private Optional<Term> withinWidth(Context ctx, Expression expression) {
+    return inferWidth(ctx, expression)
+        .map(
+            w -> {
+              Term t = processExpression(ctx, expression);
+              Term lo = new FnApp(TheorySymbol.LE, List.of(new IntValue(w.min()), t));
+              Term hi = new FnApp(TheorySymbol.LE, List.of(t, new IntValue(w.max())));
+              return new FnApp(TheorySymbol.AND, List.of(lo, hi));
+            });
+  }
+
   private Optional<Term> errorFree(Context ctx, Expression expression) {
     return switch (expression) {
       case IntegerLiteral e -> Optional.empty();
       case BooleanLiteral e -> Optional.empty();
       case Variable e -> Optional.empty();
       case BinaryOp expr -> {
+        // Each node carries its own bound (withinWidth below); recursing collects the operands' own
+        // overflow clauses, so this node and its children are bounded in separate roles.
         Optional<Term> leftFree = errorFree(ctx, expr.left());
         Optional<Term> rightFree = errorFree(ctx, expr.right());
         Optional<Term> combined = conjoin(leftFree, rightFree);
-        if (expr.operator() == BinaryOp.Op.DIV || expr.operator() == BinaryOp.Op.MOD) {
-          Term divisorNonZero =
-              new FnApp(
-                  TheorySymbol.NEQ_INT,
-                  List.of(
-                      processExpression(ctx, expr.right()), new IntValue(BigInteger.valueOf(0))));
-          yield conjoin(combined, Optional.of(divisorNonZero));
-        }
-        yield combined;
+        Optional<Term> clause =
+            switch (expr.operator()) {
+              // Encodes Rust's *debug* semantics: overflowing +,-,* panics. In release these
+              // wrap (two's-complement), which is equally well-defined, so guarding the width
+              // here is a deliberate choice of the panicking model — unlike DIV/MOD below, whose
+              // checks fire in release too and so are unconditional Rust semantics.
+              case ADD, SUB, MUL -> withinWidth(ctx, expression);
+              case DIV, MOD -> {
+                Term divisorNonZero =
+                    new FnApp(
+                        TheorySymbol.NEQ_INT,
+                        List.of(
+                            processExpression(ctx, expr.right()),
+                            new IntValue(BigInteger.valueOf(0))));
+                // Rust panics on MIN / -1 and MIN % -1: the true quotient MAX+1 is unrepresentable.
+                // A result bound only catches DIV (MIN / -1 lands out of range); MIN % -1 evaluates
+                // to 0, which is in range, so it would slip through. Guard the precise overflow
+                // condition for both operators instead: unsafe iff left = MIN and right = -1.
+                yield conjoin(Optional.of(divisorNonZero), notMinOverNegOne(ctx, expr));
+              }
+              // Comparisons (GT..NE): bool-valued, so no overflow clause; operands are already
+              // bounded via combined.
+              default -> Optional.empty();
+            };
+        yield conjoin(combined, clause);
       }
     };
+  }
+
+  /**
+   * The DIV/MOD overflow guard {@code ¬(left = MIN ∧ right = -1)}, where MIN is the minimum value
+   * of the operands' integer width. Empty when that width cannot be inferred (e.g. literal-only
+   * operands), matching {@link #withinWidth}'s convention of guarding only width-tracked terms.
+   *
+   * @param ctx the per-function translation state
+   * @param expr the division or remainder expression to guard
+   * @return the negated MIN/-1 condition, or empty if the operand width is unknown
+   */
+  private Optional<Term> notMinOverNegOne(Context ctx, BinaryOp expr) {
+    return inferWidth(ctx, expr)
+        .map(
+            w -> {
+              Term leftIsMin =
+                  new FnApp(
+                      TheorySymbol.EQ_INT,
+                      List.of(processExpression(ctx, expr.left()), new IntValue(w.min())));
+              Term rightIsNegOne =
+                  new FnApp(
+                      TheorySymbol.EQ_INT,
+                      List.of(
+                          processExpression(ctx, expr.right()),
+                          new IntValue(BigInteger.valueOf(-1))));
+              return new FnApp(
+                  TheorySymbol.NOT,
+                  List.of(new FnApp(TheorySymbol.AND, List.of(leftIsMin, rightIsNegOne))));
+            });
   }
 
   private Optional<Term> conjoin(Optional<Term> a, Optional<Term> b) {

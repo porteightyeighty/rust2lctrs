@@ -3,5 +3,6 @@ ret :: Int -> result
 err :: result
 u1 :: Int -> Int -> result
 
-sum2(a, b) -> u1((a + b), b)
+sum2(a, b) -> err | ¬(((-128 ≤ (a + b)) ∧ ((a + b) ≤ 127)))
+sum2(a, b) -> u1((a + b), b) | ((-128 ≤ (a + b)) ∧ ((a + b) ≤ 127))
 u1(a, b) -> ret(a)

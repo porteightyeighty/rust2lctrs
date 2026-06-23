@@ -3,6 +3,6 @@ ret :: Int -> result
 err :: result
 u1 :: Int -> Int -> Int -> result
 
-modulo(a, b) -> err | ¬((b ≠ 0))
-modulo(a, b) -> u1(a, b, (a % b)) | (b ≠ 0)
+modulo(a, b) -> err | ¬(((b ≠ 0) ∧ ¬(((a = -2147483648) ∧ (b = -1)))))
+modulo(a, b) -> u1(a, b, (a % b)) | ((b ≠ 0) ∧ ¬(((a = -2147483648) ∧ (b = -1))))
 u1(a, b, x) -> ret(x)
