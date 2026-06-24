@@ -13,12 +13,14 @@ import project.parser.RustParser.AssignmentExpressionContext;
 public class AssignmentBuilderTest {
 
   private SpanTable spans;
+  private DiagnosticRecorder diagnostics;
   private StatementBuilder statementBuilder;
 
   @BeforeEach
   void setUp() {
     spans = new SpanTable();
-    statementBuilder = new StatementBuilder(new SpanRecorder(spans));
+    diagnostics = new DiagnosticRecorder();
+    statementBuilder = new StatementBuilder(new SpanRecorder(spans), diagnostics);
   }
 
   @Test

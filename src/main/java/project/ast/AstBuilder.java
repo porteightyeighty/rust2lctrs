@@ -13,13 +13,15 @@ public final class AstBuilder {
   private final ItemBuilder items;
 
   /**
-   * Creates a builder that records each node's source position in the given span table.
+   * Creates a builder that records each node's source position in the given span table and collects
+   * out-of-scope-construct diagnostics into the given recorder.
    *
    * @param spanTable the table that source spans are written to as nodes are built
+   * @param diagnostics the recorder that out-of-scope-construct diagnostics are collected into
    */
-  public AstBuilder(SpanTable spanTable) {
+  public AstBuilder(SpanTable spanTable, DiagnosticRecorder diagnostics) {
     SpanRecorder spans = new SpanRecorder(Objects.requireNonNull(spanTable));
-    this.items = new ItemBuilder(spans);
+    this.items = new ItemBuilder(spans, Objects.requireNonNull(diagnostics));
   }
 
   /**
@@ -27,8 +29,9 @@ public final class AstBuilder {
    * is supported.
    *
    * @param ctx the top-level crate context produced by the parser
-   * @return the corresponding {@link Crate} node
-   * @throws UnsupportedConstructException if the crate contains more than one item
+   * @return the corresponding {@link Crate} node; an empty crate if more than one item is present.
+   *     Out-of-scope constructs are recorded as diagnostics rather than thrown, so callers must
+   *     inspect the {@link DiagnosticRecorder} before treating the result as complete.
    */
   public Crate buildCrate(CrateContext ctx) {
     return items.buildCrate(ctx);

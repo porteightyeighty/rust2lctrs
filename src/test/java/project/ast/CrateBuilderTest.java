@@ -1,7 +1,6 @@
 package project.ast;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.math.BigInteger;
 import java.util.List;
@@ -12,12 +11,14 @@ import project.parser.RustParser.CrateContext;
 public class CrateBuilderTest {
 
   private SpanTable spans;
+  private DiagnosticRecorder diagnostics;
   private AstBuilder astBuilder;
 
   @BeforeEach
   void setUp() {
     spans = new SpanTable();
-    astBuilder = new AstBuilder(spans);
+    diagnostics = new DiagnosticRecorder();
+    astBuilder = new AstBuilder(spans, diagnostics);
   }
 
   @Test
@@ -34,9 +35,12 @@ public class CrateBuilderTest {
   }
 
   @Test
-  void rejectsCrateWithMultipleFunctions() {
+  void collectsMultipleFunctionsAsDiagnostic() {
     String testInput = "fn f() -> i32 { return 0; } fn g(a: i32) -> i32 { return 1; }";
     CrateContext crateContext = TestHelper.parseCrate(testInput);
-    assertThrows(UnsupportedConstructException.class, () -> astBuilder.buildCrate(crateContext));
+    astBuilder.buildCrate(crateContext);
+    List<Diagnostic> recorded = diagnostics.diagnostics();
+    assertEquals(1, recorded.size());
+    assertEquals("Only a single top-level function is supported", recorded.get(0).message());
   }
 }
