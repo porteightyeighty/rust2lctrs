@@ -1,35 +1,27 @@
 package project.translator;
 
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import project.ast.Assignment;
-import project.ast.BinaryOp;
 import project.ast.Block;
-import project.ast.BooleanLiteral;
 import project.ast.Break;
 import project.ast.Continue;
 import project.ast.Crate;
 import project.ast.Expression;
 import project.ast.FunctionDeclaration;
 import project.ast.If;
-import project.ast.IntegerLiteral;
 import project.ast.Item;
 import project.ast.Let;
 import project.ast.Loop;
 import project.ast.Parameter;
 import project.ast.Return;
 import project.ast.Statement;
-import project.ast.Type;
-import project.ast.Variable;
 import project.ast.While;
-import project.lctrs.BoolValue;
 import project.lctrs.Constraint;
 import project.lctrs.FnApp;
-import project.lctrs.IntValue;
 import project.lctrs.Lctrs;
 import project.lctrs.Rule;
 import project.lctrs.Sort;
@@ -320,7 +312,7 @@ public class Translator {
    * @return the term the configuration rewrites to ({@code ret(value)})
    */
   private Term processReturnStatement(Context ctx, Return ret, Term incoming) {
-    Term value = processExpression(ctx, ret.value());
+    Term value = ExpressionLowering.lower(ctx, ret.value());
     Term wrapped = new FnApp(ctx.ret(), List.of(value));
     emitDivSafe(ctx, ret.value(), incoming, wrapped);
     return wrapped;
@@ -338,7 +330,7 @@ public class Translator {
    */
   private Term processAssignmentStatement(Context ctx, Assignment assignment, Term incoming) {
     String name = assignment.target().name();
-    Term value = processExpression(ctx, assignment.value());
+    Term value = ExpressionLowering.lower(ctx, assignment.value());
 
     // Fails if variable is not in scope
     ctx.resolve(name);
@@ -361,7 +353,7 @@ public class Translator {
    */
   private Term processLetStatement(Context ctx, Let let, Term incoming) {
     List<Term> oldArgs = ctx.argsFromScope();
-    Term value = processExpression(ctx, let.value());
+    Term value = ExpressionLowering.lower(ctx, let.value());
     VarDecl varDecl = new VarDecl(let.identifier().name(), Sort.of(let.type()));
     ctx.addToScope(varDecl, let.type());
     Symbol to = ctx.advance();
@@ -384,7 +376,7 @@ public class Translator {
    *     cannot fault
    */
   private Optional<Term> emitErrIfFaulty(Context ctx, Expression e, Term incoming) {
-    Optional<Term> safety = errorFree(ctx, e);
+    Optional<Term> safety = ExpressionLowering.safety(ctx, e);
     if (safety.isPresent()) {
       ctx.addRule(
           new Rule(
@@ -432,159 +424,12 @@ public class Translator {
    * @return the guards for the true and false branches
    */
   private BranchGuards conditionGuards(Context ctx, Expression condition, Term incoming) {
-    Term cond = processExpression(ctx, condition);
+    Term cond = ExpressionLowering.lower(ctx, condition);
     Optional<Term> safety = emitErrIfFaulty(ctx, condition, incoming);
-    Term whenTrue = conjoin(safety, Optional.of(cond)).orElseThrow();
+    Term whenTrue = ExpressionLowering.conjoin(safety, Optional.of(cond)).orElseThrow();
     Term whenFalse =
-        conjoin(safety, Optional.of(new FnApp(TheorySymbol.NOT, List.of(cond)))).orElseThrow();
+        ExpressionLowering.conjoin(safety, Optional.of(new FnApp(TheorySymbol.NOT, List.of(cond))))
+            .orElseThrow();
     return new BranchGuards(new Constraint(whenTrue), new Constraint(whenFalse));
-  }
-
-  /**
-   * Translates an expression to a theory term over the current scope. Literals become theory
-   * values, binary operations become applications of the corresponding theory symbol, and variables
-   * resolve to their declaration in scope.
-   *
-   * @param ctx the per-function translation state
-   * @param expression the expression to translate
-   * @return the term denoting the expression
-   */
-  private Term processExpression(Context ctx, Expression expression) {
-    return switch (expression) {
-      case IntegerLiteral expr -> new IntValue(expr.value());
-      case BooleanLiteral expr -> new BoolValue(expr.value());
-      case BinaryOp expr -> {
-        Term left = processExpression(ctx, expr.left());
-        Term right = processExpression(ctx, expr.right());
-        Symbol theorySymbol = theorySymbolFor(expr.operator(), left.sort());
-        yield new FnApp(theorySymbol, List.of(left, right));
-      }
-      case Variable expr -> ctx.resolve(expr.name().name()).varDecl();
-    };
-  }
-
-  private Optional<Type.Int> inferWidth(Context ctx, Expression expression) {
-    return switch (expression) {
-      case Variable v ->
-          ctx.resolve(v.name().name()).sourceType() instanceof Type.Int i
-              ? Optional.of(i)
-              : Optional.empty();
-      case IntegerLiteral e -> Optional.empty();
-      case BooleanLiteral e -> Optional.empty();
-      case BinaryOp e -> inferWidth(ctx, e.left()).or(() -> inferWidth(ctx, e.right()));
-    };
-  }
-
-  private Optional<Term> withinWidth(Context ctx, Expression expression) {
-    return inferWidth(ctx, expression)
-        .map(
-            w -> {
-              Term t = processExpression(ctx, expression);
-              Term lo = new FnApp(TheorySymbol.LE, List.of(new IntValue(w.min()), t));
-              Term hi = new FnApp(TheorySymbol.LE, List.of(t, new IntValue(w.max())));
-              return new FnApp(TheorySymbol.AND, List.of(lo, hi));
-            });
-  }
-
-  private Optional<Term> errorFree(Context ctx, Expression expression) {
-    return switch (expression) {
-      case IntegerLiteral e -> Optional.empty();
-      case BooleanLiteral e -> Optional.empty();
-      case Variable e -> Optional.empty();
-      case BinaryOp expr -> {
-        // Each node carries its own bound (withinWidth below); recursing collects the operands' own
-        // overflow clauses, so this node and its children are bounded in separate roles.
-        Optional<Term> leftFree = errorFree(ctx, expr.left());
-        Optional<Term> rightFree = errorFree(ctx, expr.right());
-        Optional<Term> combined = conjoin(leftFree, rightFree);
-        Optional<Term> clause =
-            switch (expr.operator()) {
-              // Encodes Rust's *debug* semantics: overflowing +,-,* panics. In release these
-              // wrap (two's-complement), which is equally well-defined, so guarding the width
-              // here is a deliberate choice of the panicking model — unlike DIV/MOD below, whose
-              // checks fire in release too and so are unconditional Rust semantics.
-              case ADD, SUB, MUL -> withinWidth(ctx, expression);
-              case DIV, MOD -> {
-                Term divisorNonZero =
-                    new FnApp(
-                        TheorySymbol.NEQ_INT,
-                        List.of(
-                            processExpression(ctx, expr.right()),
-                            new IntValue(BigInteger.valueOf(0))));
-                // Rust panics on MIN / -1 and MIN % -1: the true quotient MAX+1 is unrepresentable.
-                // A result bound only catches DIV (MIN / -1 lands out of range); MIN % -1 evaluates
-                // to 0, which is in range, so it would slip through. Guard the precise overflow
-                // condition for both operators instead: unsafe iff left = MIN and right = -1.
-                yield conjoin(Optional.of(divisorNonZero), notMinOverNegOne(ctx, expr));
-              }
-              // Comparisons (GT..NE): bool-valued, so no overflow clause; operands are already
-              // bounded via combined.
-              default -> Optional.empty();
-            };
-        yield conjoin(combined, clause);
-      }
-    };
-  }
-
-  /**
-   * The DIV/MOD overflow guard {@code ¬(left = MIN ∧ right = -1)}, where MIN is the minimum value
-   * of the operands' integer width. Empty when that width cannot be inferred (e.g. literal-only
-   * operands), matching {@link #withinWidth}'s convention of guarding only width-tracked terms.
-   *
-   * @param ctx the per-function translation state
-   * @param expr the division or remainder expression to guard
-   * @return the negated MIN/-1 condition, or empty if the operand width is unknown
-   */
-  private Optional<Term> notMinOverNegOne(Context ctx, BinaryOp expr) {
-    return inferWidth(ctx, expr)
-        .map(
-            w -> {
-              Term leftIsMin =
-                  new FnApp(
-                      TheorySymbol.EQ_INT,
-                      List.of(processExpression(ctx, expr.left()), new IntValue(w.min())));
-              Term rightIsNegOne =
-                  new FnApp(
-                      TheorySymbol.EQ_INT,
-                      List.of(
-                          processExpression(ctx, expr.right()),
-                          new IntValue(BigInteger.valueOf(-1))));
-              return new FnApp(
-                  TheorySymbol.NOT,
-                  List.of(new FnApp(TheorySymbol.AND, List.of(leftIsMin, rightIsNegOne))));
-            });
-  }
-
-  private Optional<Term> conjoin(Optional<Term> a, Optional<Term> b) {
-    if (a.isEmpty()) {
-      return b;
-    }
-    if (b.isEmpty()) {
-      return a;
-    }
-    return Optional.of(new FnApp(TheorySymbol.AND, List.of(a.get(), b.get())));
-  }
-
-  /**
-   * Resolves a binary operator to its theory symbol.
-   *
-   * @param op the AST binary operator
-   * @param operandSort the shared sort of both operands for equality operators
-   * @return the corresponding theory symbol
-   */
-  static TheorySymbol theorySymbolFor(BinaryOp.Op op, Sort operandSort) {
-    return switch (op) {
-      case ADD -> TheorySymbol.ADD;
-      case SUB -> TheorySymbol.SUB;
-      case MUL -> TheorySymbol.MUL;
-      case DIV -> TheorySymbol.DIV;
-      case MOD -> TheorySymbol.MOD;
-      case LT -> TheorySymbol.LT;
-      case LE -> TheorySymbol.LE;
-      case GT -> TheorySymbol.GT;
-      case GE -> TheorySymbol.GE;
-      case EQ -> operandSort == Sort.BOOL ? TheorySymbol.EQ_BOOL : TheorySymbol.EQ_INT;
-      case NE -> operandSort == Sort.BOOL ? TheorySymbol.NEQ_BOOL : TheorySymbol.NEQ_INT;
-    };
   }
 }
