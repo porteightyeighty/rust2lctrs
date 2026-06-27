@@ -2,6 +2,7 @@ package project.testsupport;
 
 import project.ast.AstBuilder;
 import project.ast.Crate;
+import project.ast.DiagnosticRecorder;
 import project.ast.SpanTable;
 import project.lctrs.Serialiser;
 import project.parser.RustParsing;
@@ -24,8 +25,14 @@ public final class Translate {
    * @return the LCTRS rendered in Cora's input format
    */
   public static String toLctrs(String source) {
-    AstBuilder astBuilder = new AstBuilder(new SpanTable());
+    DiagnosticRecorder diagnostics = new DiagnosticRecorder();
+    AstBuilder astBuilder = new AstBuilder(new SpanTable(), diagnostics);
     Crate crate = astBuilder.buildCrate(RustParsing.parse(source));
+    if (!diagnostics.diagnostics().isEmpty()) {
+      throw new IllegalArgumentException(
+          "Source is out of scope; expected valid, in-scope Rust but got diagnostics: "
+              + diagnostics.diagnostics());
+    }
     return Serialiser.serialise(new Translator(crate).translate());
   }
 }

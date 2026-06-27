@@ -31,14 +31,17 @@ final class StatementBuilder {
 
   private final SpanRecorder spans;
   private final ExpressionBuilder expressions;
+  private final DiagnosticRecorder diagnostics;
 
   /**
    * Creates a statement builder, self-wiring an {@link ExpressionBuilder} over the same recorder.
    *
    * @param spans the recorder shared across the whole parse-tree walk
+   * @param diagnostics the recorder that out-of-scope-construct diagnostics are collected into
    */
-  StatementBuilder(SpanRecorder spans) {
+  StatementBuilder(SpanRecorder spans, DiagnosticRecorder diagnostics) {
     this.spans = Objects.requireNonNull(spans);
+    this.diagnostics = Objects.requireNonNull(diagnostics);
     this.expressions = new ExpressionBuilder(spans);
   }
 
@@ -272,7 +275,11 @@ final class StatementBuilder {
     }
     List<Statement> built = new ArrayList<>();
     for (StatementContext statementCtx : statementsCtx.statement()) {
-      built.add(buildStatement(statementCtx));
+      try {
+        built.add(buildStatement(statementCtx));
+      } catch (UnsupportedConstructException e) {
+        diagnostics.add(Diagnostic.of(e));
+      }
     }
     return built;
   }

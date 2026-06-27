@@ -1,7 +1,6 @@
 package project.ast;
 
 import java.util.Objects;
-import org.antlr.v4.runtime.ParserRuleContext;
 
 /**
  * A structured diagnostic message tied to a source location. Intended for collecting multiple
@@ -17,14 +16,27 @@ public record Diagnostic(String message, Span span) {
   }
 
   /**
-   * Creates a {@code Diagnostic} reporting that the given parse-tree node's construct is not
-   * supported.
+   * Creates a {@code Diagnostic} from an {@link UnsupportedConstructException}, preserving the
+   * specific message authored at the throw site. The exception's raw {@link
+   * UnsupportedConstructException#detail() detail} is used rather than {@link
+   * UnsupportedConstructException#getMessage()}, so the source location is not duplicated between
+   * the message and the diagnostic's own span.
    *
-   * @param ctx the unsupported parse-tree node
-   * @return a diagnostic at the node's source location
+   * @param e the caught unsupported-construct exception
+   * @return a diagnostic carrying the exception's message and span
    */
-  static Diagnostic unsupported(ParserRuleContext ctx) {
-    String construct = ctx.getClass().getSimpleName();
-    return new Diagnostic(construct + " is not supported", Span.of(ctx));
+  static Diagnostic of(UnsupportedConstructException e) {
+    return new Diagnostic(e.detail(), e.span());
+  }
+
+  /**
+   * Renders the diagnostic as its message followed by the source location, keeping the {@link Span}
+   * encapsulated so callers in other packages can report a diagnostic without naming {@code Span}.
+   *
+   * @return the message with its source location appended
+   */
+  @Override
+  public String toString() {
+    return message + " at " + span;
   }
 }

@@ -3,6 +3,7 @@ package project.cli;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.Callable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,9 +12,9 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 import project.ast.AstBuilder;
 import project.ast.Crate;
+import project.ast.Diagnostic;
+import project.ast.DiagnosticRecorder;
 import project.ast.SpanTable;
-import project.ast.UnsupportedConstructException;
-import project.lctrs.Lctrs;
 import project.lctrs.Serialiser;
 import project.parser.RustParsing;
 import project.parser.SyntaxErrorException;
@@ -57,12 +58,16 @@ public class Rust2LctrsCommand implements Callable<Integer> {
       return 1;
     }
 
+    DiagnosticRecorder diagnostics = new DiagnosticRecorder();
     String result;
     try {
-      result = Serialiser.serialise(translate(source));
-    } catch (UnsupportedConstructException e) {
-      LOG.error("Out-of-scope Rust: {}", e.getMessage());
-      return 2;
+      Crate crate = buildCrate(source, diagnostics);
+      List<Diagnostic> recorded = diagnostics.diagnostics();
+      if (!recorded.isEmpty()) {
+        recorded.forEach(d -> LOG.error("Out-of-scope Rust: {}", d));
+        return 2;
+      }
+      result = Serialiser.serialise(new Translator(crate).translate());
     } catch (SyntaxErrorException e) {
       LOG.error("Malformed Rust: {}", e.getMessage());
       return 3;
@@ -83,15 +88,16 @@ public class Rust2LctrsCommand implements Callable<Integer> {
   }
 
   /**
-   * Runs the parse → AST → translate pipeline on a Rust source string.
+   * Runs the parse → AST pipeline on a Rust source string, collecting any out-of-scope constructs
+   * into the given recorder rather than throwing on the first.
    *
    * @param source the Rust source text
-   * @return the translated LCTRS
+   * @param diagnostics the recorder that out-of-scope-construct diagnostics are collected into
+   * @return the built crate, which may be incomplete if {@code diagnostics} is non-empty
    */
-  private static Lctrs translate(String source) {
+  private static Crate buildCrate(String source, DiagnosticRecorder diagnostics) {
     SpanTable spanTable = new SpanTable();
-    AstBuilder astBuilder = new AstBuilder(spanTable);
-    Crate crate = astBuilder.buildCrate(RustParsing.parse(source));
-    return new Translator(crate).translate();
+    AstBuilder astBuilder = new AstBuilder(spanTable, diagnostics);
+    return astBuilder.buildCrate(RustParsing.parse(source));
   }
 }
