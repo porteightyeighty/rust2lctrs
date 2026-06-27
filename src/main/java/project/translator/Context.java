@@ -6,6 +6,7 @@ import java.util.Deque;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import project.ast.Identifier;
 import project.ast.Type;
 import project.lctrs.Rule;
 import project.lctrs.ScopedVar;
@@ -131,39 +132,68 @@ final class Context {
   }
 
   /**
-   * Returns the current scope as configuration arguments, with the innermost slot bound to {@code
-   * name} replaced by {@code value}. Used to inline a reassigned variable's new value on a rule's
-   * right-hand side while leaving the other slots as their scope variables.
+   * Returns the current scope as configuration arguments, with the innermost slot whose source
+   * identifier is {@code name} replaced by {@code value}. Used to inline a reassigned variable's
+   * new value on a rule's right-hand side while leaving the other slots as their scope variables.
+   * Searching innermost-first means a reassignment hits the nearest shadowing binding, matching
+   * Rust.
    *
-   * <p>TODO: shadowing is not yet handled. Two bindings of the same name and sort are equal {@link
-   * VarDecl} records, i.e. one variable in the LCTRS, so {@code let x ...; let x ...} currently
-   * collapses two distinct program variables. Rejecting shadowing at the gatekeeper (or minting
-   * unique internal names per binding) is deferred — see {@code
-   * StatementBuilder#buildLetStatement}.
-   *
-   * @param name the name of the variable whose slot to replace
+   * @param name the source identifier of the variable whose slot to replace
    * @param value the term to place in that slot
-   * @return the scope arguments with the innermost named slot replaced
+   * @return the scope arguments with the innermost matching slot replaced
    */
-  List<Term> argsWithValue(String name, Term value) {
+  List<Term> argsWithValue(Identifier name, Term value) {
     List<Term> args = new ArrayList<>(argsFromScope());
     for (int i = scope.size() - 1; i >= 0; i--) {
-      if (scope.get(i).varDecl().name().equals(name)) {
+      if (scope.get(i).sourceName().equals(name)) {
         args.set(i, value);
         return args;
       }
     }
-    throw new IllegalStateException("Unbound variable in scope: " + name);
+    throw new IllegalStateException("Unbound variable in scope: " + name.name());
   }
 
   /**
-   * Pushes a variable declaration onto the innermost end of the scope.
+   * Brings a binding into scope at the innermost end. The binding keeps its source identifier for
+   * resolution, but its LCTRS variable gets a name that is unique among the currently live scope,
+   * so a shadowing binding ({@code let x ...; let x ...}, a {@code let} over a parameter) stays a
+   * distinct variable in the configuration rather than collapsing onto the binding it shadows.
    *
-   * @param var the variable declaration to bring into scope
+   * @param sourceName the variable's identifier in the source program
+   * @param sourceType the variable's source type
    */
-  void addToScope(VarDecl var, Type sourceType) {
-    ScopedVar scopedVar = new ScopedVar(var, sourceType);
-    scope.add(scopedVar);
+  void addToScope(Identifier sourceName, Type sourceType) {
+    VarDecl varDecl = new VarDecl(freshName(sourceName.name()), Sort.of(sourceType));
+    scope.add(new ScopedVar(sourceName, varDecl, sourceType));
+  }
+
+  /**
+   * Derives an LCTRS variable name from a source name that collides with no variable currently live
+   * in the scope. The source name is used as-is when free, so the common, non-shadowing case keeps
+   * readable names; otherwise a numeric suffix is appended until the name is unused. Checking
+   * against the live names (not just appending blindly) means the minted name cannot clash with an
+   * unrelated source identifier such as a real {@code x1}.
+   *
+   * @param base the source name to derive an LCTRS name from
+   * @return a name not currently used by any live scope variable
+   */
+  private String freshName(String base) {
+    String candidate = base;
+    int suffix = 1;
+    while (nameInUse(candidate)) {
+      candidate = base + "_" + suffix++;
+    }
+    return candidate;
+  }
+
+  /**
+   * Reports whether any variable currently live in the scope already carries the given LCTRS name.
+   *
+   * @param name the candidate LCTRS variable name
+   * @return {@code true} if a live scope variable already uses that name
+   */
+  private boolean nameInUse(String name) {
+    return scope.stream().anyMatch(v -> v.varDecl().name().equals(name));
   }
 
   /**
@@ -196,21 +226,22 @@ final class Context {
   }
 
   /**
-   * Resolves a variable name to its declaration, searching innermost-first so that the nearest
-   * enclosing binding wins.
+   * Resolves a source identifier to its binding, searching innermost-first so that the nearest
+   * enclosing binding wins. This is what makes a shadowing binding take precedence over the one it
+   * shadows.
    *
-   * @param varName the variable name to look up
-   * @return the matching variable declaration
+   * @param name the source identifier to look up
+   * @return the matching scope binding
    * @throws IllegalStateException if no variable of that name is in scope
    */
-  ScopedVar resolve(String varName) {
+  ScopedVar resolve(Identifier name) {
     for (int i = scope.size() - 1; i >= 0; i--) {
       ScopedVar scopedVar = scope.get(i);
-      if (scopedVar.varDecl().name().equals(varName)) {
+      if (scopedVar.sourceName().equals(name)) {
         return scopedVar;
       }
     }
-    throw new IllegalStateException("Unbound variable in scope: " + varName);
+    throw new IllegalStateException("Unbound variable in scope: " + name.name());
   }
 
   /**

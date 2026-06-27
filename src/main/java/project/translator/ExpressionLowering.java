@@ -53,7 +53,7 @@ final class ExpressionLowering {
         Symbol theorySymbol = theorySymbolFor(expr.operator(), left.sort());
         yield new FnApp(theorySymbol, List.of(left, right));
       }
-      case Variable expr -> ctx.resolve(expr.name().name()).varDecl();
+      case Variable expr -> ctx.resolve(expr.name()).varDecl();
     };
   }
 
@@ -155,7 +155,7 @@ final class ExpressionLowering {
   private static Optional<Type.Int> inferWidth(Context ctx, Expression expression) {
     return switch (expression) {
       case Variable v ->
-          ctx.resolve(v.name().name()).sourceType() instanceof Type.Int i
+          ctx.resolve(v.name()).sourceType() instanceof Type.Int i
               ? Optional.of(i)
               : Optional.empty();
       case IntegerLiteral e -> Optional.empty();
