@@ -18,12 +18,14 @@ import project.parser.RustParser.StatementContext;
 public class StatementBuilderTest {
 
   private SpanTable spans;
+  private DiagnosticRecorder diagnostics;
   private StatementBuilder statementBuilder;
 
   @BeforeEach
   void setUp() {
     spans = new SpanTable();
-    statementBuilder = new StatementBuilder(new SpanRecorder(spans));
+    diagnostics = new DiagnosticRecorder();
+    statementBuilder = new StatementBuilder(new SpanRecorder(spans), diagnostics);
   }
 
   @ParameterizedTest

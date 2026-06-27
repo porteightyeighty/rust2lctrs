@@ -11,6 +11,9 @@ public class UnsupportedConstructException extends RuntimeException {
   /** The source location of the unsupported construct. */
   final Span span;
 
+  /** The description of what is unsupported, without the appended source span. */
+  private final String detail;
+
   /**
    * Constructs an exception with a default message derived from the context's class name.
    *
@@ -29,6 +32,26 @@ public class UnsupportedConstructException extends RuntimeException {
   public UnsupportedConstructException(ParserRuleContext ctx, String message) {
     Span s = Span.of(ctx);
     this.span = s;
+    this.detail = message;
     super(message + " at " + s.toString());
+  }
+
+  /**
+   * Returns the description of what is unsupported, without the source span that {@link
+   * #getMessage()} appends. Suitable for building a {@link Diagnostic}, which carries its own span.
+   *
+   * @return the raw unsupported-construct description
+   */
+  public String detail() {
+    return detail;
+  }
+
+  /**
+   * Returns the source location of the unsupported construct.
+   *
+   * @return the span of the offending node
+   */
+  public Span span() {
+    return span;
   }
 }

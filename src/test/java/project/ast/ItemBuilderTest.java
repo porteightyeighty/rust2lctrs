@@ -15,12 +15,14 @@ import project.parser.RustParser.ItemContext;
 public class ItemBuilderTest {
 
   private SpanTable spans;
+  private DiagnosticRecorder diagnostics;
   private ItemBuilder itemBuilder;
 
   @BeforeEach
   void setUp() {
     spans = new SpanTable();
-    itemBuilder = new ItemBuilder(new SpanRecorder(spans));
+    diagnostics = new DiagnosticRecorder();
+    itemBuilder = new ItemBuilder(new SpanRecorder(spans), diagnostics);
   }
 
   @Test
@@ -59,11 +61,21 @@ public class ItemBuilderTest {
         "extern fn x() -> i32 {return 10; }", // extern qualifier
         "extern \"C\" fn x() -> i32 {return 10; }", // extern "C" qualifier
         "fn x<T>(a: T) -> i32 {return 10; }", // generic parameters
-        "fn x(...) -> i32 { return 10; }", // variadic parameters
       })
   void rejectsUnsupportedFunctionForms(String input) {
     ItemContext ctx = TestHelper.parseItem(input);
     assertThrows(UnsupportedConstructException.class, () -> itemBuilder.buildItem(ctx));
+  }
+
+  @Test
+  void collectsUnsupportedParameterAsDiagnostic() {
+    // Rejected inside the per-parameter loop, which collects rather than aborting, so the
+    // rejection surfaces as a recorded diagnostic carrying the specific throw-site message.
+    ItemContext ctx = TestHelper.parseItem("fn x(...) -> i32 { return 10; }"); // variadic parameter
+    itemBuilder.buildItem(ctx);
+    List<Diagnostic> recorded = diagnostics.diagnostics();
+    assertEquals(1, recorded.size());
+    assertEquals("Varargs are not supported", recorded.get(0).message());
   }
 
   @Test

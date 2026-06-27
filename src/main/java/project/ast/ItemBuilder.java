@@ -23,15 +23,18 @@ final class ItemBuilder {
 
   private final SpanRecorder spans;
   private final StatementBuilder statements;
+  private final DiagnosticRecorder diagnostics;
 
   /**
    * Creates an item builder, self-wiring a {@link StatementBuilder} over the same recorder.
    *
    * @param spans the recorder shared across the whole parse-tree walk
+   * @param diagnostics the recorder that out-of-scope-construct diagnostics are collected into
    */
-  ItemBuilder(SpanRecorder spans) {
+  ItemBuilder(SpanRecorder spans, DiagnosticRecorder diagnostics) {
     this.spans = Objects.requireNonNull(spans);
-    this.statements = new StatementBuilder(spans);
+    this.diagnostics = Objects.requireNonNull(diagnostics);
+    this.statements = new StatementBuilder(spans, diagnostics);
   }
 
   /**
@@ -39,16 +42,23 @@ final class ItemBuilder {
    * is supported.
    *
    * @param ctx the top-level crate context produced by the parser
-   * @return the corresponding {@link Crate} node
-   * @throws UnsupportedConstructException if the crate contains more than one item
+   * @return the corresponding {@link Crate} node; an empty crate if more than one item is present
    */
   Crate buildCrate(CrateContext ctx) {
     if (ctx.item().size() > 1) {
-      throw new UnsupportedConstructException(ctx, "Only a single top-level function is supported");
+      // Point at the first surplus item rather than the whole crate, so the location names the
+      // offending second function instead of spanning the entire source file.
+      diagnostics.add(
+          new Diagnostic("Only a single top-level function is supported", Span.of(ctx.item(1))));
+      return spans.track(new Crate(List.of()), ctx);
     }
     List<Item> items = new ArrayList<>();
     for (var itemCtx : ctx.item()) {
-      items.add(buildItem(itemCtx));
+      try {
+        items.add(buildItem(itemCtx));
+      } catch (UnsupportedConstructException e) {
+        diagnostics.add(Diagnostic.of(e));
+      }
     }
     return spans.track(new Crate(items), ctx);
   }
@@ -125,24 +135,28 @@ final class ItemBuilder {
       throw new UnsupportedConstructException(ctx, "Self parameters are not supported");
     }
     for (FunctionParamContext param : ctx.functionParam()) {
-      if (param.outerAttribute().size() > 0) {
-        throw new UnsupportedConstructException(
-            param, "Function parameter outer attributes are not supported");
+      try {
+        if (param.outerAttribute().size() > 0) {
+          throw new UnsupportedConstructException(
+              param, "Function parameter outer attributes are not supported");
+        }
+        if (param.DOTDOTDOT() != null) {
+          throw new UnsupportedConstructException(param, "Varargs are not supported");
+        }
+        FunctionParamPatternContext paramPattern = param.functionParamPattern();
+        if (paramPattern == null) {
+          throw new UnsupportedConstructException(param, "Unnamed parameters are not supported");
+        }
+        if (paramPattern.type_() == null) {
+          throw new UnsupportedConstructException(param, "Parameters must have an explicit type");
+        }
+        Type type = TypeReader.read(paramPattern.type_());
+        Identifier identifier =
+            BindingReader.boundIdentifier(paramPattern.pattern().patternNoTopAlt().get(0));
+        builtParams.add(new Parameter(identifier, type));
+      } catch (UnsupportedConstructException e) {
+        diagnostics.add(Diagnostic.of(e));
       }
-      if (param.DOTDOTDOT() != null) {
-        throw new UnsupportedConstructException(param, "Varargs are not supported");
-      }
-      FunctionParamPatternContext paramPattern = param.functionParamPattern();
-      if (paramPattern == null) {
-        throw new UnsupportedConstructException(param, "Unnamed parameters are not supported");
-      }
-      if (paramPattern.type_() == null) {
-        throw new UnsupportedConstructException(param, "Parameters must have an explicit type");
-      }
-      Type type = TypeReader.read(paramPattern.type_());
-      Identifier identifier =
-          BindingReader.boundIdentifier(paramPattern.pattern().patternNoTopAlt().get(0));
-      builtParams.add(new Parameter(identifier, type));
     }
     return builtParams;
   }
