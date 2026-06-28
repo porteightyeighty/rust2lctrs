@@ -19,12 +19,14 @@ import project.ast.Let;
 import project.ast.Loop;
 import project.ast.Parameter;
 import project.ast.Return;
+import project.ast.SpanTable;
 import project.ast.Statement;
 import project.ast.While;
 import project.lctrs.Constraint;
 import project.lctrs.FnApp;
 import project.lctrs.Lctrs;
 import project.lctrs.Rule;
+import project.lctrs.Serialiser;
 import project.lctrs.Sort;
 import project.lctrs.Symbol;
 import project.lctrs.Term;
@@ -46,14 +48,28 @@ public class Translator {
   private static final Logger LOG = LoggerFactory.getLogger(Translator.class);
 
   final Crate crate;
+  private final SpanTable spans;
 
   /**
-   * Creates a translator for a single crate.
+   * Creates a translator for a single crate with no span information, so provenance trace lines
+   * report locations as {@code "<unknown>"}. Suitable for hand-built ASTs in tests.
    *
    * @param crate the AST to translate
    */
   public Translator(Crate crate) {
+    this(crate, new SpanTable());
+  }
+
+  /**
+   * Creates a translator for a single crate, reading source locations from the given span table for
+   * provenance trace output.
+   *
+   * @param crate the AST to translate
+   * @param spans the span table populated during the parse-to-AST walk
+   */
+  public Translator(Crate crate, SpanTable spans) {
     this.crate = crate;
+    this.spans = spans;
   }
 
   /**
@@ -158,10 +174,13 @@ public class Translator {
    */
   @SuppressWarnings("unused")
   private Optional<Term> processStatement(Context ctx, Statement statement, Term incoming) {
-    LOG.debug(
-        "Lowering {} with incoming configuration {}",
-        statement.getClass().getSimpleName(),
-        incoming);
+    if (LOG.isTraceEnabled()) {
+      LOG.trace(
+          "{} at {} → incoming {}",
+          statement.getClass().getSimpleName(),
+          spans.describe(statement),
+          Serialiser.serialise(incoming));
+    }
     return switch (statement) {
       case Let stmt -> Optional.of(processLetStatement(ctx, stmt, incoming));
       case If stmt -> processIfStatement(ctx, stmt, incoming);

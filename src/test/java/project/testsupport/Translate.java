@@ -26,13 +26,14 @@ public final class Translate {
    */
   public static String toLctrs(String source) {
     DiagnosticRecorder diagnostics = new DiagnosticRecorder();
-    AstBuilder astBuilder = new AstBuilder(new SpanTable(), diagnostics);
+    SpanTable spanTable = new SpanTable();
+    AstBuilder astBuilder = new AstBuilder(spanTable, diagnostics);
     Crate crate = astBuilder.buildCrate(RustParsing.parse(source));
     if (!diagnostics.diagnostics().isEmpty()) {
       throw new IllegalArgumentException(
           "Source is out of scope; expected valid, in-scope Rust but got diagnostics: "
               + diagnostics.diagnostics());
     }
-    return Serialiser.serialise(new Translator(crate).translate());
+    return Serialiser.serialise(new Translator(crate, spanTable).translate());
   }
 }

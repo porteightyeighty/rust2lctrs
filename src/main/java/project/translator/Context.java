@@ -10,6 +10,7 @@ import project.ast.Identifier;
 import project.ast.Type;
 import project.lctrs.Rule;
 import project.lctrs.ScopedVar;
+import project.lctrs.Serialiser;
 import project.lctrs.Sort;
 import project.lctrs.Symbol;
 import project.lctrs.Term;
@@ -212,7 +213,9 @@ final class Context {
    * @param r the rule to accumulate
    */
   void addRule(Rule r) {
-    LOG.debug("Adding rule {}", r);
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("Adding rule {}", Serialiser.serialise(r));
+    }
     rules.add(r);
   }
 

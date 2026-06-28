@@ -15,6 +15,7 @@ import project.ast.Crate;
 import project.ast.Diagnostic;
 import project.ast.DiagnosticRecorder;
 import project.ast.SpanTable;
+import project.lctrs.Lctrs;
 import project.lctrs.Serialiser;
 import project.parser.RustParsing;
 import project.parser.SyntaxErrorException;
@@ -59,15 +60,22 @@ public class Rust2LctrsCommand implements Callable<Integer> {
     }
 
     DiagnosticRecorder diagnostics = new DiagnosticRecorder();
+    SpanTable spanTable = new SpanTable();
     String result;
     try {
-      Crate crate = buildCrate(source, diagnostics);
+      Crate crate = buildCrate(source, spanTable, diagnostics);
       List<Diagnostic> recorded = diagnostics.diagnostics();
       if (!recorded.isEmpty()) {
         recorded.forEach(d -> LOG.error("Out-of-scope Rust: {}", d));
         return 2;
       }
-      result = Serialiser.serialise(new Translator(crate).translate());
+      Lctrs lctrs = new Translator(crate, spanTable).translate();
+      LOG.info(
+          "Translated {}: {} symbols, {} rules",
+          inputPath,
+          lctrs.sigma().size(),
+          lctrs.rules().size());
+      result = Serialiser.serialise(lctrs);
     } catch (SyntaxErrorException e) {
       LOG.error("Malformed Rust: {}", e.getMessage());
       return 3;
@@ -92,11 +100,12 @@ public class Rust2LctrsCommand implements Callable<Integer> {
    * into the given recorder rather than throwing on the first.
    *
    * @param source the Rust source text
+   * @param spanTable the table that node source spans are written to during the walk
    * @param diagnostics the recorder that out-of-scope-construct diagnostics are collected into
    * @return the built crate, which may be incomplete if {@code diagnostics} is non-empty
    */
-  private static Crate buildCrate(String source, DiagnosticRecorder diagnostics) {
-    SpanTable spanTable = new SpanTable();
+  private static Crate buildCrate(
+      String source, SpanTable spanTable, DiagnosticRecorder diagnostics) {
     AstBuilder astBuilder = new AstBuilder(spanTable, diagnostics);
     return astBuilder.buildCrate(RustParsing.parse(source));
   }
