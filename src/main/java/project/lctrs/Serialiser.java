@@ -2,20 +2,16 @@ package project.lctrs;
 
 import java.util.List;
 import java.util.stream.Collectors;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Renders an {@link Lctrs} and its constituent parts to Cora's textual input format.
  *
  * <p>The output has two sections: the signature, listing each symbol with its sort profile (e.g.
  * {@code + :: Int -> Int -> Int}), followed by the rules. Binary theory symbols are written infix;
- * everything else is written prefix. This is a pure rendering layer with no side effects beyond
- * debug logging, so all methods are static and the class is not instantiable.
+ * everything else is written prefix. This is a pure rendering layer with no side effects, so all
+ * methods are static and the class is not instantiable.
  */
 public final class Serialiser {
-
-  private static final Logger LOG = LoggerFactory.getLogger(Serialiser.class);
 
   private Serialiser() {}
 
@@ -26,7 +22,6 @@ public final class Serialiser {
    * @return the signature section, each declaration terminated by a line separator
    */
   private static String serialiseSignature(List<Symbol> signature) {
-    LOG.debug("Serialising {}", signature);
     StringBuilder out = new StringBuilder();
     for (Symbol currentSymbol : signature) {
       out.append(currentSymbol.notation());
@@ -79,7 +74,6 @@ public final class Serialiser {
    * @return the rule in Cora's input format
    */
   public static String serialise(Rule rule) {
-    LOG.debug("Serialising {}", rule);
     StringBuilder out = new StringBuilder();
     out.append(serialise(rule.lhs()));
     out.append(" -> ");

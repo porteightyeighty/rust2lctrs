@@ -34,4 +34,17 @@ public final class SpanTable {
     if (s == null) throw new NoSuchElementException("No span recorded for " + node);
     return s;
   }
+
+  /**
+   * Renders the source location of the given node for diagnostic and trace logging, tolerating
+   * nodes with no recorded span (e.g. hand-built AST in tests) rather than throwing. Keeps {@link
+   * Span} encapsulated so callers in other packages can describe a location without naming it.
+   *
+   * @param node the AST node to locate
+   * @return the node's source location, or {@code "<unknown>"} if none was recorded
+   */
+  public String describe(Node node) {
+    Span s = spans.get(node);
+    return s == null ? "<unknown>" : s.toString();
+  }
 }
