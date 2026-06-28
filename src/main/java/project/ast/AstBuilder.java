@@ -9,7 +9,7 @@ import project.parser.RustParser.CrateContext;
  * ExpressionBuilder}) that do the work, so that the parse tree is walked exactly once.
  */
 public final class AstBuilder {
-  // TODO: Do a pre-pass to de-dupe variable names?
+
   private final ItemBuilder items;
 
   /**
