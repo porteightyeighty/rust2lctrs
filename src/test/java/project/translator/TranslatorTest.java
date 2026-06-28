@@ -120,4 +120,48 @@ class TranslatorTest {
 
     assertEquals(List.of(errRule, normalRule, expected2, expected3), lctrs.rules());
   }
+
+  /**
+   * A shadowing {@code let} stays a distinct LCTRS variable rather than collapsing onto the binding
+   * it shadows. For {@code fn f(n: i32) -> i32 { let x = n; let x = x + 1; x }} the second {@code
+   * x} mints a fresh name {@code x_1}: its value {@code x + 1} is evaluated over the <em>outer</em>
+   * {@code x}.
+   */
+  @Test
+  void shadowingLetMintsDistinctVariable() {
+    Lctrs lctrs =
+        translateFn(
+            "f",
+            List.of(param("n", I32)),
+            I32,
+            block(let("x", I32, var("n")), let("x", I32, add(var("x"), intLit(1))), ret(var("x"))));
+
+    VarDecl n = new VarDecl("n", Sort.INT);
+    VarDecl x = new VarDecl("x", Sort.INT);
+    VarDecl xShadow = new VarDecl("x_1", Sort.INT);
+    FnApp entry = new FnApp(new TermSymbol("f", List.of(Sort.INT), Sort.RESULT), List.of(n));
+    TermSymbol u1Symbol = new TermSymbol("u1", List.of(Sort.INT, Sort.INT), Sort.RESULT);
+    FnApp u1 = new FnApp(u1Symbol, List.of(n, n));
+    FnApp u1scope = new FnApp(u1Symbol, List.of(n, x));
+    TermSymbol u2Symbol = new TermSymbol("u2", List.of(Sort.INT, Sort.INT, Sort.INT), Sort.RESULT);
+    FnApp xPlusOne = new FnApp(TheorySymbol.ADD, List.of(x, new IntValue(BigInteger.ONE)));
+    FnApp u2 = new FnApp(u2Symbol, List.of(n, x, xPlusOne));
+    FnApp u2scope = new FnApp(u2Symbol, List.of(n, x, xShadow));
+    FnApp retShadow =
+        new FnApp(new TermSymbol("ret", List.of(Sort.INT), Sort.RESULT), List.of(xShadow));
+
+    FnApp bound = i32Bound(xPlusOne);
+    // let x = n carries no bound (single unguarded rule); only the shadowing let x = x + 1
+    // overflows.
+    Rule firstLet = new Rule(entry, u1, Optional.empty());
+    Rule errRule =
+        new Rule(
+            u1scope,
+            err(),
+            Optional.of(new Constraint(new FnApp(TheorySymbol.NOT, List.of(bound)))));
+    Rule normalRule = new Rule(u1scope, u2, Optional.of(new Constraint(bound)));
+    Rule retRule = new Rule(u2scope, retShadow, Optional.empty());
+
+    assertEquals(List.of(firstLet, errRule, normalRule, retRule), lctrs.rules());
+  }
 }

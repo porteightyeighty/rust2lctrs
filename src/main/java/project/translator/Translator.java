@@ -12,6 +12,7 @@ import project.ast.Continue;
 import project.ast.Crate;
 import project.ast.Expression;
 import project.ast.FunctionDeclaration;
+import project.ast.Identifier;
 import project.ast.If;
 import project.ast.Item;
 import project.ast.Let;
@@ -29,7 +30,6 @@ import project.lctrs.Symbol;
 import project.lctrs.Term;
 import project.lctrs.TermSymbol;
 import project.lctrs.TheorySymbol;
-import project.lctrs.VarDecl;
 
 /**
  * Lowers a {@link Crate} to an {@link Lctrs} by walking the AST and emitting constrained rewrite
@@ -98,7 +98,7 @@ public class Translator {
    */
   private void processFunctionDeclaration(Context ctx, FunctionDeclaration functionDeclaration) {
     for (Parameter parameter : functionDeclaration.parameters()) {
-      ctx.addToScope(VarDecl.of(parameter), parameter.type());
+      ctx.addToScope(parameter.identifier(), parameter.type());
     }
     Sort functionReturnSort = Sort.of(functionDeclaration.returnType());
     // Want to hand roll the first symbol so that we start with the actual function name
@@ -314,7 +314,7 @@ public class Translator {
   private Term processReturnStatement(Context ctx, Return ret, Term incoming) {
     Term value = ExpressionLowering.lower(ctx, ret.value());
     Term wrapped = new FnApp(ctx.ret(), List.of(value));
-    emitDivSafe(ctx, ret.value(), incoming, wrapped);
+    emitDivSafe(ctx, ExpressionLowering.safety(ctx, ret.value()), incoming, wrapped);
     return wrapped;
   }
 
@@ -329,15 +329,16 @@ public class Translator {
    * @return the configuration at the fresh program point, over the unchanged scope
    */
   private Term processAssignmentStatement(Context ctx, Assignment assignment, Term incoming) {
-    String name = assignment.target().name();
+    Identifier target = assignment.target();
     Term value = ExpressionLowering.lower(ctx, assignment.value());
+    Optional<Term> safety = ExpressionLowering.safety(ctx, assignment.value());
 
     // Fails if variable is not in scope
-    ctx.resolve(name);
+    ctx.resolve(target);
 
     Symbol to = ctx.advance();
-    Term rhs = new FnApp(to, ctx.argsWithValue(name, value));
-    emitDivSafe(ctx, assignment.value(), incoming, rhs);
+    Term rhs = new FnApp(to, ctx.argsWithValue(target, value));
+    emitDivSafe(ctx, safety, incoming, rhs);
     return new FnApp(to, ctx.argsFromScope());
   }
 
@@ -354,13 +355,16 @@ public class Translator {
   private Term processLetStatement(Context ctx, Let let, Term incoming) {
     List<Term> oldArgs = ctx.argsFromScope();
     Term value = ExpressionLowering.lower(ctx, let.value());
-    VarDecl varDecl = new VarDecl(let.identifier().name(), Sort.of(let.type()));
-    ctx.addToScope(varDecl, let.type());
+    // Lower the safety formula now, over the pre-binding scope, before addToScope can shadow a name
+    // the value reads. Otherwise the value and its overflow guard would resolve the same name to
+    // different variables.
+    Optional<Term> safety = ExpressionLowering.safety(ctx, let.value());
+    ctx.addToScope(let.identifier(), let.type());
     Symbol to = ctx.advance();
     List<Term> rhsArgs = new ArrayList<>(oldArgs);
     rhsArgs.add(value);
     Term rhs = new FnApp(to, rhsArgs);
-    emitDivSafe(ctx, let.value(), incoming, rhs);
+    emitDivSafe(ctx, safety, incoming, rhs);
     return new FnApp(to, ctx.argsFromScope());
   }
 
@@ -369,14 +373,18 @@ public class Translator {
    * modulus by zero, and returns the safety formula so callers can guard their normal-path rules
    * with it. When {@code e} cannot fault, emits nothing and returns empty.
    *
+   * <p>The safety formula is supplied already lowered rather than recomputed here: a {@code let}
+   * binding mutates the scope between lowering its value and emitting its rules, so re-lowering
+   * would resolve a shadowed name to the wrong (newly bound) variable. Callers lower the value and
+   * its safety formula together, before any such scope change.
+   *
    * @param ctx the per-function translation state
-   * @param e the expression about to be evaluated into a rule's right-hand side
+   * @param safety the expression's safety formula, lowered over the scope its value was lowered in,
+   *     or empty if the expression cannot fault
    * @param incoming the configuration flowing into the statement
-   * @return the safety formula to conjoin onto the normal-path guard(s), or empty if {@code e}
-   *     cannot fault
+   * @return {@code safety} unchanged, for callers that conjoin it onto further guards
    */
-  private Optional<Term> emitErrIfFaulty(Context ctx, Expression e, Term incoming) {
-    Optional<Term> safety = ExpressionLowering.safety(ctx, e);
+  private Optional<Term> emitErrIfFaulty(Context ctx, Optional<Term> safety, Term incoming) {
     if (safety.isPresent()) {
       ctx.addRule(
           new Rule(
@@ -394,12 +402,13 @@ public class Translator {
    * the single unguarded rule.
    *
    * @param ctx the per-function translation state
-   * @param e the expression evaluated into {@code safeRhs}
+   * @param safety the safety formula of the expression evaluated into {@code safeRhs}, lowered over
+   *     the scope its value was lowered in, or empty if it cannot fault
    * @param incoming the configuration flowing into the statement
    * @param safeRhs the configuration the statement rewrites to on the normal path
    */
-  private void emitDivSafe(Context ctx, Expression e, Term incoming, Term safeRhs) {
-    Optional<Term> safety = emitErrIfFaulty(ctx, e, incoming);
+  private void emitDivSafe(Context ctx, Optional<Term> safety, Term incoming, Term safeRhs) {
+    emitErrIfFaulty(ctx, safety, incoming);
     ctx.addRule(new Rule(incoming, safeRhs, safety.map(Constraint::new)));
   }
 
@@ -425,7 +434,8 @@ public class Translator {
    */
   private BranchGuards conditionGuards(Context ctx, Expression condition, Term incoming) {
     Term cond = ExpressionLowering.lower(ctx, condition);
-    Optional<Term> safety = emitErrIfFaulty(ctx, condition, incoming);
+    Optional<Term> safety =
+        emitErrIfFaulty(ctx, ExpressionLowering.safety(ctx, condition), incoming);
     Term whenTrue = ExpressionLowering.conjoin(safety, Optional.of(cond)).orElseThrow();
     Term whenFalse =
         ExpressionLowering.conjoin(safety, Optional.of(new FnApp(TheorySymbol.NOT, List.of(cond))))
