@@ -9,6 +9,8 @@ import static project.translator.AstHelper.intLit;
 import static project.translator.AstHelper.let;
 import static project.translator.AstHelper.lt;
 import static project.translator.AstHelper.mul;
+import static project.translator.AstHelper.neg;
+import static project.translator.AstHelper.not;
 import static project.translator.AstHelper.param;
 import static project.translator.AstHelper.ret;
 import static project.translator.AstHelper.translateFn;
@@ -33,10 +35,6 @@ import project.lctrs.VarDecl;
  * Rendering tests for {@link Serialiser}. Inputs are built with {@link AstHelper} and run through
  * the {@link Translator}, so these assert over the LCTRS the pipeline actually produces — which is
  * why the test lives in this package (AstHelper is package-private here).
- *
- * <p>Two branches of the serialiser cannot be reached this way yet: the translator only emits
- * unconstrained rules and never the unary {@code ¬}. Those cases construct LCTRS terms directly and
- * are flagged below; revisit them as AstHelper-driven tests once control-flow translation lands.
  */
 final class SerialiserTest {
 
@@ -136,8 +134,8 @@ final class SerialiserTest {
   }
 
   /**
-   * A constrained rule renders the constraint after the right-hand side. The translator does not
-   * yet emit constraints, so the rule is built directly.
+   * A constrained rule renders the constraint after the right-hand side, built directly here as a
+   * focused check on the {@code | φ} rendering.
    */
   @Test
   void constrainedRuleRendersConstraint() {
@@ -153,14 +151,49 @@ final class SerialiserTest {
     assertEquals("u1(n) -> u2(n) | n < 0", Serialiser.serialise(rule));
   }
 
-  /**
-   * The unary {@code ¬} stays prefix. The translator does not yet emit it, so it is built directly.
-   */
+  /** A unary {@code ¬} over an atomic operand renders tight, without parens. */
   @Test
-  void unaryNotRendersPrefix() {
+  void unaryNotOverAtomicRendersTight() {
     VarDecl b = new VarDecl("b", Sort.BOOL);
     FnApp not = new FnApp(TheorySymbol.NOT, List.of(b));
 
-    assertEquals("¬(b)", Serialiser.serialise(not));
+    assertEquals("¬b", Serialiser.serialise(not));
+  }
+
+  /** A unary {@code ¬} over a compound operand keeps its parens. */
+  @Test
+  void unaryNotOverCompoundKeepsParens() {
+    VarDecl x = new VarDecl("x", Sort.INT);
+    VarDecl y = new VarDecl("y", Sort.INT);
+    FnApp not = new FnApp(TheorySymbol.NOT, List.of(new FnApp(TheorySymbol.GT, List.of(x, y))));
+
+    assertEquals("¬(x > y)", Serialiser.serialise(not));
+  }
+
+  /** Boolean not (!b) lowers to the theory's unary ¬, rendered tight, through the full pipeline. */
+  @Test
+  void booleanNotLowersToTightNot() {
+    Lctrs lctrs =
+        translateFn(
+            "f",
+            List.of(param("b", BOOL)),
+            BOOL,
+            block(let("c", BOOL, not(var("b"))), ret(var("c"))));
+
+    assertEquals("f(b) -> u1(b, ¬b)", Serialiser.serialise(lctrs.rules().get(0)));
+  }
+
+  /**
+   * Arithmetic negation (-n) lowers to the theory's unary minus, rendered tight over a variable.
+   */
+  @Test
+  void unaryMinusLowersToPrefixMinus() {
+    Lctrs lctrs =
+        translateFn(
+            "f", List.of(param("n", I32)), I32, block(let("x", I32, neg(var("n"))), ret(var("x"))));
+
+    String bound = i32BoundBare("-n");
+    assertEquals("f(n) -> err | ¬(" + bound + ")", Serialiser.serialise(lctrs.rules().get(0)));
+    assertEquals("f(n) -> u1(n, -n) | " + bound, Serialiser.serialise(lctrs.rules().get(1)));
   }
 }

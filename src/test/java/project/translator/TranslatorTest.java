@@ -1,11 +1,14 @@
 package project.translator;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static project.translator.AstHelper.BOOL;
 import static project.translator.AstHelper.I32;
 import static project.translator.AstHelper.add;
 import static project.translator.AstHelper.block;
 import static project.translator.AstHelper.intLit;
 import static project.translator.AstHelper.let;
+import static project.translator.AstHelper.not;
 import static project.translator.AstHelper.param;
 import static project.translator.AstHelper.ret;
 import static project.translator.AstHelper.translateFn;
@@ -15,6 +18,7 @@ import java.math.BigInteger;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import project.ast.UnsupportedConstructException;
 import project.lctrs.Constraint;
 import project.lctrs.FnApp;
 import project.lctrs.IntValue;
@@ -163,5 +167,34 @@ class TranslatorTest {
     Rule retRule = new Rule(u2scope, retShadow, Optional.empty());
 
     assertEquals(List.of(firstLet, errRule, normalRule, retRule), lctrs.rules());
+  }
+
+  /**
+   * {@code !} on an integer is bitwise negation, which is out of scope. It is indistinguishable
+   * from logical not until the operand's sort is known, so it is rejected at translation rather
+   * than lowered to ¬ over an int.
+   */
+  @Test
+  void rejectsBitwiseNegationOnIntegerVariable() {
+    assertThrows(
+        UnsupportedConstructException.class,
+        () ->
+            translateFn(
+                "f",
+                List.of(param("n", I32)),
+                I32,
+                block(let("x", BOOL, not(var("n"))), ret(intLit(0)))));
+  }
+
+  @Test
+  void rejectsBitwiseComplementOnIntegerLiteral() {
+    assertThrows(
+        UnsupportedConstructException.class,
+        () ->
+            translateFn(
+                "f",
+                List.of(param("n", I32)),
+                I32,
+                block(let("x", BOOL, not(intLit(5))), ret(intLit(0)))));
   }
 }
