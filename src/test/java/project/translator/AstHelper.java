@@ -22,6 +22,8 @@ import project.ast.Parameter;
 import project.ast.Return;
 import project.ast.Statement;
 import project.ast.Type;
+import project.ast.UnaryMinus;
+import project.ast.UnaryNot;
 import project.ast.Variable;
 import project.ast.While;
 import project.lctrs.Lctrs;
@@ -85,6 +87,14 @@ final class AstHelper {
 
   static BinaryOp lt(Expression l, Expression r) {
     return bin(BinaryOp.Op.LT, l, r);
+  }
+
+  static UnaryNot not(Expression operand) {
+    return new UnaryNot(operand);
+  }
+
+  static UnaryMinus neg(Expression operand) {
+    return new UnaryMinus(operand);
   }
 
   // --- statements ----------------------------------------------------------

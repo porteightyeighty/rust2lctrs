@@ -91,28 +91,29 @@ final class ExpressionBuilder {
   }
 
   /**
-   * Builds an expression from a unary negation context. Only arithmetic negation ({@code -e}) is
-   * supported; boolean not ({@code !e}) shares this grammar rule but is not yet in the fragment.
+   * Builds an expression from a unary negation context: arithmetic negation ({@code -e}) or boolean
+   * not ({@code !e}), which share this grammar rule.
    *
-   * <p>There is no unary-minus theory symbol, so negation is desugared here rather than carried as
-   * a dedicated AST node: a negated integer literal folds into a single negative {@link
-   * IntegerLiteral}, and any other operand becomes {@code 0 - e} over the binary {@link
-   * BinaryOp.Op#SUB}.
+   * <p>A negated integer literal folds into a single negative {@link IntegerLiteral}; any other
+   * operand becomes a {@link UnaryMinus} node. Boolean {@code not} likewise negates the boolean
+   * literal and otherwise becomes a {@link UnaryNot} node.
    *
    * @param ctx the negation-expression context
    * @return the corresponding {@link Expression} node
-   * @throws UnsupportedConstructException if the operator is boolean not ({@code !})
    */
   Expression buildNegation(NegationExpressionContext ctx) {
-    if (ctx.MINUS() == null) {
-      throw new UnsupportedConstructException(ctx, "Boolean not (!) is not supported");
-    }
     Expression operand = buildExpression(ctx.expression());
+    if (ctx.MINUS() == null) {
+      // Boolean not (!e). Input is rustc-valid, so the operand is bool.
+      if (operand instanceof BooleanLiteral literal) {
+        return spans.track(new BooleanLiteral(!literal.value()), ctx);
+      }
+      return spans.track(new UnaryNot(operand), ctx);
+    }
     if (operand instanceof IntegerLiteral literal) {
       return spans.track(new IntegerLiteral(literal.value().negate()), ctx);
     }
-    IntegerLiteral zero = spans.track(new IntegerLiteral(BigInteger.ZERO), ctx);
-    return spans.track(new BinaryOp(BinaryOp.Op.SUB, zero, operand), ctx);
+    return spans.track(new UnaryMinus(operand), ctx);
   }
 
   /**

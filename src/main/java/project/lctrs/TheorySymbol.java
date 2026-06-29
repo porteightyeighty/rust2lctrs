@@ -14,6 +14,7 @@ public enum TheorySymbol implements Symbol {
   // Integer arithmetic
   ADD("+", List.of(Sort.INT, Sort.INT), Sort.INT),
   SUB("-", List.of(Sort.INT, Sort.INT), Sort.INT),
+  NEG("-", List.of(Sort.INT), Sort.INT),
   MUL("*", List.of(Sort.INT, Sort.INT), Sort.INT),
   DIV("/", List.of(Sort.INT, Sort.INT), Sort.INT),
   MOD("%", List.of(Sort.INT, Sort.INT), Sort.INT),

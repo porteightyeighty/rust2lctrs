@@ -24,6 +24,9 @@ import project.ast.Return;
 import project.ast.SpanTable;
 import project.ast.Statement;
 import project.ast.Type;
+import project.ast.UnaryNot;
+import project.ast.UnaryOp;
+import project.ast.UnsupportedConstructException;
 import project.ast.Variable;
 import project.ast.While;
 import project.lctrs.Constraint;
@@ -465,6 +468,17 @@ public class Translator {
    */
   private record LoweredCond(Constraint whenTrue, Constraint whenFalse, Term outgoing) {}
 
+  /**
+   * Recursively walks {@code e}, emitting division-hoist rules for every {@code /} or {@code %}
+   * sub-expression and returning the rewritten expression (with hoist variables substituted in) and
+   * the outgoing configuration after all hoists.
+   *
+   * @param ctx the translation context
+   * @param e the expression to hoist
+   * @param ctxWidth the integer width inferred from the binding/return/assignment target
+   * @param incoming the configuration term at the entry to {@code e}
+   * @return the hoisted expression and its outgoing configuration
+   */
   private HoistedExpr hoistAll(
       Context ctx, Expression e, Optional<Type.Int> ctxWidth, Term incoming) {
     return switch (e) {
@@ -476,10 +490,37 @@ public class Translator {
             ? emitDivisionHoist(ctx, rewritten, ctxWidth, r.outgoing())
             : new HoistedExpr(rewritten, r.outgoing());
       }
+      case UnaryOp u -> {
+        HoistedExpr inner = hoistAll(ctx, u.operand(), ctxWidth, incoming);
+        // `!` on an integer is bitwise complement, which is out of scope. AstBuilder cannot tell it
+        // apart from logical not without sorts, so reject it here, where the operand's sort is
+        // known.
+        if (u instanceof UnaryNot
+            && ExpressionLowering.lower(ctx, inner.expr()).sort() != Sort.BOOL) {
+          throw new UnsupportedConstructException(
+              "`!` on an integer is bitwise complement, which is out of scope; only logical not on"
+                  + " a bool is supported",
+              spans.describe(u));
+        }
+        yield new HoistedExpr(u.withOperand(inner.expr()), inner.outgoing());
+      }
       default -> new HoistedExpr(e, incoming); // IntegerLiteral, BooleanLiteral, Variable
     };
   }
 
+  /**
+   * Emits the hoist rules for a single {@code /} or {@code %} node: an {@code err} rule guarded by
+   * {@code ¬S_D}, and one rule per corrected alternative guarded by {@code S_D ∧ guard ∧ fresh =
+   * value}. Returns the hoisted expression ({@code fresh}) and the outgoing configuration that
+   * carries it.
+   *
+   * @param ctx the translation context
+   * @param division the already-hoisted {@code BinaryOp} whose operator is {@link Op#DIV} or {@link
+   *     Op#MOD}
+   * @param ctxWidth fallback integer width when neither operand is a variable
+   * @param incoming the configuration at the entry of this division
+   * @return the hoisted expression and its outgoing configuration
+   */
   private HoistedExpr emitDivisionHoist(
       Context ctx, BinaryOp division, Optional<Type.Int> ctxWidth, Term incoming) {
     DivisionHoist info = ExpressionLowering.hoistInfo(ctx, division);
@@ -514,13 +555,25 @@ public class Translator {
     return new HoistedExpr(new Variable(fresh.sourceName()), target);
   }
 
+  /**
+   * Hoists all divisions in {@code e}, lowers the resulting hoist-variable expression to an LCTRS
+   * {@link Term}, and returns the term together with its safety formula and outgoing configuration.
+   * Hoist variables are scoped to this call: they are visible during lowering but dropped
+   * afterwards.
+   *
+   * @param ctx the translation context
+   * @param e the expression to hoist and lower
+   * @param ctxWidth fallback integer width for literal-only divisions
+   * @param incoming the configuration at the entry of {@code e}
+   * @return the lowered term, its safety formula, and the outgoing configuration
+   */
   private LoweredExpr lowerHoisted(
       Context ctx, Expression e, Optional<Type.Int> ctxWidth, Term incoming) {
-    ctx.enterScope(); // bracket the hoist vars
+    ctx.enterScope();
     HoistedExpr h = hoistAll(ctx, e, ctxWidth, incoming);
-    Term term = ExpressionLowering.lower(ctx, h.expr()); // hoist vars still resolvable
+    Term term = ExpressionLowering.lower(ctx, h.expr());
     Optional<Term> safety = ExpressionLowering.safety(ctx, h.expr());
-    ctx.leaveScope(); // drop hoist vars; `term`/`safety` keep refs
+    ctx.leaveScope();
     return new LoweredExpr(term, safety, h.outgoing());
   }
 

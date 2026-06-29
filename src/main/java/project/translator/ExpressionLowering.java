@@ -8,6 +8,8 @@ import project.ast.BooleanLiteral;
 import project.ast.Expression;
 import project.ast.IntegerLiteral;
 import project.ast.Type;
+import project.ast.UnaryMinus;
+import project.ast.UnaryNot;
 import project.ast.Variable;
 import project.lctrs.BoolValue;
 import project.lctrs.FnApp;
@@ -112,6 +114,8 @@ final class ExpressionLowering {
         yield new FnApp(theorySymbol, List.of(left, right));
       }
       case Variable expr -> ctx.resolve(expr.name()).varDecl();
+      case UnaryNot expr -> new FnApp(TheorySymbol.NOT, List.of(lower(ctx, expr.operand())));
+      case UnaryMinus expr -> new FnApp(TheorySymbol.NEG, List.of(lower(ctx, expr.operand())));
     };
   }
 
@@ -131,6 +135,10 @@ final class ExpressionLowering {
       case IntegerLiteral e -> Optional.empty();
       case BooleanLiteral e -> Optional.empty();
       case Variable e -> Optional.empty();
+      // ¬ cannot fault; its operand still can (e.g. a nested division), so propagate that.
+      case UnaryNot e -> safety(ctx, e.operand());
+      // -x overflows on -MIN (debug panic), so guard the result width alongside the operand's own.
+      case UnaryMinus e -> conjoin(safety(ctx, e.operand()), withinWidth(ctx, e));
       case BinaryOp expr -> {
         // Each node carries its own bound (withinWidth below); recursing collects the operands' own
         // overflow clauses, so this node and its children are bounded in separate roles.
@@ -218,6 +226,8 @@ final class ExpressionLowering {
               : Optional.empty();
       case IntegerLiteral e -> Optional.empty();
       case BooleanLiteral e -> Optional.empty();
+      case UnaryNot e -> Optional.empty(); // bool-valued, carries no integer width
+      case UnaryMinus e -> inferWidth(ctx, e.operand());
       case BinaryOp e -> inferWidth(ctx, e.left()).or(() -> inferWidth(ctx, e.right()));
     };
   }
