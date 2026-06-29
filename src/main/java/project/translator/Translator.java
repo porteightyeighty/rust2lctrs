@@ -6,6 +6,8 @@ import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import project.ast.Assignment;
+import project.ast.BinaryOp;
+import project.ast.BinaryOp.Op;
 import project.ast.Block;
 import project.ast.Break;
 import project.ast.Continue;
@@ -21,17 +23,22 @@ import project.ast.Parameter;
 import project.ast.Return;
 import project.ast.SpanTable;
 import project.ast.Statement;
+import project.ast.Type;
+import project.ast.Variable;
 import project.ast.While;
 import project.lctrs.Constraint;
 import project.lctrs.FnApp;
 import project.lctrs.Lctrs;
 import project.lctrs.Rule;
+import project.lctrs.ScopedVar;
 import project.lctrs.Serialiser;
 import project.lctrs.Sort;
 import project.lctrs.Symbol;
 import project.lctrs.Term;
 import project.lctrs.TermSymbol;
 import project.lctrs.TheorySymbol;
+import project.translator.ExpressionLowering.Corrected;
+import project.translator.ExpressionLowering.DivisionHoist;
 
 /**
  * Lowers a {@link Crate} to an {@link Lctrs} by walking the AST and emitting constrained rewrite
@@ -96,7 +103,7 @@ public class Translator {
       case FunctionDeclaration fn -> {
         // A function's return sort is the shared output sort of its whole program-point family, so
         // the Context is constructed per function once that sort is known.
-        Context ctx = new Context(Sort.RESULT);
+        Context ctx = new Context(Sort.RESULT, fn.returnType());
         processFunctionDeclaration(ctx, fn);
         lctrs.appendSymbols(ctx.sigma());
         lctrs.appendRules(ctx.rules());
@@ -249,20 +256,29 @@ public class Translator {
    * @return the configuration at the merge point, over the scope live before the loop
    */
   private Term processWhileStatement(Context ctx, While stmt, Term incoming) {
-    BranchGuards guards = conditionGuards(ctx, stmt.condition(), incoming);
+    // The condition is re-evaluated on every iteration, so when it hoists a division the back-edge
+    // and continue must return to the loop top (pre-condition), not to the post-condition point:
+    // the next iteration has to re-run the hoist. incoming is that loop top; afterCond is where the
+    // condition's hoist program points (if any) flow to, and is where the true/false guards apply.
+    // With a division-free condition hoistAll is a no-op and afterCond == incoming, recovering the
+    // plain encoding.
+    Term loopTop = incoming;
+    LoweredCond guards = conditionGuards(ctx, stmt.condition(), loopTop);
+    Term afterCond = guards.outgoing();
     Constraint phi = guards.whenTrue();
     Constraint notPhi = guards.whenFalse();
     List<Term> preScope = ctx.argsFromScope();
     Symbol uWhile = ctx.advance();
-    ctx.enterLoop(incoming);
-    ctx.addRule(new Rule(incoming, new FnApp(uWhile, preScope), Optional.of(phi)));
-    Optional<Term> whileBlockOut = processBlock(ctx, stmt.block(), new FnApp(uWhile, preScope));
+    Term head = new FnApp(uWhile, preScope);
+    ctx.enterLoop(loopTop);
+    ctx.addRule(new Rule(afterCond, head, Optional.of(phi)));
+    Optional<Term> whileBlockOut = processBlock(ctx, stmt.block(), head);
     LoopContext loop = ctx.leaveLoop();
     Symbol uMerge = ctx.advance();
     Term merge = new FnApp(uMerge, preScope);
-    ctx.addRule(new Rule(incoming, merge, Optional.of(notPhi)));
+    ctx.addRule(new Rule(afterCond, merge, Optional.of(notPhi)));
     if (whileBlockOut.isPresent()) {
-      ctx.addRule(new Rule(whileBlockOut.get(), incoming, Optional.empty()));
+      ctx.addRule(new Rule(whileBlockOut.get(), loopTop, Optional.empty()));
     }
 
     for (Term site : loop.breakPoints()) {
@@ -286,7 +302,8 @@ public class Translator {
    */
   private Optional<Term> processIfStatement(Context ctx, If stmt, Term incoming) {
     boolean elsePresent = stmt.elseBlock().isPresent();
-    BranchGuards guards = conditionGuards(ctx, stmt.condition(), incoming);
+    LoweredCond guards = conditionGuards(ctx, stmt.condition(), incoming);
+    incoming = guards.outgoing();
     Constraint phi = guards.whenTrue();
     Constraint notPhi = guards.whenFalse();
     List<Term> preScope = ctx.argsFromScope();
@@ -331,9 +348,11 @@ public class Translator {
    * @return the term the configuration rewrites to ({@code ret(value)})
    */
   private Term processReturnStatement(Context ctx, Return ret, Term incoming) {
-    Term value = ExpressionLowering.lower(ctx, ret.value());
-    Term wrapped = new FnApp(ctx.ret(), List.of(value));
-    emitDivSafe(ctx, ExpressionLowering.safety(ctx, ret.value()), incoming, wrapped);
+    Optional<Type.Int> ctxWidth = intWidth(ctx.returnType());
+    LoweredExpr low = lowerHoisted(ctx, ret.value(), ctxWidth, incoming);
+    Term wrapped = new FnApp(ctx.ret(), List.of(low.term()));
+    incoming = low.outgoing();
+    emitDivSafe(ctx, low.safety(), incoming, wrapped);
     return wrapped;
   }
 
@@ -349,15 +368,14 @@ public class Translator {
    */
   private Term processAssignmentStatement(Context ctx, Assignment assignment, Term incoming) {
     Identifier target = assignment.target();
-    Term value = ExpressionLowering.lower(ctx, assignment.value());
-    Optional<Term> safety = ExpressionLowering.safety(ctx, assignment.value());
+    Optional<Type.Int> ctxWidth = intWidth(ctx.resolve(target).sourceType());
+    LoweredExpr low = lowerHoisted(ctx, assignment.value(), ctxWidth, incoming);
+    incoming = low.outgoing();
 
     // Fails if variable is not in scope
-    ctx.resolve(target);
-
     Symbol to = ctx.advance();
-    Term rhs = new FnApp(to, ctx.argsWithValue(target, value));
-    emitDivSafe(ctx, safety, incoming, rhs);
+    Term rhs = new FnApp(to, ctx.argsWithValue(target, low.term()));
+    emitDivSafe(ctx, low.safety(), incoming, rhs);
     return new FnApp(to, ctx.argsFromScope());
   }
 
@@ -372,18 +390,18 @@ public class Translator {
    * @return the configuration at the fresh program point, over the extended scope
    */
   private Term processLetStatement(Context ctx, Let let, Term incoming) {
-    List<Term> oldArgs = ctx.argsFromScope();
-    Term value = ExpressionLowering.lower(ctx, let.value());
     // Lower the safety formula now, over the pre-binding scope, before addToScope can shadow a name
     // the value reads. Otherwise the value and its overflow guard would resolve the same name to
     // different variables.
-    Optional<Term> safety = ExpressionLowering.safety(ctx, let.value());
+    LoweredExpr low = lowerHoisted(ctx, let.value(), intWidth(let.type()), incoming);
+    incoming = low.outgoing();
+    List<Term> oldArgs = ctx.argsFromScope();
     ctx.addToScope(let.identifier(), let.type());
     Symbol to = ctx.advance();
     List<Term> rhsArgs = new ArrayList<>(oldArgs);
-    rhsArgs.add(value);
+    rhsArgs.add(low.term());
     Term rhs = new FnApp(to, rhsArgs);
-    emitDivSafe(ctx, safety, incoming, rhs);
+    emitDivSafe(ctx, low.safety(), incoming, rhs);
     return new FnApp(to, ctx.argsFromScope());
   }
 
@@ -431,14 +449,84 @@ public class Translator {
     ctx.addRule(new Rule(incoming, safeRhs, safety.map(Constraint::new)));
   }
 
+  private record HoistedExpr(Expression expr, Term outgoing) {}
+
+  private record LoweredExpr(Term term, Optional<Term> safety, Term outgoing) {}
+
   /**
    * The two branch guards for a condition, each already conjoined with the condition's safety
-   * formula so that the true, false and error guards partition the cases without overlap.
+   * formula so that the true, false and error guards partition the cases without overlap, plus the
+   * configuration the condition's hoist program points (if any) flow to, where both guards apply.
    *
    * @param whenTrue the guard under which the condition's true branch is taken
    * @param whenFalse the guard under which the condition's false branch is taken
+   * @param outgoing the configuration after the condition's hoisted divisions, where the guards
+   *     hold
    */
-  private record BranchGuards(Constraint whenTrue, Constraint whenFalse) {}
+  private record LoweredCond(Constraint whenTrue, Constraint whenFalse, Term outgoing) {}
+
+  private HoistedExpr hoistAll(
+      Context ctx, Expression e, Optional<Type.Int> ctxWidth, Term incoming) {
+    return switch (e) {
+      case BinaryOp op -> {
+        HoistedExpr l = hoistAll(ctx, op.left(), ctxWidth, incoming);
+        HoistedExpr r = hoistAll(ctx, op.right(), ctxWidth, l.outgoing());
+        BinaryOp rewritten = new BinaryOp(op.operator(), l.expr(), r.expr());
+        yield (op.operator() == Op.DIV || op.operator() == Op.MOD)
+            ? emitDivisionHoist(ctx, rewritten, ctxWidth, r.outgoing())
+            : new HoistedExpr(rewritten, r.outgoing());
+      }
+      default -> new HoistedExpr(e, incoming); // IntegerLiteral, BooleanLiteral, Variable
+    };
+  }
+
+  private HoistedExpr emitDivisionHoist(
+      Context ctx, BinaryOp division, Optional<Type.Int> ctxWidth, Term incoming) {
+    DivisionHoist info = ExpressionLowering.hoistInfo(ctx, division);
+    Type.Int width = info.width().or(() -> ctxWidth).orElse(Type.Int.i32);
+    // Width feeds the MIN/-1 guard and the fresh var's sort. Resolved in priority:
+    //   1. inferWidth (a variable operand) — authoritative; both operands share its
+    //      type in valid Rust, so this is exact whenever any variable is present.
+    //   2. ctxWidth — the context type threaded from the binding/return/assignment
+    //      target, for a *literal-only* division. This is what catches the widening
+    //      case (let x: i64 = -2147483648 / -1): rustc types it i64, so the MIN/-1
+    //      guard must use i64::MIN, not i32::MIN, or we'd wrongly route to err.
+    //   3. i32 (Rust's literal default) — only when there is no integer context at
+    //      all, e.g. a literal-only division inside a comparison, where rustc also
+    //      defaults the operands to i32.
+    ScopedVar fresh = ctx.addHoistVar(width);
+    Symbol point = ctx.advance();
+    Term target = new FnApp(point, ctx.argsFromScope()); // carries `fresh`
+    // err [¬S_D]
+    ctx.addRule(
+        new Rule(
+            incoming,
+            new FnApp(ctx.err(), List.of()),
+            Optional.of(new Constraint(new FnApp(TheorySymbol.NOT, List.of(info.safety()))))));
+    for (Corrected c : info.alternatives()) {
+      Term bind = new FnApp(TheorySymbol.EQ_INT, List.of(fresh.varDecl(), c.value()));
+      Term g =
+          new FnApp(
+              TheorySymbol.AND,
+              List.of(new FnApp(TheorySymbol.AND, List.of(info.safety(), c.guard())), bind));
+      ctx.addRule(new Rule(incoming, target, Optional.of(new Constraint(g))));
+    }
+    return new HoistedExpr(new Variable(fresh.sourceName()), target);
+  }
+
+  private LoweredExpr lowerHoisted(
+      Context ctx, Expression e, Optional<Type.Int> ctxWidth, Term incoming) {
+    ctx.enterScope(); // bracket the hoist vars
+    HoistedExpr h = hoistAll(ctx, e, ctxWidth, incoming);
+    Term term = ExpressionLowering.lower(ctx, h.expr()); // hoist vars still resolvable
+    Optional<Term> safety = ExpressionLowering.safety(ctx, h.expr());
+    ctx.leaveScope(); // drop hoist vars; `term`/`safety` keep refs
+    return new LoweredExpr(term, safety, h.outgoing());
+  }
+
+  private static Optional<Type.Int> intWidth(Type t) {
+    return t instanceof Type.Int i ? Optional.of(i) : Optional.empty();
+  }
 
   /**
    * Builds the true/false branch guards for a condition and, when the condition can divide or take
@@ -451,14 +539,14 @@ public class Translator {
    * @param incoming the configuration flowing into the branch
    * @return the guards for the true and false branches
    */
-  private BranchGuards conditionGuards(Context ctx, Expression condition, Term incoming) {
-    Term cond = ExpressionLowering.lower(ctx, condition);
-    Optional<Term> safety =
-        emitErrIfFaulty(ctx, ExpressionLowering.safety(ctx, condition), incoming);
-    Term whenTrue = ExpressionLowering.conjoin(safety, Optional.of(cond)).orElseThrow();
+  private LoweredCond conditionGuards(Context ctx, Expression condition, Term incoming) {
+    LoweredExpr low = lowerHoisted(ctx, condition, Optional.empty(), incoming);
+    Optional<Term> safety = emitErrIfFaulty(ctx, low.safety(), low.outgoing());
+    Term whenTrue = ExpressionLowering.conjoin(safety, Optional.of(low.term())).orElseThrow();
     Term whenFalse =
-        ExpressionLowering.conjoin(safety, Optional.of(new FnApp(TheorySymbol.NOT, List.of(cond))))
+        ExpressionLowering.conjoin(
+                safety, Optional.of(new FnApp(TheorySymbol.NOT, List.of(low.term()))))
             .orElseThrow();
-    return new BranchGuards(new Constraint(whenTrue), new Constraint(whenFalse));
+    return new LoweredCond(new Constraint(whenTrue), new Constraint(whenFalse), low.outgoing());
   }
 }

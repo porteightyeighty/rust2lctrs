@@ -22,4 +22,8 @@ public record IntValue(BigInteger value) implements Value {
   public String render() {
     return value.toString();
   }
+
+  public static IntValue of(long value) {
+    return new IntValue(BigInteger.valueOf(value));
+  }
 }

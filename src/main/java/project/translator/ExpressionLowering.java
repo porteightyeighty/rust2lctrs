@@ -34,6 +34,64 @@ final class ExpressionLowering {
 
   private ExpressionLowering() {}
 
+  record Corrected(Term guard, Term value) {}
+
+  record DivisionHoist(Optional<Type.Int> width, Term safety, List<Corrected> alternatives) {}
+
+  static DivisionHoist hoistInfo(Context ctx, BinaryOp division) {
+    var left = lower(ctx, division.left());
+    var right = lower(ctx, division.right());
+    var quotient = new FnApp(TheorySymbol.DIV, List.of(left, right));
+    var remainder = new FnApp(TheorySymbol.MOD, List.of(left, right));
+    var aNeg = new FnApp(TheorySymbol.LT, List.of(left, IntValue.of(0)));
+    var remNonZero = new FnApp(TheorySymbol.NEQ_INT, List.of(remainder, IntValue.of(0)));
+    var agree =
+        new FnApp(
+            TheorySymbol.OR,
+            List.of(
+                new FnApp(TheorySymbol.GE, List.of(left, IntValue.of(0))),
+                new FnApp(TheorySymbol.EQ_INT, List.of(remainder, IntValue.of(0)))));
+    var divPos =
+        new FnApp(
+            TheorySymbol.AND,
+            List.of(
+                new FnApp(TheorySymbol.AND, List.of(aNeg, remNonZero)),
+                new FnApp(TheorySymbol.GT, List.of(right, IntValue.of(0)))));
+    var divNeg =
+        new FnApp(
+            TheorySymbol.AND,
+            List.of(
+                new FnApp(TheorySymbol.AND, List.of(aNeg, remNonZero)),
+                new FnApp(TheorySymbol.LT, List.of(right, IntValue.of(0)))));
+    List<Corrected> corrected =
+        switch (division.operator()) {
+          case DIV -> {
+            List<Corrected> corrections =
+                List.of(
+                    new Corrected(agree, quotient),
+                    new Corrected(
+                        divPos, new FnApp(TheorySymbol.ADD, List.of(quotient, IntValue.of(1)))),
+                    new Corrected(
+                        divNeg, new FnApp(TheorySymbol.SUB, List.of(quotient, IntValue.of(1)))));
+            yield corrections;
+          }
+          case MOD -> {
+            List<Corrected> corrections =
+                List.of(
+                    new Corrected(agree, remainder),
+                    new Corrected(divPos, new FnApp(TheorySymbol.SUB, List.of(remainder, right))),
+                    new Corrected(divNeg, new FnApp(TheorySymbol.ADD, List.of(remainder, right))));
+            yield corrections;
+          }
+          default ->
+              throw new IllegalArgumentException(
+                  "hoistInfo on non-division: " + division.operator());
+        };
+
+    return new DivisionHoist(
+        inferWidth(ctx, division), safety(ctx, division).orElseThrow(), corrected);
+  }
+
   /**
    * Translates an expression to a theory term over the current scope. Literals become theory
    * values, binary operations become applications of the corresponding theory symbol, and variables

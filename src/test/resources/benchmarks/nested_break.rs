@@ -1,11 +1,11 @@
 // cora: YES
-fn nested_break(mut x: i32) -> i32 {
-    let mut total: i32 = 0;
+fn nested_break(mut x: i16) -> i16 {
+    let mut total: i16 = 0;
     while x > 0 {
         if total > 50 {
             break;
         }
-        let mut y: i32 = x;
+        let mut y: i16 = x;
         while y > 0 {
             if y == 3 {
                 break;

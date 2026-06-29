@@ -1,6 +1,6 @@
 // cora: MAYBE
-fn endless_loop() -> i32 {
-    let mut x: i32 = 0;
+fn endless_loop() -> i16 {
+    let mut x: i16 = 0;
     loop {
         x = x + 1;
     }
