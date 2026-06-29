@@ -5,11 +5,11 @@ u1 :: Int -> Int -> Int -> result
 u2 :: Int -> Int -> result
 u3 :: Int -> Int -> result
 
-div_cond(a, b) -> err | ¬(((b ≠ 0) ∧ ¬(((a = -32768) ∧ (b = -1)))))
-div_cond(a, b) -> u1(a, b, $div) | ((((b ≠ 0) ∧ ¬(((a = -32768) ∧ (b = -1)))) ∧ ((a ≥ 0) ∨ ((a % b) = 0))) ∧ ($div = (a / b)))
-div_cond(a, b) -> u1(a, b, $div) | ((((b ≠ 0) ∧ ¬(((a = -32768) ∧ (b = -1)))) ∧ (((a < 0) ∧ ((a % b) ≠ 0)) ∧ (b > 0))) ∧ ($div = ((a / b) + 1)))
-div_cond(a, b) -> u1(a, b, $div) | ((((b ≠ 0) ∧ ¬(((a = -32768) ∧ (b = -1)))) ∧ (((a < 0) ∧ ((a % b) ≠ 0)) ∧ (b < 0))) ∧ ($div = ((a / b) - 1)))
-u1(a, b, $div) -> u2(a, b) | ($div > 0)
+div_cond(a, b) -> err | ¬((b ≠ 0) ∧ ¬((a = -32768) ∧ (b = -1)))
+div_cond(a, b) -> u1(a, b, $div) | (((b ≠ 0) ∧ ¬((a = -32768) ∧ (b = -1))) ∧ ((a ≥ 0) ∨ ((a % b) = 0))) ∧ ($div = (a / b))
+div_cond(a, b) -> u1(a, b, $div) | (((b ≠ 0) ∧ ¬((a = -32768) ∧ (b = -1))) ∧ (((a < 0) ∧ ((a % b) ≠ 0)) ∧ (b > 0))) ∧ ($div = ((a / b) + 1))
+div_cond(a, b) -> u1(a, b, $div) | (((b ≠ 0) ∧ ¬((a = -32768) ∧ (b = -1))) ∧ (((a < 0) ∧ ((a % b) ≠ 0)) ∧ (b < 0))) ∧ ($div = ((a / b) - 1))
+u1(a, b, $div) -> u2(a, b) | $div > 0
 u2(a, b) -> ret(1)
-u1(a, b, $div) -> u3(a, b) | ¬(($div > 0))
+u1(a, b, $div) -> u3(a, b) | ¬($div > 0)
 u3(a, b) -> ret(0)

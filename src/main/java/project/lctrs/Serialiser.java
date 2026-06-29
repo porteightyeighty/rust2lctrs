@@ -75,14 +75,33 @@ public final class Serialiser {
    */
   public static String serialise(Rule rule) {
     StringBuilder out = new StringBuilder();
-    out.append(serialise(rule.lhs()));
+    out.append(serialiseDelimited(rule.lhs()));
     out.append(" -> ");
-    out.append(serialise(rule.rhs()));
+    out.append(serialiseDelimited(rule.rhs()));
     if (rule.constraint().isPresent()) {
       out.append(" | ");
-      out.append(serialise(rule.constraint().get().formula()));
+      out.append(serialiseDelimited(rule.constraint().get().formula()));
     }
     return out.toString();
+  }
+
+  /**
+   * Serialises a term whose position already delimits it (a rule side, constraint, or function
+   * argument), so an infix root drops its own parens: {@code ¬((x > y))} becomes {@code ¬(x > y)}.
+   * Operands still self-bracket, so the output cannot reparse differently.
+   *
+   * @param term the term to serialise without redundant outer parens
+   * @return the term in Cora's input format
+   */
+  private static String serialiseDelimited(Term term) {
+    if (term instanceof FnApp f && f.symbol() instanceof TheorySymbol && f.args().size() == 2) {
+      return serialise(f.args().get(0))
+          + " "
+          + f.symbol().notation()
+          + " "
+          + serialise(f.args().get(1));
+    }
+    return serialise(term);
   }
 
   /**
@@ -118,6 +137,8 @@ public final class Serialiser {
       return f.symbol().notation();
     }
     return f.symbol().notation()
-        + f.args().stream().map(Serialiser::serialise).collect(Collectors.joining(", ", "(", ")"));
+        + f.args().stream()
+            .map(Serialiser::serialiseDelimited)
+            .collect(Collectors.joining(", ", "(", ")"));
   }
 }
