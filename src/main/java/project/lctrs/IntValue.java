@@ -23,6 +23,12 @@ public record IntValue(BigInteger value) implements Value {
     return value.toString();
   }
 
+  /**
+   * Convenience factory for small literal values.
+   *
+   * @param value the {@code long} to wrap
+   * @return an {@link IntValue}
+   */
   public static IntValue of(long value) {
     return new IntValue(BigInteger.valueOf(value));
   }

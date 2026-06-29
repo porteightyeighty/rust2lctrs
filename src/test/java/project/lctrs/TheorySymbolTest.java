@@ -41,6 +41,9 @@ public final class TheorySymbolTest {
   /** Unary boolean connective: (BOOL) -> BOOL. */
   private static final Set<TheorySymbol> BOOL_UNARY = EnumSet.of(TheorySymbol.NOT);
 
+  /** Unary integer negation: (INT) -> INT. */
+  private static final Set<TheorySymbol> INT_UNARY = EnumSet.of(TheorySymbol.NEG);
+
   @Test
   void arithmeticSymbolsAreBinaryIntToInt() {
     for (TheorySymbol s : ARITHMETIC) {
@@ -66,11 +69,27 @@ public final class TheorySymbolTest {
   }
 
   @Test
-  void notIsTheOnlyUnarySymbol() {
-    assertEquals(List.of(Sort.BOOL), TheorySymbol.NOT.argSorts());
-    assertEquals(Sort.BOOL, TheorySymbol.NOT.resultSort());
+  void boolUnarySymbolsAreUnaryBoolToBool() {
+    for (TheorySymbol s : BOOL_UNARY) {
+      assertEquals(List.of(Sort.BOOL), s.argSorts(), s + " argSorts");
+      assertEquals(Sort.BOOL, s.resultSort(), s + " resultSort");
+    }
+  }
+
+  @Test
+  void intUnarySymbolsAreUnaryIntToInt() {
+    for (TheorySymbol s : INT_UNARY) {
+      assertEquals(List.of(Sort.INT), s.argSorts(), s + " argSorts");
+      assertEquals(Sort.INT, s.resultSort(), s + " resultSort");
+    }
+  }
+
+  @Test
+  void onlyNotAndNegAreUnary() {
+    Set<TheorySymbol> unary = EnumSet.copyOf(BOOL_UNARY);
+    unary.addAll(INT_UNARY);
     for (TheorySymbol s : TheorySymbol.values()) {
-      int expectedArity = s == TheorySymbol.NOT ? 1 : 2;
+      int expectedArity = unary.contains(s) ? 1 : 2;
       assertEquals(expectedArity, s.argSorts().size(), s + " arity");
     }
   }
@@ -84,7 +103,8 @@ public final class TheorySymbolTest {
           (ARITHMETIC.contains(s) ? 1 : 0)
               + (INT_COMPARISON.contains(s) ? 1 : 0)
               + (BOOL_BINARY.contains(s) ? 1 : 0)
-              + (BOOL_UNARY.contains(s) ? 1 : 0);
+              + (BOOL_UNARY.contains(s) ? 1 : 0)
+              + (INT_UNARY.contains(s) ? 1 : 0);
       assertEquals(1, memberships, s + " must belong to exactly one signature group");
     }
   }

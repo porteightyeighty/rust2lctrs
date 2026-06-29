@@ -3,12 +3,15 @@ package project.ast;
 import org.antlr.v4.runtime.ParserRuleContext;
 
 /**
- * Thrown by {@link AstBuilder} when it encounters a parse-tree node that is not part of the
- * supported Rust fragment. Carries the {@link Span} of the offending node for error reporting.
+ * Thrown for a Rust construct that is not part of the supported fragment. Usually raised by {@link
+ * AstBuilder} at parse-to-AST time with the {@link Span} of the offending node; also raised by the
+ * translator for constructs that can only be recognised as out of scope once sorts are known.
  */
 public class UnsupportedConstructException extends RuntimeException {
 
-  /** The source location of the unsupported construct. */
+  /**
+   * The source location of the unsupported construct, or {@code null} when only a string is known.
+   */
   final Span span;
 
   /** The description of what is unsupported, without the appended source span. */
@@ -37,6 +40,19 @@ public class UnsupportedConstructException extends RuntimeException {
   }
 
   /**
+   * Constructs an exception for a construct detected past the parse boundary, where the source
+   * {@link Span} is no longer reachable.
+   *
+   * @param message a description of what is unsupported
+   * @param location the rendered source location of the offending construct
+   */
+  public UnsupportedConstructException(String message, String location) {
+    super(message + " at " + location);
+    this.span = null;
+    this.detail = message;
+  }
+
+  /**
    * Returns the description of what is unsupported, without the source span that {@link
    * #getMessage()} appends. Suitable for building a {@link Diagnostic}, which carries its own span.
    *
@@ -49,7 +65,8 @@ public class UnsupportedConstructException extends RuntimeException {
   /**
    * Returns the source location of the unsupported construct.
    *
-   * @return the span of the offending node
+   * @return the span of the offending node, or {@code null} when the exception was built past the
+   *     parse boundary from a location string
    */
   public Span span() {
     return span;

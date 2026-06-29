@@ -86,25 +86,6 @@ public final class Serialiser {
   }
 
   /**
-   * Serialises a term whose position already delimits it (a rule side, constraint, or function
-   * argument), so an infix root drops its own parens: {@code ¬((x > y))} becomes {@code ¬(x > y)}.
-   * Operands still self-bracket, so the output cannot reparse differently.
-   *
-   * @param term the term to serialise without redundant outer parens
-   * @return the term in Cora's input format
-   */
-  private static String serialiseDelimited(Term term) {
-    if (term instanceof FnApp f && f.symbol() instanceof TheorySymbol && f.args().size() == 2) {
-      return serialise(f.args().get(0))
-          + " "
-          + f.symbol().notation()
-          + " "
-          + serialise(f.args().get(1));
-    }
-    return serialise(term);
-  }
-
-  /**
    * Serialises a term: an application, a variable (rendered as its name), or a value.
    *
    * @param term the term to serialise
@@ -121,7 +102,8 @@ public final class Serialiser {
   /**
    * Serialises a function application. Binary theory symbols (arithmetic, comparisons, boolean
    * connectives) are written infix and parenthesised, e.g. {@code (i + 5)}, matching Cora's input
-   * syntax. Program-point symbols and the unary {@code ¬} are written prefix as {@code f(a, b)}.
+   * syntax. A unary theory symbol over an atomic operand is written as {@code -x} or {@code ¬b};
+   * program-point symbols and other prefix symbols are written as {@code f(a, b)}.
    */
   private static String serialise(FnApp f) {
     if (f.symbol() instanceof TheorySymbol && f.args().size() == 2) {
@@ -133,6 +115,11 @@ public final class Serialiser {
           + serialise(f.args().get(1))
           + ")";
     }
+    if (f.symbol() instanceof TheorySymbol
+        && f.args().size() == 1
+        && isAtomicOperand(f.args().get(0))) {
+      return f.symbol().notation() + serialise(f.args().get(0));
+    }
     if (f.args().isEmpty()) {
       return f.symbol().notation();
     }
@@ -140,5 +127,38 @@ public final class Serialiser {
         + f.args().stream()
             .map(Serialiser::serialiseDelimited)
             .collect(Collectors.joining(", ", "(", ")"));
+  }
+
+  /**
+   * Serialises a term whose position already delimits it (a rule side, constraint, or function
+   * argument), so an infix root drops its own parens: {@code ¬((x > y))} becomes {@code ¬(x > y)}.
+   *
+   * @param term the term to serialise without redundant outer parens
+   * @return the term in Cora's input format
+   */
+  private static String serialiseDelimited(Term term) {
+    if (term instanceof FnApp f && f.symbol() instanceof TheorySymbol && f.args().size() == 2) {
+      return serialise(f.args().get(0))
+          + " "
+          + f.symbol().notation()
+          + " "
+          + serialise(f.args().get(1));
+    }
+    return serialise(term);
+  }
+
+  /**
+   * Whether a unary symbol's operand is a single token, so it can be written without
+   * brackets({@code -x}).
+   *
+   * @param operand the operand of a unary symbol
+   * @return {@code true} if the symbol can be written without brackets
+   */
+  private static boolean isAtomicOperand(Term operand) {
+    return switch (operand) {
+      case VarDecl v -> true;
+      case Value v -> !v.render().startsWith("-");
+      case FnApp f -> false;
+    };
   }
 }

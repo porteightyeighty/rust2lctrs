@@ -1,6 +1,7 @@
 package project.ast;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -155,28 +156,22 @@ public class ExpressionBuilderTest {
   }
 
   @Test
-  void desugarsNegatedVariableToZeroMinusOperand() {
+  void negatesVariableToUnaryMinus() {
     String testInput = "-x";
     ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
-    BinaryOp expected =
-        new BinaryOp(
-            BinaryOp.Op.SUB,
-            new IntegerLiteral(BigInteger.ZERO),
-            new Variable(new Identifier("x")));
-    BinaryOp actual =
-        assertInstanceOf(BinaryOp.class, expressionBuilder.buildExpression(expressionContext));
+    UnaryMinus expected = new UnaryMinus(new Variable(new Identifier("x")));
+    UnaryMinus actual =
+        assertInstanceOf(UnaryMinus.class, expressionBuilder.buildExpression(expressionContext));
     assertEquals(expected, actual);
   }
 
   @Test
-  void desugarsNegatedGroupedSubexpressionToZeroMinusOperand() {
+  void negatesGroupedSubexpressionToUnaryMinus() {
     String testInput = "-(x + 1)";
     ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
-    BinaryOp actual =
-        assertInstanceOf(BinaryOp.class, expressionBuilder.buildExpression(expressionContext));
-    assertEquals(BinaryOp.Op.SUB, actual.operator());
-    assertEquals(new IntegerLiteral(BigInteger.ZERO), actual.left());
-    assertInstanceOf(BinaryOp.class, actual.right());
+    UnaryMinus actual =
+        assertInstanceOf(UnaryMinus.class, expressionBuilder.buildExpression(expressionContext));
+    assertInstanceOf(BinaryOp.class, actual.operand());
   }
 
   @Test
@@ -221,12 +216,33 @@ public class ExpressionBuilderTest {
   }
 
   @Test
-  void rejectsBooleanNot() {
+  void carriesBooleanNotAsUnaryNot() {
     String testInput = "!x";
     ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
-    assertThrows(
-        UnsupportedConstructException.class,
-        () -> expressionBuilder.buildExpression(expressionContext));
+    UnaryNot expected = new UnaryNot(new Variable(new Identifier("x")));
+    UnaryNot actual =
+        assertInstanceOf(UnaryNot.class, expressionBuilder.buildExpression(expressionContext));
+    assertEquals(expected, actual);
+  }
+
+  @Test
+  void foldsBooleanNotOfLiteral() {
+    String testInput = "!true";
+    ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
+    BooleanLiteral actual =
+        assertInstanceOf(
+            BooleanLiteral.class, expressionBuilder.buildExpression(expressionContext));
+    assertFalse(actual.value());
+  }
+
+  @Test
+  void nestsDoubleBooleanNot() {
+    String testInput = "!!x";
+    ExpressionContext expressionContext = TestHelper.parseExpr(testInput);
+    UnaryNot expected = new UnaryNot(new UnaryNot(new Variable(new Identifier("x"))));
+    UnaryNot actual =
+        assertInstanceOf(UnaryNot.class, expressionBuilder.buildExpression(expressionContext));
+    assertEquals(expected, actual);
   }
 
   @ParameterizedTest
