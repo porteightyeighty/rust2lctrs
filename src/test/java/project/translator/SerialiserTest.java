@@ -44,9 +44,14 @@ final class SerialiserTest {
     return System.lineSeparator();
   }
 
-  /** The i32 within-width bound on {@code t}, as rendered: {@code ((MIN ≤ t) ∧ (t ≤ MAX))}. */
+  /** The i32 within-width bound on {@code t} as an operand: {@code ((MIN ≤ t) ∧ (t ≤ MAX))}. */
   private static String i32Bound(String t) {
     return "((-2147483648 ≤ " + t + ") ∧ (" + t + " ≤ 2147483647))";
+  }
+
+  /** The same bound in a delimited position (constraint / argument), without its outer parens. */
+  private static String i32BoundBare(String t) {
+    return "(-2147483648 ≤ " + t + ") ∧ (" + t + " ≤ 2147483647)";
   }
 
   /** Binary theory symbols render infix and parenthesised; program-point symbols stay prefix. */
@@ -60,9 +65,9 @@ final class SerialiserTest {
             block(let("x", I32, add(var("n"), intLit(1))), ret(var("x"))));
 
     // n + 1 can overflow, so the entry splits: err rule first, then the guarded normal rule.
-    String bound = i32Bound("(n + 1)");
+    String bound = i32BoundBare("(n + 1)");
     assertEquals("f(n) -> err | ¬(" + bound + ")", Serialiser.serialise(lctrs.rules().get(0)));
-    assertEquals("f(n) -> u1(n, (n + 1)) | " + bound, Serialiser.serialise(lctrs.rules().get(1)));
+    assertEquals("f(n) -> u1(n, n + 1) | " + bound, Serialiser.serialise(lctrs.rules().get(1)));
     assertEquals("u1(n, x) -> ret(x)", Serialiser.serialise(lctrs.rules().get(2)));
   }
 
@@ -77,9 +82,11 @@ final class SerialiserTest {
             block(let("x", I32, add(var("n"), mul(var("n"), intLit(2)))), ret(var("x"))));
 
     // The normal (guarded) rule is at index 1; index 0 is the err rule on the negated bound.
-    String bound = "(" + i32Bound("(n * 2)") + " ∧ " + i32Bound("(n + (n * 2))") + ")";
+    // Constraint is a delimited position, so the outer ∧ drops its parens; the two operand bounds
+    // keep theirs.
+    String bound = i32Bound("(n * 2)") + " ∧ " + i32Bound("(n + (n * 2))");
     assertEquals(
-        "f(n) -> u1(n, (n + (n * 2))) | " + bound, Serialiser.serialise(lctrs.rules().get(1)));
+        "f(n) -> u1(n, n + (n * 2)) | " + bound, Serialiser.serialise(lctrs.rules().get(1)));
   }
 
   /** Comparisons are binary theory symbols, so they render infix. */
@@ -92,7 +99,7 @@ final class SerialiserTest {
             I32,
             block(let("b", BOOL, lt(var("n"), intLit(1))), ret(intLit(0))));
 
-    assertEquals("f(n) -> u1(n, (n < 1))", Serialiser.serialise(lctrs.rules().get(0)));
+    assertEquals("f(n) -> u1(n, n < 1)", Serialiser.serialise(lctrs.rules().get(0)));
   }
 
   /** A whole LCTRS is the signature, a blank line, then the rules. */
@@ -105,7 +112,7 @@ final class SerialiserTest {
             I32,
             block(let("x", I32, add(var("n"), intLit(1))), ret(var("x"))));
 
-    String bound = i32Bound("(n + 1)");
+    String bound = i32BoundBare("(n + 1)");
     String expected =
         "f :: Int -> result"
             + ls()
@@ -120,7 +127,7 @@ final class SerialiserTest {
             + bound
             + ")"
             + ls()
-            + "f(n) -> u1(n, (n + 1)) | "
+            + "f(n) -> u1(n, n + 1) | "
             + bound
             + ls()
             + "u1(n, x) -> ret(x)"
@@ -143,7 +150,7 @@ final class SerialiserTest {
         new Constraint(new FnApp(TheorySymbol.LT, List.of(n, new IntValue(BigInteger.ZERO))));
     Rule rule = new Rule(lhs, rhs, Optional.of(phi));
 
-    assertEquals("u1(n) -> u2(n) | (n < 0)", Serialiser.serialise(rule));
+    assertEquals("u1(n) -> u2(n) | n < 0", Serialiser.serialise(rule));
   }
 
   /**

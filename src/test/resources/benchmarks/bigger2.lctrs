@@ -7,11 +7,11 @@ u3 :: Int -> Int -> result
 u4 :: Int -> Int -> result
 u5 :: Int -> Int -> result
 
-bigger2(x, y) -> u1(x, y) | (x > y)
+bigger2(x, y) -> u1(x, y) | x > y
 u1(x, y) -> ret(x)
-bigger2(x, y) -> u2(x, y) | ¬((x > y))
-u2(x, y) -> u3(x, y) | (x < y)
+bigger2(x, y) -> u2(x, y) | ¬(x > y)
+u2(x, y) -> u3(x, y) | x < y
 u3(x, y) -> ret(y)
-u2(x, y) -> u4(x, y) | ¬((x < y))
+u2(x, y) -> u4(x, y) | ¬(x < y)
 u4(x, y) -> u5(x, y)
 u5(x, y) -> ret(0)
