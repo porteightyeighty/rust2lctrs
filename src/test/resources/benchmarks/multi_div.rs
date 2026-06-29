@@ -1,6 +1,6 @@
 // cora: YES
-fn multi_div(a: i32, b: i32) -> i32 {
-    let c: i32 = 10;
-    let x: i32 = 1 + (a / b) / c;
+fn multi_div(a: i16, b: i16) -> i16 {
+    let c: i16 = 10;
+    let x: i16 = 1 + (a / b) / c;
     x
 }

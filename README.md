@@ -2,7 +2,7 @@
 
 A Java tool that translates a restricted fragment of Rust into Logically
 Constrained Term Rewriting Systems (LCTRSs), so that
-[Cora](https://github.com/hezzel/cora) can analyse termination and equivalence.
+[Cora](https://github.com/hezzel/cora) can analyse termination.
 
 ## Pipeline
 
@@ -12,7 +12,7 @@ Rust source → ANTLR parser → AstBuilder → custom AST → Translator → LC
 
 ## Build & run
 
-Uses the Maven wrapper (`./mvnw`); no system Maven needed.
+Uses the maven wrapper (`./mvnw`).
 
 | Command | What it does |
 |---|---|

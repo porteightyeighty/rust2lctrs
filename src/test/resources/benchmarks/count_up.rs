@@ -1,6 +1,6 @@
 // cora: MAYBE
-fn count_up(x: i32) -> i32 {
-    let mut y: i32 = 0;
+fn count_up(x: i16) -> i16 {
+    let mut y: i16 = 0;
     while x > y {
         y = y + 1;
     }
