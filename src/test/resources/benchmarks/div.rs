@@ -1,5 +1,5 @@
 // cora: YES
-fn div(a: i32, b: i32) -> i32 {
-    let x: i32 = a / b;
+fn div(a: i16, b: i16) -> i16 {
+    let x: i16 = a / b;
     x
 }

@@ -1,5 +1,5 @@
 // cora: MAYBE
-fn two_breaks(mut x: i32) -> i32 {
+fn two_breaks(mut x: i16) -> i16 {
     while x < 100 {
         if x == 42 {
             break;

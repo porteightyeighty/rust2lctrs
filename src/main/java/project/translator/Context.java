@@ -41,6 +41,7 @@ final class Context {
   private final List<Symbol> sigma = new ArrayList<>();
   private final List<Rule> rules = new ArrayList<>();
   private final Sort returnSort;
+  private final Type returnType;
   private Symbol ret;
   private Symbol err;
   private final Deque<Integer> scopeMarks = new ArrayDeque<>();
@@ -51,8 +52,13 @@ final class Context {
    *
    * @param returnSort the sort returned by every program-point function symbol of this function
    */
-  Context(Sort returnSort) {
+  Context(Sort returnSort, Type returnType) {
     this.returnSort = returnSort;
+    this.returnType = returnType;
+  }
+
+  Type returnType() {
+    return returnType;
   }
 
   /**
@@ -185,6 +191,22 @@ final class Context {
       candidate = base + "_" + suffix++;
     }
     return candidate;
+  }
+
+  /**
+   * Brings a synthetic division-correction variable into scope. Its source identifier is its own
+   * fresh LCTRS name, so the hoist's replacement {@code Variable} resolves back to it. The {@code
+   * $} is a legal Cora identifier character but not a legal Rust one, so the name can never collide
+   * with a source variable and marks the variable as compiler-generated.
+   *
+   * @param width the integer width driving the fresh variable's sort
+   * @return the newly bound hoist variable
+   */
+  ScopedVar addHoistVar(Type.Int width) {
+    String name = freshName("$div");
+    ScopedVar sv = new ScopedVar(new Identifier(name), new VarDecl(name, Sort.INT), width);
+    scope.add(sv);
+    return sv;
   }
 
   /**

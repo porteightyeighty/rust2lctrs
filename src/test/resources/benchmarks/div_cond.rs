@@ -1,5 +1,5 @@
 // cora: YES
-fn div_cond(a: i32, b: i32) -> i32 {
+fn div_cond(a: i16, b: i16) -> i16 {
     if a / b > 0 {
         return 1;
     }
