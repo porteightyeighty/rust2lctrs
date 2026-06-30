@@ -72,7 +72,7 @@ class TranslatorTest {
     TermSymbol u1Symbol = new TermSymbol("u1", List.of(Sort.INT, Sort.INT), Sort.RESULT);
     FnApp u1 = new FnApp(u1Symbol, List.of(n, nPlusOne));
     FnApp u1scope = new FnApp(u1Symbol, List.of(n, x));
-    FnApp retX = new FnApp(new TermSymbol("ret", List.of(Sort.INT), Sort.RESULT), List.of(x));
+    FnApp retX = new FnApp(new TermSymbol("ret_Int", List.of(Sort.INT), Sort.RESULT), List.of(x));
     FnApp bound = i32Bound(nPlusOne);
     Rule errRule =
         new Rule(
@@ -110,7 +110,7 @@ class TranslatorTest {
 
     FnApp u2 = new FnApp(u2Symbol, List.of(n, x, x));
     FnApp u2scope = new FnApp(u2Symbol, List.of(n, x, y));
-    FnApp retX = new FnApp(new TermSymbol("ret", List.of(Sort.INT), Sort.RESULT), List.of(x));
+    FnApp retX = new FnApp(new TermSymbol("ret_Int", List.of(Sort.INT), Sort.RESULT), List.of(x));
 
     FnApp bound = i32Bound(nPlusOne);
     Rule errRule =
@@ -152,7 +152,7 @@ class TranslatorTest {
     FnApp u2 = new FnApp(u2Symbol, List.of(n, x, xPlusOne));
     FnApp u2scope = new FnApp(u2Symbol, List.of(n, x, xShadow));
     FnApp retShadow =
-        new FnApp(new TermSymbol("ret", List.of(Sort.INT), Sort.RESULT), List.of(xShadow));
+        new FnApp(new TermSymbol("ret_Int", List.of(Sort.INT), Sort.RESULT), List.of(xShadow));
 
     FnApp bound = i32Bound(xPlusOne);
     // let x = n carries no bound (single unguarded rule); only the shadowing let x = x + 1

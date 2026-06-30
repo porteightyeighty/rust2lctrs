@@ -20,13 +20,17 @@ public class Lctrs {
   }
 
   /**
-   * Appends term symbols to the signature, in order.
+   * Appends term symbols to the signature, in order, skipping any already declared.
    *
    * @param symbols the term symbols to add
    * @return this LCTRS, for chaining
    */
   public Lctrs appendSymbols(List<Symbol> symbols) {
-    this.sigma.addAll(symbols);
+    for (Symbol s : symbols) {
+      if (!sigma.contains(s)) {
+        sigma.add(s);
+      }
+    }
     return this;
   }
 

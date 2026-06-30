@@ -1,8 +1,11 @@
 package project.translator;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import project.ast.Assignment;
@@ -90,10 +93,49 @@ public class Translator {
    */
   public Lctrs translate() {
     Lctrs lctrs = new Lctrs();
+    CrateScope scope = new CrateScope(new AtomicInteger(), buildRegistry());
     for (Item item : crate.items()) {
-      processItem(lctrs, item);
+      processItem(lctrs, item, scope);
     }
     return lctrs;
+  }
+
+  /**
+   * Crate-wide state shared by every function's {@link Context}.
+   *
+   * @param counter the program-point counter, shared so {@code u}-symbols stay globally unique
+   * @param registry the function name to {@link Signature} map for resolving calls
+   */
+  record CrateScope(AtomicInteger counter, Map<String, Signature> registry) {}
+
+  /**
+   * The callee-facing facts about a function needed to encode a call to it: the entry program-point
+   * symbol that heads its redex, and the return type the captured result takes.
+   *
+   * @param entry the function's entry program-point symbol
+   * @param returnType the function's declared return type
+   */
+  record Signature(Symbol entry, Type returnType) {}
+
+  /**
+   * Builds the crate-wide signature registry by minting each function's entry symbol from its
+   * declaration alone. Runs before any body is lowered, so calls resolve regardless of source
+   * order.
+   *
+   * @return a map from function name to its {@link Signature}
+   */
+  private Map<String, Signature> buildRegistry() {
+    Map<String, Signature> registry = new HashMap<>();
+    for (Item item : crate.items()) {
+      if (item instanceof FunctionDeclaration fn) {
+        List<Sort> argSorts = fn.parameters().stream().map(p -> Sort.of(p.type())).toList();
+        // The entry symbol heads the program-point family, so its codomain is the shared result
+        // sort, not the function's value return sort.
+        Symbol entry = new TermSymbol(fn.identifier().name(), argSorts, Sort.RESULT);
+        registry.put(fn.identifier().name(), new Signature(entry, fn.returnType()));
+      }
+    }
+    return registry;
   }
 
   /**
@@ -101,13 +143,14 @@ public class Translator {
    *
    * @param lctrs the LCTRS being assembled
    * @param item the item to translate
+   * @param scope the crate-wide state shared across all functions of this translation
    */
-  private void processItem(Lctrs lctrs, Item item) {
+  private void processItem(Lctrs lctrs, Item item, CrateScope scope) {
     switch (item) {
       case FunctionDeclaration fn -> {
         // A function's return sort is the shared output sort of its whole program-point family, so
         // the Context is constructed per function once that sort is known.
-        Context ctx = new Context(Sort.RESULT, fn.returnType());
+        Context ctx = new Context(Sort.RESULT, fn.returnType(), scope);
         processFunctionDeclaration(ctx, fn);
         lctrs.appendSymbols(ctx.sigma());
         lctrs.appendRules(ctx.rules());
@@ -128,21 +171,22 @@ public class Translator {
       ctx.addToScope(parameter.identifier(), parameter.type());
     }
     Sort functionReturnSort = Sort.of(functionDeclaration.returnType());
-    // Want to hand roll the first symbol so that we start with the actual function name
-    List<Sort> argSorts =
-        functionDeclaration.parameters().stream().map(p -> Sort.of(p.type())).toList();
-    // The entry symbol heads the program-point family, so its codomain is the shared result sort,
-    // not the function's value return sort. The value sort (functionReturnSort) survives only as
-    // ret's argument sort below.
-    Symbol entry = new TermSymbol(functionDeclaration.identifier().name(), argSorts, Sort.RESULT);
-    // advance() never mints the entry symbol, so register it explicitly or the signature would
-    // omit the function's own program-point symbol.
+    // The entry symbol is minted once in the registry pre-pass; pull this function's from there so
+    // a
+    // self-call and a forward call resolve to the identical symbol. advance() never mints it, so
+    // register it explicitly or the signature would omit the function's own program-point symbol.
+    Symbol entry = ctx.calleeEntry(functionDeclaration.identifier());
     ctx.register(entry);
     ctx.setEntry(entry);
     // register return and error symbols for the function (FKN §8.1: ret wraps the value into the
     // result sort, err is the nullary error sink). Held on the Context so return lowering shares
     // one definition instead of rebuilding it.
-    Symbol ret = new TermSymbol("ret", List.of(functionReturnSort), Sort.RESULT);
+    // Cora forbids overloading one symbol name across sorts, so a crate mixing Int- and Bool-valued
+    // functions cannot share a bare `ret`. Qualify by value sort (ret_Int, ret_Bool) so each is a
+    // distinct, well-sorted symbol; same-sort functions dedup onto one via Context.register.
+    Symbol ret =
+        new TermSymbol(
+            "ret_" + functionReturnSort.notation(), List.of(functionReturnSort), Sort.RESULT);
     Symbol err = new TermSymbol("err", List.of(), Sort.RESULT);
     ctx.setResultSymbols(ret, err);
     Term incoming = new FnApp(entry, ctx.argsFromScope());
@@ -535,17 +579,21 @@ public class Translator {
     List<Term> argTerms =
         argExprs.stream().<Term>map(e -> ExpressionLowering.lower(ctx, e)).toList();
 
-    // The jump: incoming -> uCont(x̄, entry(argTerms)) [argSafety], plus the arg-overflow err rule.
-    // For self-recursion the callee symbol is the function's own entry symbol.
+    // The jump: incoming -> uCont(x̄, callee(argTerms)) [argSafety], plus the arg-overflow err
+    // rule.
+    // The callee symbol comes from the registry, so this works for a self-call or a call to any
+    // other function in the crate.
     List<Term> preScope = ctx.argsFromScope();
     Symbol uCont = ctx.advanceContinuation(Sort.RESULT);
-    Term jumpRhs = new FnApp(uCont, withTrailing(preScope, new FnApp(ctx.entry(), argTerms)));
+    Term jumpRhs =
+        new FnApp(
+            uCont, withTrailing(preScope, new FnApp(ctx.calleeEntry(c.function()), argTerms)));
     emitDivSafe(ctx, argSafety, config, jumpRhs);
 
-    // Landing pad and error propagation. The fresh variable carries the callee's return value (its
-    // return type, since the callee is this same function), so downstream arithmetic recovers its
-    // width through inferWidth.
-    ScopedVar r = ctx.addHoistVar("$call", ctx.returnType());
+    // Landing pad and error propagation. The fresh variable carries the callee's return value,
+    // typed
+    // by the callee's return type, so downstream arithmetic recovers its width through inferWidth.
+    ScopedVar r = ctx.addHoistVar("$call", ctx.calleeReturnType(c.function()));
     Symbol uNext = ctx.advance();
     Term uNextTm = new FnApp(uNext, ctx.argsFromScope()); // scope now carries r
     Term contRet =

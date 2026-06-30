@@ -35,12 +35,11 @@ public class CrateBuilderTest {
   }
 
   @Test
-  void collectsMultipleFunctionsAsDiagnostic() {
+  void buildsCrateWithMultipleFunctions() {
     String testInput = "fn f() -> i32 { return 0; } fn g(a: i32) -> i32 { return 1; }";
     CrateContext crateContext = TestHelper.parseCrate(testInput);
-    astBuilder.buildCrate(crateContext);
-    List<Diagnostic> recorded = diagnostics.diagnostics();
-    assertEquals(1, recorded.size());
-    assertEquals("Only a single top-level function is supported", recorded.get(0).message());
+    Crate actual = astBuilder.buildCrate(crateContext);
+    assertEquals(2, actual.items().size());
+    assertEquals(List.of(), diagnostics.diagnostics());
   }
 }
