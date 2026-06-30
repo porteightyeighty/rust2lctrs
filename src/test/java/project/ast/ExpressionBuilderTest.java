@@ -139,16 +139,14 @@ public class ExpressionBuilderTest {
   void rejectsCallToOtherFunction() {
     expressionBuilder.setEnclosingFunction("f");
     ExpressionContext ctx = TestHelper.parseExpr("g(n)");
-    assertThrows(
-        UnsupportedConstructException.class, () -> expressionBuilder.buildExpression(ctx));
+    assertThrows(UnsupportedConstructException.class, () -> expressionBuilder.buildExpression(ctx));
   }
 
   @Test
   void rejectsMethodCall() {
     expressionBuilder.setEnclosingFunction("f");
     ExpressionContext ctx = TestHelper.parseExpr("x.foo()");
-    assertThrows(
-        UnsupportedConstructException.class, () -> expressionBuilder.buildExpression(ctx));
+    assertThrows(UnsupportedConstructException.class, () -> expressionBuilder.buildExpression(ctx));
   }
 
   @Test
