@@ -13,6 +13,7 @@ import project.ast.Break;
 import project.ast.Continue;
 import project.ast.Crate;
 import project.ast.Expression;
+import project.ast.FunctionCall;
 import project.ast.FunctionDeclaration;
 import project.ast.Identifier;
 import project.ast.If;
@@ -137,6 +138,7 @@ public class Translator {
     // advance() never mints the entry symbol, so register it explicitly or the signature would
     // omit the function's own program-point symbol.
     ctx.register(entry);
+    ctx.setEntry(entry);
     // register return and error symbols for the function (FKN §8.1: ret wraps the value into the
     // result sort, err is the nullary error sink). Held on the Context so return lowering shares
     // one definition instead of rebuilding it.
@@ -504,8 +506,65 @@ public class Translator {
         }
         yield new HoistedExpr(u.withOperand(inner.expr()), inner.outgoing());
       }
+      case FunctionCall c -> emitCallHoist(ctx, c, ctxWidth, incoming);
       default -> new HoistedExpr(e, incoming); // IntegerLiteral, BooleanLiteral, Variable
     };
+  }
+
+  /**
+   * Hoists a self-recursive call, emitting the rules that run it and capture its result into a
+   * fresh variable that the call expression reduces to.
+   *
+   * @param ctx the translation context
+   * @param c the self-recursive call to hoist
+   * @param ctxWidth fallback integer width threaded into the argument hoists
+   * @param incoming the configuration at the entry of the call
+   * @return the hoisted expression (the captured-value variable) and its outgoing configuration
+   */
+  private HoistedExpr emitCallHoist(
+      Context ctx, FunctionCall c, Optional<Type.Int> ctxWidth, Term incoming) {
+    Term config = incoming;
+    List<Expression> argExprs = new ArrayList<>();
+    Optional<Term> argSafety = Optional.empty();
+    for (Expression a : c.args()) {
+      HoistedExpr h = hoistAll(ctx, a, ctxWidth, config);
+      argExprs.add(h.expr());
+      config = h.outgoing();
+      argSafety = ExpressionLowering.conjoin(argSafety, ExpressionLowering.safety(ctx, h.expr()));
+    }
+    List<Term> argTerms =
+        argExprs.stream().<Term>map(e -> ExpressionLowering.lower(ctx, e)).toList();
+
+    // The jump: incoming -> uCont(x̄, entry(argTerms)) [argSafety], plus the arg-overflow err rule.
+    // For self-recursion the callee symbol is the function's own entry symbol.
+    List<Term> preScope = ctx.argsFromScope();
+    Symbol uCont = ctx.advanceContinuation(Sort.RESULT);
+    Term jumpRhs = new FnApp(uCont, withTrailing(preScope, new FnApp(ctx.entry(), argTerms)));
+    emitDivSafe(ctx, argSafety, config, jumpRhs);
+
+    // Landing pad and error propagation. The fresh variable carries the callee's return value (its
+    // return type, since the callee is this same function), so downstream arithmetic recovers its
+    // width through inferWidth.
+    ScopedVar r = ctx.addHoistVar("$call", ctx.returnType());
+    Symbol uNext = ctx.advance();
+    Term uNextTm = new FnApp(uNext, ctx.argsFromScope()); // scope now carries r
+    Term contRet =
+        new FnApp(uCont, withTrailing(preScope, new FnApp(ctx.ret(), List.of(r.varDecl()))));
+    Term contErr = new FnApp(uCont, withTrailing(preScope, new FnApp(ctx.err(), List.of())));
+    ctx.addRule(new Rule(contRet, uNextTm, Optional.empty()));
+    ctx.addRule(new Rule(contErr, new FnApp(ctx.err(), List.of()), Optional.empty()));
+
+    return new HoistedExpr(new Variable(r.sourceName()), uNextTm);
+  }
+
+  /**
+   * Returns {@code scope} with {@code trailing} appended, for building a continuation configuration
+   * over the live scope plus its trailing {@code result} slot.
+   */
+  private static List<Term> withTrailing(List<Term> scope, Term trailing) {
+    List<Term> args = new ArrayList<>(scope);
+    args.add(trailing);
+    return args;
   }
 
   /**
@@ -535,7 +594,7 @@ public class Translator {
     //   3. i32 (Rust's literal default) — only when there is no integer context at
     //      all, e.g. a literal-only division inside a comparison, where rustc also
     //      defaults the operands to i32.
-    ScopedVar fresh = ctx.addHoistVar(width);
+    ScopedVar fresh = ctx.addHoistVar("$div", width);
     Symbol point = ctx.advance();
     Term target = new FnApp(point, ctx.argsFromScope()); // carries `fresh`
     // err [¬S_D]

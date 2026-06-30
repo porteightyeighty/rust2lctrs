@@ -5,6 +5,7 @@ import static project.translator.AstHelper.BOOL;
 import static project.translator.AstHelper.I32;
 import static project.translator.AstHelper.add;
 import static project.translator.AstHelper.block;
+import static project.translator.AstHelper.call;
 import static project.translator.AstHelper.intLit;
 import static project.translator.AstHelper.let;
 import static project.translator.AstHelper.lt;
@@ -13,6 +14,7 @@ import static project.translator.AstHelper.neg;
 import static project.translator.AstHelper.not;
 import static project.translator.AstHelper.param;
 import static project.translator.AstHelper.ret;
+import static project.translator.AstHelper.sub;
 import static project.translator.AstHelper.translateFn;
 import static project.translator.AstHelper.var;
 
@@ -195,5 +197,50 @@ final class SerialiserTest {
     String bound = i32BoundBare("-n");
     assertEquals("f(n) -> err | ¬(" + bound + ")", Serialiser.serialise(lctrs.rules().get(0)));
     assertEquals("f(n) -> u1(n, -n) | " + bound, Serialiser.serialise(lctrs.rules().get(1)));
+  }
+
+  @Test
+  void selfCallEmitsContinuationAndLandingPad() {
+    Lctrs lctrs = translateFn("f", List.of(param("n", I32)), I32, block(ret(call("f", var("n")))));
+
+    assertEquals("f(n) -> u1(n, f(n))", Serialiser.serialise(lctrs.rules().get(0)));
+    assertEquals("u1(n, ret($call)) -> u2(n, $call)", Serialiser.serialise(lctrs.rules().get(1)));
+    assertEquals("u1(n, err) -> err", Serialiser.serialise(lctrs.rules().get(2)));
+    assertEquals("u2(n, $call) -> ret($call)", Serialiser.serialise(lctrs.rules().get(3)));
+    assertEquals(4, lctrs.rules().size());
+  }
+
+  @Test
+  void callResultFeedsEnclosingArithmetic() {
+    // fn f(n: i32) -> i32 { return n * f(n); } — the call reduces to $call, and the residual
+    // n * $call is evaluated at the resume point u2.
+    Lctrs lctrs =
+        translateFn(
+            "f", List.of(param("n", I32)), I32, block(ret(mul(var("n"), call("f", var("n"))))));
+
+    String bound = i32BoundBare("(n * $call)");
+    assertEquals("f(n) -> u1(n, f(n))", Serialiser.serialise(lctrs.rules().get(0)));
+    assertEquals("u1(n, ret($call)) -> u2(n, $call)", Serialiser.serialise(lctrs.rules().get(1)));
+    assertEquals("u1(n, err) -> err", Serialiser.serialise(lctrs.rules().get(2)));
+    assertEquals(
+        "u2(n, $call) -> err | ¬(" + bound + ")", Serialiser.serialise(lctrs.rules().get(3)));
+    assertEquals(
+        "u2(n, $call) -> ret(n * $call) | " + bound, Serialiser.serialise(lctrs.rules().get(4)));
+  }
+
+  @Test
+  void argOverflowDischargedAtCall() {
+    // fn f(n: i32) -> i32 { return f(n - 1); } — the arg n - 1 can overflow, so its safety guards
+    // the jump and an err rule is emitted on the negated bound, before the landing-pad rules.
+    Lctrs lctrs =
+        translateFn(
+            "f", List.of(param("n", I32)), I32, block(ret(call("f", sub(var("n"), intLit(1))))));
+
+    String bound = i32BoundBare("(n - 1)");
+    assertEquals("f(n) -> err | ¬(" + bound + ")", Serialiser.serialise(lctrs.rules().get(0)));
+    assertEquals("f(n) -> u1(n, f(n - 1)) | " + bound, Serialiser.serialise(lctrs.rules().get(1)));
+    assertEquals("u1(n, ret($call)) -> u2(n, $call)", Serialiser.serialise(lctrs.rules().get(2)));
+    assertEquals("u1(n, err) -> err", Serialiser.serialise(lctrs.rules().get(3)));
+    assertEquals("u2(n, $call) -> ret($call)", Serialiser.serialise(lctrs.rules().get(4)));
   }
 }
