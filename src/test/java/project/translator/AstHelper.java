@@ -11,6 +11,7 @@ import project.ast.Break;
 import project.ast.Continue;
 import project.ast.Crate;
 import project.ast.Expression;
+import project.ast.FunctionCall;
 import project.ast.FunctionDeclaration;
 import project.ast.Identifier;
 import project.ast.If;
@@ -91,6 +92,10 @@ final class AstHelper {
 
   static UnaryNot not(Expression operand) {
     return new UnaryNot(operand);
+  }
+
+  static FunctionCall call(String name, Expression... args) {
+    return new FunctionCall(id(name), List.of(args));
   }
 
   static UnaryMinus neg(Expression operand) {

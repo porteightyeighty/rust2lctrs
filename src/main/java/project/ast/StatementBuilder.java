@@ -46,6 +46,16 @@ final class StatementBuilder {
   }
 
   /**
+   * Records the enclosing function's name on the delegate expression builder, so self-recursive
+   * calls can be distinguished from out-of-scope calls to other functions.
+   *
+   * @param name the enclosing function's name
+   */
+  void setEnclosingFunction(String name) {
+    expressions.setEnclosingFunction(name);
+  }
+
+  /**
    * Builds a {@link Block} from a block-expression parse-tree context.
    *
    * @param ctx the block expression context

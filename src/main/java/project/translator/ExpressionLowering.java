@@ -6,6 +6,7 @@ import java.util.Optional;
 import project.ast.BinaryOp;
 import project.ast.BooleanLiteral;
 import project.ast.Expression;
+import project.ast.FunctionCall;
 import project.ast.IntegerLiteral;
 import project.ast.Type;
 import project.ast.UnaryMinus;
@@ -116,6 +117,8 @@ final class ExpressionLowering {
       case Variable expr -> ctx.resolve(expr.name()).varDecl();
       case UnaryNot expr -> new FnApp(TheorySymbol.NOT, List.of(lower(ctx, expr.operand())));
       case UnaryMinus expr -> new FnApp(TheorySymbol.NEG, List.of(lower(ctx, expr.operand())));
+      case FunctionCall expr ->
+          throw new IllegalStateException("FunctionCall should have been hoisted before lowering");
     };
   }
 
@@ -169,6 +172,8 @@ final class ExpressionLowering {
             };
         yield conjoin(combined, clause);
       }
+      case FunctionCall expr ->
+          throw new IllegalStateException("FunctionCall should have been hoisted before lowering");
     };
   }
 
@@ -229,6 +234,8 @@ final class ExpressionLowering {
       case UnaryNot e -> Optional.empty(); // bool-valued, carries no integer width
       case UnaryMinus e -> inferWidth(ctx, e.operand());
       case BinaryOp e -> inferWidth(ctx, e.left()).or(() -> inferWidth(ctx, e.right()));
+      case FunctionCall expr ->
+          throw new IllegalStateException("FunctionCall should have been hoisted before lowering");
     };
   }
 

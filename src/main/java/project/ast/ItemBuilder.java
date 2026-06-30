@@ -113,6 +113,9 @@ final class ItemBuilder {
     IdentifierContext identifierContext = ctx.identifier();
     Identifier id = new Identifier(identifierContext.getText());
     List<Parameter> functionParams = extractParameters(ctx.functionParameters());
+    // Calls in the body may only be self-recursive, so the body builder needs the name to compare
+    // callees against.
+    statements.setEnclosingFunction(id.name());
     Block block = statements.buildBlock(ctx.blockExpression());
     return spans.track(new FunctionDeclaration(id, functionParams, block, returnType), ctx);
   }
