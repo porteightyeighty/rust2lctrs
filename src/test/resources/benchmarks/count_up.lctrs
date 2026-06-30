@@ -1,5 +1,5 @@
 count_up :: Int -> result
-ret :: Int -> result
+ret_Int :: Int -> result
 err :: result
 u1 :: Int -> Int -> result
 u2 :: Int -> Int -> result
@@ -12,4 +12,4 @@ u2(x, y) -> err | ¬((-32768 ≤ (y + 1)) ∧ ((y + 1) ≤ 32767))
 u2(x, y) -> u3(x, y + 1) | (-32768 ≤ (y + 1)) ∧ ((y + 1) ≤ 32767)
 u1(x, y) -> u4(x, y) | ¬(x > y)
 u3(x, y) -> u1(x, y)
-u4(x, y) -> ret(y)
+u4(x, y) -> ret_Int(y)

@@ -1,5 +1,5 @@
 multi_div :: Int -> Int -> result
-ret :: Int -> result
+ret_Int :: Int -> result
 err :: result
 u1 :: Int -> Int -> Int -> result
 u2 :: Int -> Int -> Int -> Int -> result
@@ -17,4 +17,4 @@ u2(a, b, c, $div) -> u3(a, b, c, $div, $div_1) | (((c ≠ 0) ∧ ¬(($div = -327
 u2(a, b, c, $div) -> u3(a, b, c, $div, $div_1) | (((c ≠ 0) ∧ ¬(($div = -32768) ∧ (c = -1))) ∧ ((($div < 0) ∧ (($div % c) ≠ 0)) ∧ (c < 0))) ∧ ($div_1 = (($div / c) - 1))
 u3(a, b, c, $div, $div_1) -> err | ¬((-32768 ≤ (1 + $div_1)) ∧ ((1 + $div_1) ≤ 32767))
 u3(a, b, c, $div, $div_1) -> u4(a, b, c, 1 + $div_1) | (-32768 ≤ (1 + $div_1)) ∧ ((1 + $div_1) ≤ 32767)
-u4(a, b, c, x) -> ret(x)
+u4(a, b, c, x) -> ret_Int(x)

@@ -1,5 +1,5 @@
 two_breaks :: Int -> result
-ret :: Int -> result
+ret_Int :: Int -> result
 err :: result
 u1 :: Int -> result
 u2 :: Int -> result
@@ -20,4 +20,4 @@ two_breaks(x) -> u7(x) | ¬(x < 100)
 u6(x) -> two_breaks(x)
 u2(x) -> u7(x)
 u5(x) -> u7(x)
-u7(x) -> ret(x)
+u7(x) -> ret_Int(x)

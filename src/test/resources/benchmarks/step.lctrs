@@ -1,5 +1,5 @@
 step :: Int -> result
-ret :: Int -> result
+ret_Int :: Int -> result
 err :: result
 u1 :: Int -> Int -> result
 u2 :: Int -> Int -> result
@@ -16,4 +16,4 @@ u4(x, y) -> err | ¬((-128 ≤ (x - 1)) ∧ ((x - 1) ≤ 127))
 u4(x, y) -> u5(x, x - 1) | (-128 ≤ (x - 1)) ∧ ((x - 1) ≤ 127)
 u3(x, y) -> u6(x, y)
 u5(x, y) -> u6(x, y)
-u6(x, y) -> ret(y)
+u6(x, y) -> ret_Int(y)
