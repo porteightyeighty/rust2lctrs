@@ -113,6 +113,45 @@ public class ExpressionBuilderTest {
   }
 
   @Test
+  void buildsSelfRecursiveCallExpression() {
+    expressionBuilder.setEnclosingFunction("f");
+    ExpressionContext ctx = TestHelper.parseExpr("f(n, 1)");
+    FunctionCall actual =
+        assertInstanceOf(FunctionCall.class, expressionBuilder.buildExpression(ctx));
+    assertEquals(new Identifier("f"), actual.function());
+    assertEquals(
+        java.util.List.of(
+            new Variable(new Identifier("n")), new IntegerLiteral(BigInteger.valueOf(1))),
+        actual.args());
+  }
+
+  @Test
+  void buildsNestedSelfRecursiveCallExpression() {
+    expressionBuilder.setEnclosingFunction("f");
+    ExpressionContext ctx = TestHelper.parseExpr("f(f(n))");
+    FunctionCall outer =
+        assertInstanceOf(FunctionCall.class, expressionBuilder.buildExpression(ctx));
+    FunctionCall inner = assertInstanceOf(FunctionCall.class, outer.args().get(0));
+    assertEquals(new Variable(new Identifier("n")), inner.args().get(0));
+  }
+
+  @Test
+  void rejectsCallToOtherFunction() {
+    expressionBuilder.setEnclosingFunction("f");
+    ExpressionContext ctx = TestHelper.parseExpr("g(n)");
+    assertThrows(
+        UnsupportedConstructException.class, () -> expressionBuilder.buildExpression(ctx));
+  }
+
+  @Test
+  void rejectsMethodCall() {
+    expressionBuilder.setEnclosingFunction("f");
+    ExpressionContext ctx = TestHelper.parseExpr("x.foo()");
+    assertThrows(
+        UnsupportedConstructException.class, () -> expressionBuilder.buildExpression(ctx));
+  }
+
+  @Test
   void buildsComparisonExpression() {
     String testInput = "1 == 2";
     ExpressionContext expressionContext = TestHelper.parseExpr(testInput);

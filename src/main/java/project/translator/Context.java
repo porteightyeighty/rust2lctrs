@@ -46,6 +46,7 @@ final class Context {
   private Symbol err;
   private final Deque<Integer> scopeMarks = new ArrayDeque<>();
   private final Deque<LoopContext> loopContexts = new ArrayDeque<>();
+  private Symbol entry;
 
   /**
    * Creates a context for a single function.
@@ -55,6 +56,14 @@ final class Context {
   Context(Sort returnSort, Type returnType) {
     this.returnSort = returnSort;
     this.returnType = returnType;
+  }
+
+  void setEntry(Symbol entry) {
+    this.entry = entry;
+  }
+
+  Symbol entry() {
+    return this.entry;
   }
 
   Type returnType() {
@@ -70,6 +79,15 @@ final class Context {
   Symbol advance() {
     counter++;
     Symbol s = symbolFor(counter);
+    register(s);
+    return s;
+  }
+
+  Symbol advanceContinuation(Sort resultSort) {
+    counter++;
+    List<Sort> argSorts = new ArrayList<>(scope.stream().map(v -> v.varDecl().sort()).toList());
+    argSorts.add(resultSort);
+    Symbol s = new TermSymbol("u" + counter, argSorts, this.returnSort);
     register(s);
     return s;
   }
@@ -194,17 +212,18 @@ final class Context {
   }
 
   /**
-   * Brings a synthetic division-correction variable into scope. Its source identifier is its own
-   * fresh LCTRS name, so the hoist's replacement {@code Variable} resolves back to it. The {@code
-   * $} is a legal Cora identifier character but not a legal Rust one, so the name can never collide
-   * with a source variable and marks the variable as compiler-generated.
+   * Brings a synthetic hoist variable into scope. Pass a {@code $}-prefixed {@code prefix} (e.g.
+   * {@code $div}, {@code $call}), legal in Cora but not in Rust, so it can't collide with a source
+   * variable.
    *
-   * @param width the integer width driving the fresh variable's sort
+   * @param prefix the base name to derive a fresh LCTRS name from
+   * @param sourceType the source type, driving the variable's sort and inferred width
    * @return the newly bound hoist variable
    */
-  ScopedVar addHoistVar(Type.Int width) {
-    String name = freshName("$div");
-    ScopedVar sv = new ScopedVar(new Identifier(name), new VarDecl(name, Sort.INT), width);
+  ScopedVar addHoistVar(String prefix, Type sourceType) {
+    String name = freshName(prefix);
+    ScopedVar sv =
+        new ScopedVar(new Identifier(name), new VarDecl(name, Sort.of(sourceType)), sourceType);
     scope.add(sv);
     return sv;
   }

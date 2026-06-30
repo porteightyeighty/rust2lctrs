@@ -1,9 +1,13 @@
 package project.ast;
 
 import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import project.parser.RustParser.ArithmeticOrLogicalExpressionContext;
+import project.parser.RustParser.CallExpressionContext;
+import project.parser.RustParser.CallParamsContext;
 import project.parser.RustParser.ComparisonExpressionContext;
 import project.parser.RustParser.ComparisonOperatorContext;
 import project.parser.RustParser.ExpressionContext;
@@ -25,6 +29,8 @@ final class ExpressionBuilder {
 
   private final SpanRecorder spans;
 
+  private String enclosingFunction;
+
   /**
    * Creates an expression builder that records node spans through the given recorder.
    *
@@ -32,6 +38,16 @@ final class ExpressionBuilder {
    */
   ExpressionBuilder(SpanRecorder spans) {
     this.spans = Objects.requireNonNull(spans);
+  }
+
+  /**
+   * Records the name of the function whose body is about to be built, so self-recursive calls can
+   * be told apart from out-of-scope calls to other functions.
+   *
+   * @param name the enclosing function's name
+   */
+  void setEnclosingFunction(String name) {
+    this.enclosingFunction = name;
   }
 
   /**
@@ -49,8 +65,32 @@ final class ExpressionBuilder {
       case PathExpression_Context c -> buildVarExpression(c);
       case NegationExpressionContext c -> buildNegation(c);
       case GroupedExpressionContext c -> buildGrouped(c);
+      case CallExpressionContext c -> buildCallExpression(c);
       default -> throw new UnsupportedConstructException(ctx, "Unsupported expression");
     };
+  }
+
+  private FunctionCall buildCallExpression(CallExpressionContext c) {
+    if (!(c.expression() instanceof PathExpression_Context)) {
+      throw new UnsupportedConstructException(
+          c, "CallExpressionContext should be PathExpression_Context");
+    }
+    Identifier callee = extractPathIdentifier((PathExpression_Context) c.expression());
+    if (!callee.name().equals(enclosingFunction)) {
+      throw new UnsupportedConstructException(
+          c,
+          "only self-recursive calls are supported; calls to other functions are out of scope"
+              + " (single-function fragment)");
+    }
+    List<Expression> params = new ArrayList<>();
+    if (c.callParams() != null) {
+      CallParamsContext callParamsCtx = c.callParams();
+      for (ExpressionContext exprCtx : callParamsCtx.expression()) {
+        Expression current = buildExpression(exprCtx);
+        params.add(current);
+      }
+    }
+    return new FunctionCall(callee, params);
   }
 
   /**
