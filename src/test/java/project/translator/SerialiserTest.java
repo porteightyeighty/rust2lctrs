@@ -206,13 +206,16 @@ final class SerialiserTest {
     Lctrs lctrs = translateFn("f", List.of(param("n", I32)), I32, block(ret(call("f", var("n")))));
 
     assertEquals("f(n) -> u1(n, f(n))", Serialiser.serialise(lctrs.rules().get(0)));
-    assertEquals("u1(n, ret_Int($call)) -> u2(n, $call)", Serialiser.serialise(lctrs.rules().get(1)));
+    assertEquals(
+        "u1(n, ret_Int($call)) -> u2(n, $call)", Serialiser.serialise(lctrs.rules().get(1)));
     assertEquals("u1(n, err) -> err", Serialiser.serialise(lctrs.rules().get(2)));
     assertEquals("u2(n, $call) -> ret_Int($call)", Serialiser.serialise(lctrs.rules().get(3)));
     assertEquals(4, lctrs.rules().size());
   }
 
-  /** A call to another function heads the redex with the callee's entry symbol, not the caller's. */
+  /**
+   * A call to another function heads the redex with the callee's entry symbol, not the caller's.
+   */
   @Test
   void crossFunctionCallHeadsRedexWithCalleeEntry() {
     // fn f(n: i32) -> i32 { return g(n); } fn g(n: i32) -> i32 { return n; }
@@ -224,7 +227,8 @@ final class SerialiserTest {
             .translate();
 
     assertEquals("f(n) -> u1(n, g(n))", Serialiser.serialise(lctrs.rules().get(0)));
-    assertEquals("u1(n, ret_Int($call)) -> u2(n, $call)", Serialiser.serialise(lctrs.rules().get(1)));
+    assertEquals(
+        "u1(n, ret_Int($call)) -> u2(n, $call)", Serialiser.serialise(lctrs.rules().get(1)));
     assertEquals("u2(n, $call) -> ret_Int($call)", Serialiser.serialise(lctrs.rules().get(3)));
   }
 
@@ -238,7 +242,8 @@ final class SerialiserTest {
 
     String bound = i32BoundBare("(n * $call)");
     assertEquals("f(n) -> u1(n, f(n))", Serialiser.serialise(lctrs.rules().get(0)));
-    assertEquals("u1(n, ret_Int($call)) -> u2(n, $call)", Serialiser.serialise(lctrs.rules().get(1)));
+    assertEquals(
+        "u1(n, ret_Int($call)) -> u2(n, $call)", Serialiser.serialise(lctrs.rules().get(1)));
     assertEquals("u1(n, err) -> err", Serialiser.serialise(lctrs.rules().get(2)));
     assertEquals(
         "u2(n, $call) -> err | ¬(" + bound + ")", Serialiser.serialise(lctrs.rules().get(3)));
@@ -258,7 +263,8 @@ final class SerialiserTest {
     String bound = i32BoundBare("(n - 1)");
     assertEquals("f(n) -> err | ¬(" + bound + ")", Serialiser.serialise(lctrs.rules().get(0)));
     assertEquals("f(n) -> u1(n, f(n - 1)) | " + bound, Serialiser.serialise(lctrs.rules().get(1)));
-    assertEquals("u1(n, ret_Int($call)) -> u2(n, $call)", Serialiser.serialise(lctrs.rules().get(2)));
+    assertEquals(
+        "u1(n, ret_Int($call)) -> u2(n, $call)", Serialiser.serialise(lctrs.rules().get(2)));
     assertEquals("u1(n, err) -> err", Serialiser.serialise(lctrs.rules().get(3)));
     assertEquals("u2(n, $call) -> ret_Int($call)", Serialiser.serialise(lctrs.rules().get(4)));
   }
