@@ -1,5 +1,5 @@
 bigger2 :: Int -> Int -> result
-ret :: Int -> result
+ret_Int :: Int -> result
 err :: result
 u1 :: Int -> Int -> result
 u2 :: Int -> Int -> result
@@ -8,10 +8,10 @@ u4 :: Int -> Int -> result
 u5 :: Int -> Int -> result
 
 bigger2(x, y) -> u1(x, y) | x > y
-u1(x, y) -> ret(x)
+u1(x, y) -> ret_Int(x)
 bigger2(x, y) -> u2(x, y) | ¬(x > y)
 u2(x, y) -> u3(x, y) | x < y
-u3(x, y) -> ret(y)
+u3(x, y) -> ret_Int(y)
 u2(x, y) -> u4(x, y) | ¬(x < y)
 u4(x, y) -> u5(x, y)
-u5(x, y) -> ret(0)
+u5(x, y) -> ret_Int(0)

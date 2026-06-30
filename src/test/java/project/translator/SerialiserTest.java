@@ -6,6 +6,8 @@ import static project.translator.AstHelper.I32;
 import static project.translator.AstHelper.add;
 import static project.translator.AstHelper.block;
 import static project.translator.AstHelper.call;
+import static project.translator.AstHelper.crate;
+import static project.translator.AstHelper.fn;
 import static project.translator.AstHelper.intLit;
 import static project.translator.AstHelper.let;
 import static project.translator.AstHelper.lt;
@@ -68,7 +70,7 @@ final class SerialiserTest {
     String bound = i32BoundBare("(n + 1)");
     assertEquals("f(n) -> err | ¬(" + bound + ")", Serialiser.serialise(lctrs.rules().get(0)));
     assertEquals("f(n) -> u1(n, n + 1) | " + bound, Serialiser.serialise(lctrs.rules().get(1)));
-    assertEquals("u1(n, x) -> ret(x)", Serialiser.serialise(lctrs.rules().get(2)));
+    assertEquals("u1(n, x) -> ret_Int(x)", Serialiser.serialise(lctrs.rules().get(2)));
   }
 
   /** Nested binary applications nest their parentheses. */
@@ -116,7 +118,7 @@ final class SerialiserTest {
     String expected =
         "f :: Int -> result"
             + ls()
-            + "ret :: Int -> result"
+            + "ret_Int :: Int -> result"
             + ls()
             + "err :: result"
             + ls()
@@ -130,7 +132,7 @@ final class SerialiserTest {
             + "f(n) -> u1(n, n + 1) | "
             + bound
             + ls()
-            + "u1(n, x) -> ret(x)"
+            + "u1(n, x) -> ret_Int(x)"
             + ls();
     assertEquals(expected, Serialiser.serialise(lctrs));
   }
@@ -204,10 +206,30 @@ final class SerialiserTest {
     Lctrs lctrs = translateFn("f", List.of(param("n", I32)), I32, block(ret(call("f", var("n")))));
 
     assertEquals("f(n) -> u1(n, f(n))", Serialiser.serialise(lctrs.rules().get(0)));
-    assertEquals("u1(n, ret($call)) -> u2(n, $call)", Serialiser.serialise(lctrs.rules().get(1)));
+    assertEquals(
+        "u1(n, ret_Int($call)) -> u2(n, $call)", Serialiser.serialise(lctrs.rules().get(1)));
     assertEquals("u1(n, err) -> err", Serialiser.serialise(lctrs.rules().get(2)));
-    assertEquals("u2(n, $call) -> ret($call)", Serialiser.serialise(lctrs.rules().get(3)));
+    assertEquals("u2(n, $call) -> ret_Int($call)", Serialiser.serialise(lctrs.rules().get(3)));
     assertEquals(4, lctrs.rules().size());
+  }
+
+  /**
+   * A call to another function heads the redex with the callee's entry symbol, not the caller's.
+   */
+  @Test
+  void crossFunctionCallHeadsRedexWithCalleeEntry() {
+    // fn f(n: i32) -> i32 { return g(n); } fn g(n: i32) -> i32 { return n; }
+    Lctrs lctrs =
+        new Translator(
+                crate(
+                    fn("f", List.of(param("n", I32)), I32, block(ret(call("g", var("n"))))),
+                    fn("g", List.of(param("n", I32)), I32, block(ret(var("n"))))))
+            .translate();
+
+    assertEquals("f(n) -> u1(n, g(n))", Serialiser.serialise(lctrs.rules().get(0)));
+    assertEquals(
+        "u1(n, ret_Int($call)) -> u2(n, $call)", Serialiser.serialise(lctrs.rules().get(1)));
+    assertEquals("u2(n, $call) -> ret_Int($call)", Serialiser.serialise(lctrs.rules().get(3)));
   }
 
   @Test
@@ -220,12 +242,14 @@ final class SerialiserTest {
 
     String bound = i32BoundBare("(n * $call)");
     assertEquals("f(n) -> u1(n, f(n))", Serialiser.serialise(lctrs.rules().get(0)));
-    assertEquals("u1(n, ret($call)) -> u2(n, $call)", Serialiser.serialise(lctrs.rules().get(1)));
+    assertEquals(
+        "u1(n, ret_Int($call)) -> u2(n, $call)", Serialiser.serialise(lctrs.rules().get(1)));
     assertEquals("u1(n, err) -> err", Serialiser.serialise(lctrs.rules().get(2)));
     assertEquals(
         "u2(n, $call) -> err | ¬(" + bound + ")", Serialiser.serialise(lctrs.rules().get(3)));
     assertEquals(
-        "u2(n, $call) -> ret(n * $call) | " + bound, Serialiser.serialise(lctrs.rules().get(4)));
+        "u2(n, $call) -> ret_Int(n * $call) | " + bound,
+        Serialiser.serialise(lctrs.rules().get(4)));
   }
 
   @Test
@@ -239,8 +263,9 @@ final class SerialiserTest {
     String bound = i32BoundBare("(n - 1)");
     assertEquals("f(n) -> err | ¬(" + bound + ")", Serialiser.serialise(lctrs.rules().get(0)));
     assertEquals("f(n) -> u1(n, f(n - 1)) | " + bound, Serialiser.serialise(lctrs.rules().get(1)));
-    assertEquals("u1(n, ret($call)) -> u2(n, $call)", Serialiser.serialise(lctrs.rules().get(2)));
+    assertEquals(
+        "u1(n, ret_Int($call)) -> u2(n, $call)", Serialiser.serialise(lctrs.rules().get(2)));
     assertEquals("u1(n, err) -> err", Serialiser.serialise(lctrs.rules().get(3)));
-    assertEquals("u2(n, $call) -> ret($call)", Serialiser.serialise(lctrs.rules().get(4)));
+    assertEquals("u2(n, $call) -> ret_Int($call)", Serialiser.serialise(lctrs.rules().get(4)));
   }
 }

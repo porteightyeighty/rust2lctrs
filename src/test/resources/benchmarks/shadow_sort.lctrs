@@ -1,5 +1,5 @@
 shadow_sort :: Int -> result
-ret :: Int -> result
+ret_Int :: Int -> result
 err :: result
 u1 :: Int -> Int -> result
 u2 :: Int -> Int -> Bool -> result
@@ -10,6 +10,6 @@ shadow_sort(n) -> err | ¬((-128 ≤ (n + 1)) ∧ ((n + 1) ≤ 127))
 shadow_sort(n) -> u1(n, n + 1) | (-128 ≤ (n + 1)) ∧ ((n + 1) ≤ 127)
 u1(n, x) -> u2(n, x, x > 0)
 u2(n, x, x_1) -> u3(n, x, x_1) | x_1
-u3(n, x, x_1) -> ret(1)
+u3(n, x, x_1) -> ret_Int(1)
 u2(n, x, x_1) -> u4(n, x, x_1) | ¬x_1
-u4(n, x, x_1) -> ret(0)
+u4(n, x, x_1) -> ret_Int(0)

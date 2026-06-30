@@ -1,5 +1,5 @@
 while_div :: Int -> result
-ret :: Int -> result
+ret_Int :: Int -> result
 err :: result
 u1 :: Int -> Int -> result
 u2 :: Int -> Int -> Int -> result
@@ -17,4 +17,4 @@ u3(n, i) -> err | ¬((-32768 ≤ (i + 1)) ∧ ((i + 1) ≤ 32767))
 u3(n, i) -> u4(n, i + 1) | (-32768 ≤ (i + 1)) ∧ ((i + 1) ≤ 32767)
 u2(n, i, $div) -> u5(n, i) | ¬($div < n)
 u4(n, i) -> u1(n, i)
-u5(n, i) -> ret(i)
+u5(n, i) -> ret_Int(i)
