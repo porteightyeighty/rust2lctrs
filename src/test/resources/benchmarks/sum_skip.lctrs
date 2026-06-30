@@ -1,5 +1,5 @@
 sum_skip :: Int -> result
-ret :: Int -> result
+ret_Int :: Int -> result
 err :: result
 u1 :: Int -> Int -> result
 u2 :: Int -> Int -> Int -> result
@@ -22,4 +22,4 @@ u6(n, i, acc) -> err | ¬((-32768 ≤ (acc + i)) ∧ ((acc + i) ≤ 32767))
 u6(n, i, acc) -> u7(n, i, acc + i) | (-32768 ≤ (acc + i)) ∧ ((acc + i) ≤ 32767)
 u2(n, i, acc) -> u8(n, i, acc) | ¬(i < n)
 u7(n, i, acc) -> u2(n, i, acc)
-u8(n, i, acc) -> ret(acc)
+u8(n, i, acc) -> ret_Int(acc)

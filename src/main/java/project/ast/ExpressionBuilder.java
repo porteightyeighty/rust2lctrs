@@ -2,8 +2,10 @@ package project.ast;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import project.parser.RustParser.ArithmeticOrLogicalExpressionContext;
 import project.parser.RustParser.CallExpressionContext;
@@ -29,7 +31,7 @@ final class ExpressionBuilder {
 
   private final SpanRecorder spans;
 
-  private String enclosingFunction;
+  private final Set<Identifier> declaredFunctions = new HashSet<>();
 
   /**
    * Creates an expression builder that records node spans through the given recorder.
@@ -41,13 +43,14 @@ final class ExpressionBuilder {
   }
 
   /**
-   * Records the name of the function whose body is about to be built, so self-recursive calls can
-   * be told apart from out-of-scope calls to other functions.
+   * Records a function declared in the crate, so a call to it resolves while calls to undeclared
+   * names are rejected as out of scope. Populated by a pre-pass over all items before any body is
+   * built, so calls to functions defined later in the crate still resolve.
    *
-   * @param name the enclosing function's name
+   * @param name the declared function's name
    */
-  void setEnclosingFunction(String name) {
-    this.enclosingFunction = name;
+  void addFunctionIdentifier(Identifier name) {
+    this.declaredFunctions.add(Objects.requireNonNull(name));
   }
 
   /**
@@ -76,11 +79,9 @@ final class ExpressionBuilder {
           c, "CallExpressionContext should be PathExpression_Context");
     }
     Identifier callee = extractPathIdentifier((PathExpression_Context) c.expression());
-    if (!callee.name().equals(enclosingFunction)) {
+    if (!declaredFunctions.contains(callee)) {
       throw new UnsupportedConstructException(
-          c,
-          "only self-recursive calls are supported; calls to other functions are out of scope"
-              + " (single-function fragment)");
+          c, "Function call to non-local function " + callee + " is not supported");
     }
     List<Expression> params = new ArrayList<>();
     if (c.callParams() != null) {

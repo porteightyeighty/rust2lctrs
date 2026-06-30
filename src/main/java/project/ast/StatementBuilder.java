@@ -51,8 +51,8 @@ final class StatementBuilder {
    *
    * @param name the enclosing function's name
    */
-  void setEnclosingFunction(String name) {
-    expressions.setEnclosingFunction(name);
+  void addFunctionIdentifier(Identifier name) {
+    expressions.addFunctionIdentifier(name);
   }
 
   /**

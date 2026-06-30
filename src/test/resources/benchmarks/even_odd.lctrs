@@ -1,0 +1,29 @@
+is_even :: Int -> result
+ret_Bool :: Bool -> result
+err :: result
+u1 :: Int -> result
+u2 :: Int -> result
+u3 :: Int -> result -> result
+u4 :: Int -> Bool -> result
+is_odd :: Int -> result
+u5 :: Int -> result
+u6 :: Int -> result
+u7 :: Int -> result -> result
+u8 :: Int -> Bool -> result
+
+is_even(n) -> u1(n) | n = 0
+u1(n) -> ret_Bool(true)
+is_even(n) -> u2(n) | ¬(n = 0)
+u2(n) -> err | ¬((-128 ≤ (n - 1)) ∧ ((n - 1) ≤ 127))
+u2(n) -> u3(n, is_odd(n - 1)) | (-128 ≤ (n - 1)) ∧ ((n - 1) ≤ 127)
+u3(n, ret_Bool($call)) -> u4(n, $call)
+u3(n, err) -> err
+u4(n, $call) -> ret_Bool($call)
+is_odd(n) -> u5(n) | n = 0
+u5(n) -> ret_Bool(false)
+is_odd(n) -> u6(n) | ¬(n = 0)
+u6(n) -> err | ¬((-128 ≤ (n - 1)) ∧ ((n - 1) ≤ 127))
+u6(n) -> u7(n, is_even(n - 1)) | (-128 ≤ (n - 1)) ∧ ((n - 1) ≤ 127)
+u7(n, ret_Bool($call)) -> u8(n, $call)
+u7(n, err) -> err
+u8(n, $call) -> ret_Bool($call)

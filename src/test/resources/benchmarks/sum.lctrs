@@ -1,8 +1,8 @@
 sum :: Int -> Int -> result
-ret :: Int -> result
+ret_Int :: Int -> result
 err :: result
 u1 :: Int -> Int -> Int -> result
 
 sum(a, b) -> err | ¬((-128 ≤ (a + b)) ∧ ((a + b) ≤ 127))
 sum(a, b) -> u1(a, b, a + b) | (-128 ≤ (a + b)) ∧ ((a + b) ≤ 127)
-u1(a, b, x) -> ret(x)
+u1(a, b, x) -> ret_Int(x)

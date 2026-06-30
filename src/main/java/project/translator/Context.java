@@ -25,10 +25,9 @@ import project.lctrs.VarDecl;
  * <p>One instance is constructed per {@link project.ast.FunctionDeclaration} and threaded through
  * the {@link Translator} as statements are lowered.
  *
- * <p>The program-point counter resets per instance, so the minted symbols ({@code u1}, {@code u2},
- * …) are only unique within one function. Translating multiple functions would clash these symbols
- * across the shared signature; a unique per-function prefix (or a counter shared across contexts)
- * would be needed first. Multiple functions are a stretch goal, so this is left until then.
+ * <p>The program-point counter is shared across every {@code Context} of one translation (threaded
+ * in at construction), so the symbols ({@code u1}, {@code u2}, …) are globally unique and never
+ * clash between functions in the shared signature.
  *
  * @see Translator
  */
@@ -36,7 +35,7 @@ final class Context {
 
   private static final Logger LOG = LoggerFactory.getLogger(Context.class);
 
-  private int counter = 0;
+  private final Translator.CrateScope crateScope;
   private List<ScopedVar> scope = new ArrayList<>();
   private final List<Symbol> sigma = new ArrayList<>();
   private final List<Rule> rules = new ArrayList<>();
@@ -52,10 +51,13 @@ final class Context {
    * Creates a context for a single function.
    *
    * @param returnSort the sort returned by every program-point function symbol of this function
+   * @param returnType the function's declared return type
+   * @param crateScope the crate-wide state (counter and registry) shared across all functions
    */
-  Context(Sort returnSort, Type returnType) {
+  Context(Sort returnSort, Type returnType, Translator.CrateScope crateScope) {
     this.returnSort = returnSort;
     this.returnType = returnType;
+    this.crateScope = crateScope;
   }
 
   void setEntry(Symbol entry) {
@@ -71,23 +73,42 @@ final class Context {
   }
 
   /**
+   * Returns the entry program-point symbol of the named function, for heading a call's redex.
+   *
+   * @param name the called function's name
+   * @return the callee's entry symbol
+   */
+  Symbol calleeEntry(Identifier name) {
+    return crateScope.registry().get(name.name()).entry();
+  }
+
+  /**
+   * Returns the declared return type of the named function, for typing a call's captured result.
+   *
+   * @param name the called function's name
+   * @return the callee's return type
+   */
+  Type calleeReturnType(Identifier name) {
+    return crateScope.registry().get(name.name()).returnType();
+  }
+
+  /**
    * Mints the next program-point function symbol over the current scope, records it in the terms
    * signature, and returns it.
    *
    * @return the freshly created program-point function symbol
    */
   Symbol advance() {
-    counter++;
-    Symbol s = symbolFor(counter);
+    Symbol s = symbolFor(crateScope.counter().incrementAndGet());
     register(s);
     return s;
   }
 
   Symbol advanceContinuation(Sort resultSort) {
-    counter++;
     List<Sort> argSorts = new ArrayList<>(scope.stream().map(v -> v.varDecl().sort()).toList());
     argSorts.add(resultSort);
-    Symbol s = new TermSymbol("u" + counter, argSorts, this.returnSort);
+    Symbol s =
+        new TermSymbol("u" + crateScope.counter().incrementAndGet(), argSorts, this.returnSort);
     register(s);
     return s;
   }
@@ -99,6 +120,9 @@ final class Context {
    * @param s the term symbol to add to the signature
    */
   void register(Symbol s) {
+    if (sigma.contains(s)) {
+      return;
+    }
     sigma.add(s);
   }
 

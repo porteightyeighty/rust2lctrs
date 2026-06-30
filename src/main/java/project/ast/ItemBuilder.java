@@ -3,6 +3,7 @@ package project.ast;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import project.parser.RustParser.CrateContext;
 import project.parser.RustParser.FunctionParamContext;
 import project.parser.RustParser.FunctionParamPatternContext;
@@ -45,12 +46,11 @@ final class ItemBuilder {
    * @return the corresponding {@link Crate} node; an empty crate if more than one item is present
    */
   Crate buildCrate(CrateContext ctx) {
-    if (ctx.item().size() > 1) {
-      // Point at the first surplus item rather than the whole crate, so the location names the
-      // offending second function instead of spanning the entire source file.
-      diagnostics.add(
-          new Diagnostic("Only a single top-level function is supported", Span.of(ctx.item(1))));
-      return spans.track(new Crate(List.of()), ctx);
+    for (var itemCtx : ctx.item()) {
+      Optional<Function_Context> fn = functionOf(itemCtx);
+      if (fn.isPresent()) {
+        statements.addFunctionIdentifier(new Identifier(fn.get().identifier().getText()));
+      }
     }
     List<Item> items = new ArrayList<>();
     for (var itemCtx : ctx.item()) {
@@ -64,6 +64,18 @@ final class ItemBuilder {
   }
 
   /**
+   * Returns the function context of an item, or {@code null} if the item is not a plain function.
+   * Shared by the name pre-pass and {@link #buildItem}.
+   *
+   * @param ctx the item context
+   * @return the function context, or {@code null}
+   */
+  private static Optional<Function_Context> functionOf(ItemContext ctx) {
+    VisItemContext visItem = ctx.visItem();
+    return visItem == null ? Optional.empty() : Optional.ofNullable(visItem.function_());
+  }
+
+  /**
    * Builds an {@link Item} from an item parse-tree context. Only visible function items are
    * supported.
    *
@@ -72,15 +84,14 @@ final class ItemBuilder {
    * @throws UnsupportedConstructException if the item is not a plain function definition
    */
   Item buildItem(ItemContext ctx) {
-    VisItemContext visItemContext = ctx.visItem();
-    if (visItemContext == null) {
+    if (ctx.visItem() == null) {
       throw new UnsupportedConstructException(ctx, "Unsupported Item");
     }
-    Function_Context functionContext = visItemContext.function_();
-    if (functionContext == null) {
+    Optional<Function_Context> functionContext = functionOf(ctx);
+    if (functionContext.isEmpty()) {
       throw new UnsupportedConstructException(ctx, "Only function definitions are supported");
     }
-    return buildFunctionDeclaration(functionContext);
+    return buildFunctionDeclaration(functionContext.get());
   }
 
   /**
@@ -113,9 +124,6 @@ final class ItemBuilder {
     IdentifierContext identifierContext = ctx.identifier();
     Identifier id = new Identifier(identifierContext.getText());
     List<Parameter> functionParams = extractParameters(ctx.functionParameters());
-    // Calls in the body may only be self-recursive, so the body builder needs the name to compare
-    // callees against.
-    statements.setEnclosingFunction(id.name());
     Block block = statements.buildBlock(ctx.blockExpression());
     return spans.track(new FunctionDeclaration(id, functionParams, block, returnType), ctx);
   }

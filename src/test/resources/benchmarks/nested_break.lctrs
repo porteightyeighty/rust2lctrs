@@ -1,5 +1,5 @@
 nested_break :: Int -> result
-ret :: Int -> result
+ret_Int :: Int -> result
 err :: result
 u1 :: Int -> Int -> result
 u2 :: Int -> Int -> result
@@ -35,4 +35,4 @@ u11(x, total, y) -> u12(x - 1, total, y) | (-32768 ≤ (x - 1)) ∧ ((x - 1) ≤
 u1(x, total) -> u13(x, total) | ¬(x > 0)
 u12(x, total, y) -> u1(x, total)
 u3(x, total) -> u13(x, total)
-u13(x, total) -> ret(total)
+u13(x, total) -> ret_Int(total)

@@ -1,10 +1,10 @@
 bigger :: Int -> Int -> result
-ret :: Int -> result
+ret_Int :: Int -> result
 err :: result
 u1 :: Int -> Int -> result
 u2 :: Int -> Int -> result
 
 bigger(x, y) -> u1(x, y) | x ≥ y
-u1(x, y) -> ret(x)
+u1(x, y) -> ret_Int(x)
 bigger(x, y) -> u2(x, y) | ¬(x ≥ y)
-u2(x, y) -> ret(y)
+u2(x, y) -> ret_Int(y)
