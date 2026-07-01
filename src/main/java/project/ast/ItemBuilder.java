@@ -13,7 +13,6 @@ import project.parser.RustParser.FunctionReturnTypeContext;
 import project.parser.RustParser.Function_Context;
 import project.parser.RustParser.IdentifierContext;
 import project.parser.RustParser.ItemContext;
-import project.parser.RustParser.Type_Context;
 import project.parser.RustParser.VisItemContext;
 
 /**
@@ -115,12 +114,13 @@ final class ItemBuilder {
       throw new UnsupportedConstructException(ctx, "Generics are not supported");
     }
     FunctionReturnTypeContext functionReturnTypeContext = ctx.functionReturnType();
-    if (functionReturnTypeContext == null) {
-      throw new UnsupportedConstructException(
-          ctx, "Return type must be provided in a function definition");
+    Optional<Type> returnType;
+    if (functionReturnTypeContext == null
+        || "()".equals(functionReturnTypeContext.type_().getText())) {
+      returnType = Optional.empty();
+    } else {
+      returnType = Optional.of(TypeReader.read(functionReturnTypeContext.type_()));
     }
-    Type_Context typeContext = functionReturnTypeContext.type_();
-    Type returnType = TypeReader.read(typeContext);
     IdentifierContext identifierContext = ctx.identifier();
     Identifier id = new Identifier(identifierContext.getText());
     List<Parameter> functionParams = extractParameters(ctx.functionParameters());

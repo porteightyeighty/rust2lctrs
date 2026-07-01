@@ -176,8 +176,8 @@ final class StatementBuilder {
    * @throws UnsupportedConstructException if the expression statement is not a {@code return}
    */
   Return buildReturnStatement(ReturnExpressionContext ctx) {
-    if (ctx.expression() == null) {
-      throw new UnsupportedConstructException(ctx, "Return statement must have an expression");
+    if (ctx.expression() == null || "()".equals(ctx.expression().getText())) {
+      return spans.track(new Return(Optional.empty()), ctx);
     }
     return spans.track(new Return(expressions.buildExpression(ctx.expression())), ctx);
   }
@@ -197,6 +197,9 @@ final class StatementBuilder {
     if (ctx instanceof ExpressionWithBlock_Context) {
       throw new UnsupportedConstructException(
           ctx, "Trailing block expressions are not supported; use an explicit return statement");
+    }
+    if ("()".equals(ctx.getText())) {
+      return spans.track(new Return(Optional.empty()), ctx);
     }
     return spans.track(new Return(expressions.buildExpression(ctx)), ctx);
   }

@@ -113,12 +113,13 @@ public class StatementBuilderTest {
   }
 
   @Test
-  void rejectsReturnStatementWithoutExpression() {
+  void buildsReturnStatementWithoutExpression() {
     String testInput = "return;";
     StatementContext statementContext = TestHelper.parseStmt(testInput);
-    assertThrows(
-        UnsupportedConstructException.class,
-        () -> statementBuilder.buildStatement(statementContext));
+    Return expected = new Return(Optional.empty());
+    Return actual =
+        assertInstanceOf(Return.class, statementBuilder.buildStatement(statementContext));
+    assertEquals(expected, actual);
   }
 
   @Test
