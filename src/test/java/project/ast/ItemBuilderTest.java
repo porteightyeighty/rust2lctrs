@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.math.BigInteger;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -31,7 +32,7 @@ public class ItemBuilderTest {
     ItemContext itemContext = TestHelper.parseItem(testInput);
     Block block = new Block(List.of(new Return(new IntegerLiteral(BigInteger.valueOf(10)))));
     FunctionDeclaration expected =
-        new FunctionDeclaration(new Identifier("x"), List.of(), block, Type.Int.i32);
+        new FunctionDeclaration(new Identifier("x"), List.of(), block, Optional.of(Type.Int.i32));
     FunctionDeclaration actual =
         assertInstanceOf(FunctionDeclaration.class, itemBuilder.buildItem(itemContext));
     assertEquals(expected, actual);
@@ -44,7 +45,8 @@ public class ItemBuilderTest {
     Parameter param = new Parameter(new Identifier("a"), Type.Int.i32);
     Block block = new Block(List.of(new Return(new IntegerLiteral(BigInteger.valueOf(10)))));
     FunctionDeclaration expected =
-        new FunctionDeclaration(new Identifier("y"), List.of(param), block, Type.Int.i32);
+        new FunctionDeclaration(
+            new Identifier("y"), List.of(param), block, Optional.of(Type.Int.i32));
     FunctionDeclaration actual =
         assertInstanceOf(FunctionDeclaration.class, itemBuilder.buildItem(itemmContext));
     assertEquals(expected, actual);
@@ -53,7 +55,6 @@ public class ItemBuilderTest {
   @ParameterizedTest
   @ValueSource(
       strings = {
-        "fn y() { return 10; }", // missing return type
         "fn x(self) -> i32 { return 10; }", // self param
         "async fn x() -> i32 {return 10; }", // async qualifier
         "unsafe fn x() -> i32 {return 10; }", // unsafe qualifier
@@ -86,7 +87,8 @@ public class ItemBuilderTest {
     Parameter second = new Parameter(new Identifier("b"), Type.BOOL);
     Block block = new Block(List.of(new Return(new IntegerLiteral(BigInteger.valueOf(10)))));
     FunctionDeclaration expected =
-        new FunctionDeclaration(new Identifier("z"), List.of(first, second), block, Type.Int.i32);
+        new FunctionDeclaration(
+            new Identifier("z"), List.of(first, second), block, Optional.of(Type.Int.i32));
     FunctionDeclaration actual =
         assertInstanceOf(FunctionDeclaration.class, itemBuilder.buildItem(itemContext));
     assertEquals(expected, actual);

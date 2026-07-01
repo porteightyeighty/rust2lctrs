@@ -115,7 +115,7 @@ public class Translator {
    * @param entry the function's entry program-point symbol
    * @param returnType the function's declared return type
    */
-  record Signature(Symbol entry, Type returnType) {}
+  record Signature(Symbol entry, Optional<Type> returnType) {}
 
   /**
    * Builds the crate-wide signature registry by minting each function's entry symbol from its
@@ -170,7 +170,6 @@ public class Translator {
     for (Parameter parameter : functionDeclaration.parameters()) {
       ctx.addToScope(parameter.identifier(), parameter.type());
     }
-    Sort functionReturnSort = Sort.of(functionDeclaration.returnType());
     // The entry symbol is minted once in the registry pre-pass; pull this function's from there so
     // a
     // self-call and a forward call resolve to the identical symbol. advance() never mints it, so
@@ -184,13 +183,22 @@ public class Translator {
     // Cora forbids overloading one symbol name across sorts, so a crate mixing Int- and Bool-valued
     // functions cannot share a bare `ret`. Qualify by value sort (ret_Int, ret_Bool) so each is a
     // distinct, well-sorted symbol; same-sort functions dedup onto one via Context.register.
-    Symbol ret =
-        new TermSymbol(
-            "ret_" + functionReturnSort.notation(), List.of(functionReturnSort), Sort.RESULT);
+    Symbol ret;
+    if (functionDeclaration.returnType().isPresent()) {
+      Sort functionReturnSort = Sort.of(functionDeclaration.returnType().get());
+      ret =
+          new TermSymbol(
+              "ret_" + functionReturnSort.notation(), List.of(functionReturnSort), Sort.RESULT);
+    } else {
+      ret = new TermSymbol("ret_unit", List.of(), Sort.RESULT);
+    }
     Symbol err = new TermSymbol("err", List.of(), Sort.RESULT);
     ctx.setResultSymbols(ret, err);
     Term incoming = new FnApp(entry, ctx.argsFromScope());
-    processBlock(ctx, functionDeclaration.block(), incoming);
+    Optional<Term> tail = processBlock(ctx, functionDeclaration.block(), incoming);
+    if (ctx.returnType().isEmpty() && tail.isPresent()) {
+      ctx.addRule(new Rule(tail.get(), new FnApp(ctx.ret(), List.of()), Optional.empty()));
+    }
   }
 
   /**
@@ -397,8 +405,13 @@ public class Translator {
    * @return the term the configuration rewrites to ({@code ret(value)})
    */
   private Term processReturnStatement(Context ctx, Return ret, Term incoming) {
-    Optional<Type.Int> ctxWidth = intWidth(ctx.returnType());
-    LoweredExpr low = lowerHoisted(ctx, ret.value(), ctxWidth, incoming);
+    if (ret.value().isEmpty()) {
+      Term wrapped = new FnApp(ctx.ret(), List.of());
+      ctx.addRule(new Rule(incoming, wrapped, Optional.empty()));
+      return wrapped;
+    }
+    Optional<Type.Int> ctxWidth = ctx.returnType().flatMap(Translator::intWidth);
+    LoweredExpr low = lowerHoisted(ctx, ret.value().get(), ctxWidth, incoming);
     Term wrapped = new FnApp(ctx.ret(), List.of(low.term()));
     incoming = low.outgoing();
     emitDivSafe(ctx, low.safety(), incoming, wrapped);
@@ -593,11 +606,22 @@ public class Translator {
     // Landing pad and error propagation. The fresh variable carries the callee's return value,
     // typed
     // by the callee's return type, so downstream arithmetic recovers its width through inferWidth.
-    ScopedVar r = ctx.addHoistVar("$call", ctx.calleeReturnType(c.function()));
+    Type calleeType =
+        ctx.calleeReturnType(c.function())
+            .orElseThrow(
+                () ->
+                    new UnsupportedConstructException(
+                        "calling a ()-returning function is not supported", spans.describe(c)));
+    ScopedVar r = ctx.addHoistVar("$call", calleeType);
+
+    Sort calleeSort = Sort.of(calleeType);
+    Symbol calleeRet =
+        new TermSymbol("ret_" + calleeSort.notation(), List.of(calleeSort), Sort.RESULT);
+
     Symbol uNext = ctx.advance();
-    Term uNextTm = new FnApp(uNext, ctx.argsFromScope()); // scope now carries r
+    Term uNextTm = new FnApp(uNext, ctx.argsFromScope());
     Term contRet =
-        new FnApp(uCont, withTrailing(preScope, new FnApp(ctx.ret(), List.of(r.varDecl()))));
+        new FnApp(uCont, withTrailing(preScope, new FnApp(calleeRet, List.of(r.varDecl()))));
     Term contErr = new FnApp(uCont, withTrailing(preScope, new FnApp(ctx.err(), List.of())));
     ctx.addRule(new Rule(contRet, uNextTm, Optional.empty()));
     ctx.addRule(new Rule(contErr, new FnApp(ctx.err(), List.of()), Optional.empty()));

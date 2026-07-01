@@ -116,6 +116,10 @@ final class AstHelper {
     return new Return(value);
   }
 
+  static Return ret(Optional<Expression> value) {
+    return new Return(value);
+  }
+
   static If ifStmt(Expression cond, Block thenBlock) {
     return new If(cond, thenBlock, Optional.empty());
   }
@@ -154,7 +158,11 @@ final class AstHelper {
   }
 
   static FunctionDeclaration fn(String name, List<Parameter> params, Type returnType, Block body) {
-    return new FunctionDeclaration(id(name), params, body, returnType);
+    return new FunctionDeclaration(id(name), params, body, Optional.of(returnType));
+  }
+
+  static FunctionDeclaration fnUnit(String name, List<Parameter> params, Block body) {
+    return new FunctionDeclaration(id(name), params, body, Optional.empty());
   }
 
   static Crate crate(Item... items) {
@@ -175,5 +183,9 @@ final class AstHelper {
    */
   static Lctrs translateFn(String name, List<Parameter> params, Type returnType, Block body) {
     return new Translator(crate(fn(name, params, returnType, body))).translate();
+  }
+
+  static Lctrs translateUnitFn(String name, List<Parameter> params, Block body) {
+    return new Translator(crate(fnUnit(name, params, body))).translate();
   }
 }
