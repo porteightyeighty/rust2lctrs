@@ -15,6 +15,7 @@ import project.ast.Crate;
 import project.ast.Diagnostic;
 import project.ast.DiagnosticRecorder;
 import project.ast.SpanTable;
+import project.ast.UnsupportedConstructException;
 import project.lctrs.Lctrs;
 import project.lctrs.Serialiser;
 import project.parser.RustParsing;
@@ -76,6 +77,12 @@ public class Rust2LctrsCommand implements Callable<Integer> {
           lctrs.sigma().size(),
           lctrs.rules().size());
       result = Serialiser.serialise(lctrs);
+    } catch (UnsupportedConstructException e) {
+      // Some out-of-scope constructs can only be recognised once sorts are known, so the translator
+      // rejects them past the AST boundary. Treat them as the same out-of-scope failure as an
+      // AST-time diagnostic rather than letting the exception escape as an unhandled crash.
+      LOG.error("Out-of-scope Rust: {}", e.getMessage());
+      return 2;
     } catch (SyntaxErrorException e) {
       LOG.error("Malformed Rust: {}", e.getMessage());
       return 3;

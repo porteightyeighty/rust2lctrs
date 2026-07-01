@@ -6,13 +6,20 @@ import static project.translator.AstHelper.BOOL;
 import static project.translator.AstHelper.I32;
 import static project.translator.AstHelper.add;
 import static project.translator.AstHelper.block;
+import static project.translator.AstHelper.boolLit;
+import static project.translator.AstHelper.call;
+import static project.translator.AstHelper.crate;
+import static project.translator.AstHelper.fn;
+import static project.translator.AstHelper.fnUnit;
 import static project.translator.AstHelper.intLit;
 import static project.translator.AstHelper.let;
 import static project.translator.AstHelper.not;
 import static project.translator.AstHelper.param;
 import static project.translator.AstHelper.ret;
 import static project.translator.AstHelper.translateFn;
+import static project.translator.AstHelper.translateUnitFn;
 import static project.translator.AstHelper.var;
+import static project.translator.AstHelper.whileStmt;
 
 import java.math.BigInteger;
 import java.util.List;
@@ -196,5 +203,42 @@ class TranslatorTest {
                 List.of(param("n", I32)),
                 I32,
                 block(let("x", BOOL, not(intLit(5))), ret(intLit(0)))));
+  }
+
+  @Test
+  void translatesUnitFunctionWithWhileLoop() {
+    Lctrs lctrs =
+        translateUnitFn(
+            "f", List.of(), block(whileStmt(boolLit(true), block(ret(Optional.empty())))));
+
+    FnApp entry = new FnApp(new TermSymbol("f", List.of(), Sort.RESULT), List.of());
+    TermSymbol retUnitSym = new TermSymbol("ret_unit", List.of(), Sort.RESULT);
+
+    // There will be a merge point for the while loop, which falls through to the unit return tail
+    boolean foundUnitTail =
+        lctrs.rules().stream().anyMatch(r -> r.rhs().equals(new FnApp(retUnitSym, List.of())));
+
+    assertEquals(true, foundUnitTail);
+  }
+
+  @Test
+  void translatesEmptyReturn() {
+    Lctrs lctrs = translateUnitFn("f", List.of(), block(ret(Optional.empty())));
+
+    // f() -> ret_unit()
+    FnApp entry = new FnApp(new TermSymbol("f", List.of(), Sort.RESULT), List.of());
+    FnApp retUnit = new FnApp(new TermSymbol("ret_unit", List.of(), Sort.RESULT), List.of());
+    Rule expected = new Rule(entry, retUnit, Optional.empty());
+
+    assertEquals(true, lctrs.rules().contains(expected));
+  }
+
+  @Test
+  void rejectsCallingAUnitReturningFunction() {
+    var g = fnUnit("g", List.of(), block(ret(Optional.empty())));
+    var f = fn("f", List.of(), I32, block(let("x", I32, call("g")), ret(intLit(0))));
+
+    assertThrows(
+        UnsupportedConstructException.class, () -> new Translator(crate(g, f)).translate());
   }
 }

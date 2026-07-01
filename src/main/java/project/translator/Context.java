@@ -4,6 +4,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import project.ast.Identifier;
@@ -40,7 +41,7 @@ final class Context {
   private final List<Symbol> sigma = new ArrayList<>();
   private final List<Rule> rules = new ArrayList<>();
   private final Sort returnSort;
-  private final Type returnType;
+  private final Optional<Type> returnType;
   private Symbol ret;
   private Symbol err;
   private final Deque<Integer> scopeMarks = new ArrayDeque<>();
@@ -54,7 +55,7 @@ final class Context {
    * @param returnType the function's declared return type
    * @param crateScope the crate-wide state (counter and registry) shared across all functions
    */
-  Context(Sort returnSort, Type returnType, Translator.CrateScope crateScope) {
+  Context(Sort returnSort, Optional<Type> returnType, Translator.CrateScope crateScope) {
     this.returnSort = returnSort;
     this.returnType = returnType;
     this.crateScope = crateScope;
@@ -68,7 +69,7 @@ final class Context {
     return this.entry;
   }
 
-  Type returnType() {
+  Optional<Type> returnType() {
     return returnType;
   }
 
@@ -88,7 +89,7 @@ final class Context {
    * @param name the called function's name
    * @return the callee's return type
    */
-  Type calleeReturnType(Identifier name) {
+  Optional<Type> calleeReturnType(Identifier name) {
     return crateScope.registry().get(name.name()).returnType();
   }
 
