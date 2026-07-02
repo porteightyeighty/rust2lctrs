@@ -190,9 +190,10 @@ public class Translator {
   }
 
   /**
-   * Mints the {@code ret} program-point symbol for a function's return type (FKN §8.1). Cora forbids
-   * overloading one name across sorts, so the symbol is qualified by value sort ({@code ret_Int},
-   * {@code ret_Bool}) — or {@code ret_unit}, a nullary sink, for a {@code ()}-returning function.
+   * Mints the {@code ret} program-point symbol for a function's return type (FKN §8.1). Cora
+   * forbids overloading one name across sorts, so the symbol is qualified by value sort ({@code
+   * ret_Int}, {@code ret_Bool}) — or {@code ret_unit}, a nullary sink, for a {@code ()}-returning
+   * function.
    *
    * @param returnType the declared return type, empty if unit
    * @return the qualified, well-sorted return symbol

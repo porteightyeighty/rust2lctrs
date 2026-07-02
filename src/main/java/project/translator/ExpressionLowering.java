@@ -151,8 +151,7 @@ final class ExpressionLowering {
               case DIV, MOD -> {
                 Term divisorNonZero =
                     new FnApp(
-                        TheorySymbol.NEQ_INT,
-                        List.of(lower(ctx, expr.right()), IntValue.of(0)));
+                        TheorySymbol.NEQ_INT, List.of(lower(ctx, expr.right()), IntValue.of(0)));
                 // Rust panics on MIN / -1 and MIN % -1: the true quotient MAX+1 is unrepresentable.
                 // A result bound only catches DIV (MIN / -1 lands out of range); MIN % -1 evaluates
                 // to 0, which is in range, so it would slip through. Guard the precise overflow
@@ -250,8 +249,7 @@ final class ExpressionLowering {
                       TheorySymbol.EQ_INT, List.of(lower(ctx, expr.left()), new IntValue(w.min())));
               Term rightIsNegOne =
                   new FnApp(
-                      TheorySymbol.EQ_INT,
-                      List.of(lower(ctx, expr.right()), IntValue.of(-1)));
+                      TheorySymbol.EQ_INT, List.of(lower(ctx, expr.right()), IntValue.of(-1)));
               return new FnApp(
                   TheorySymbol.NOT,
                   List.of(new FnApp(TheorySymbol.AND, List.of(leftIsMin, rightIsNegOne))));
