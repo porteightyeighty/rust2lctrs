@@ -61,16 +61,18 @@ final class Context {
     this.crateScope = crateScope;
   }
 
+  // --- Function-level facts -------------------------------------------------
+
+  Optional<Type> returnType() {
+    return returnType;
+  }
+
   void setEntry(Symbol entry) {
     this.entry = entry;
   }
 
   Symbol entry() {
     return this.entry;
-  }
-
-  Optional<Type> returnType() {
-    return returnType;
   }
 
   /**
@@ -92,6 +94,8 @@ final class Context {
   Optional<Type> calleeReturnType(Identifier name) {
     return crateScope.registry().get(name.name()).returnType();
   }
+
+  // --- Program-point symbols and the terms signature ------------------------
 
   /**
    * Mints the next program-point function symbol over the current scope, records it in the terms
@@ -115,6 +119,19 @@ final class Context {
   }
 
   /**
+   * Builds a program-point function symbol {@code u<counter>} whose argument sorts are the sorts of
+   * the current scope variables and whose result sort is the function's shared return sort.
+   *
+   * @param counter the program-point number to name the symbol after
+   * @return the program-point function symbol for the current scope
+   */
+  private Symbol symbolFor(int counter) {
+    String notation = "u" + counter;
+    List<Sort> argSorts = scope.stream().map((v) -> v.varDecl().sort()).toList();
+    return new TermSymbol(notation, argSorts, returnSort);
+  }
+
+  /**
    * Records a symbol in the terms signature. Used for symbols not minted by {@link #advance()},
    * such as the function's hand-rolled entry program-point symbol, so the signature stays complete.
    *
@@ -126,6 +143,18 @@ final class Context {
     }
     sigma.add(s);
   }
+
+  /**
+   * Returns an immutable snapshot of the terms signature accumulated so far, in mint order (the
+   * entry symbol first, then {@code u1}, {@code u2}, …).
+   *
+   * @return the accumulated term symbols
+   */
+  List<Symbol> sigma() {
+    return List.copyOf(sigma);
+  }
+
+  // --- Result symbols -------------------------------------------------------
 
   /**
    * Records the function's two primary result symbols — {@code ret}, which wraps a returned value
@@ -162,15 +191,30 @@ final class Context {
     return err;
   }
 
+  // --- Rewrite rules --------------------------------------------------------
+
   /**
-   * Returns an immutable snapshot of the terms signature accumulated so far, in mint order (the
-   * entry symbol first, then {@code u1}, {@code u2}, …).
+   * Records a constrained rewrite rule produced during translation.
    *
-   * @return the accumulated term symbols
+   * @param r the rule to accumulate
    */
-  List<Symbol> sigma() {
-    return List.copyOf(sigma);
+  void addRule(Rule r) {
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("Adding rule {}", Serialiser.serialise(r));
+    }
+    rules.add(r);
   }
+
+  /**
+   * Returns an immutable snapshot of the rules accumulated so far.
+   *
+   * @return the accumulated rewrite rules
+   */
+  List<Rule> rules() {
+    return List.copyOf(rules);
+  }
+
+  // --- Reading the scope ----------------------------------------------------
 
   /**
    * Returns the current scope as configuration arguments, one term per variable in binding order.
@@ -204,6 +248,27 @@ final class Context {
   }
 
   /**
+   * Resolves a source identifier to its binding, searching innermost-first so that the nearest
+   * enclosing binding wins. This is what makes a shadowing binding take precedence over the one it
+   * shadows.
+   *
+   * @param name the source identifier to look up
+   * @return the matching scope binding
+   * @throws IllegalStateException if no variable of that name is in scope
+   */
+  ScopedVar resolve(Identifier name) {
+    for (int i = scope.size() - 1; i >= 0; i--) {
+      ScopedVar scopedVar = scope.get(i);
+      if (scopedVar.sourceName().equals(name)) {
+        return scopedVar;
+      }
+    }
+    throw new IllegalStateException("Unbound variable in scope: " + name.name());
+  }
+
+  // --- Binding into the scope -----------------------------------------------
+
+  /**
    * Brings a binding into scope at the innermost end. The binding keeps its source identifier for
    * resolution, but its LCTRS variable gets a name that is unique among the currently live scope,
    * so a shadowing binding ({@code let x ...; let x ...}, a {@code let} over a parameter) stays a
@@ -215,6 +280,23 @@ final class Context {
   void addToScope(Identifier sourceName, Type sourceType) {
     VarDecl varDecl = new VarDecl(freshName(sourceName.name()), Sort.of(sourceType));
     scope.add(new ScopedVar(sourceName, varDecl, sourceType));
+  }
+
+  /**
+   * Brings a synthetic hoist variable into scope. Pass a {@code $}-prefixed {@code prefix} (e.g.
+   * {@code $div}, {@code $call}), legal in Cora but not in Rust, so it can't collide with a source
+   * variable.
+   *
+   * @param prefix the base name to derive a fresh LCTRS name from
+   * @param sourceType the source type, driving the variable's sort and inferred width
+   * @return the newly bound hoist variable
+   */
+  ScopedVar addHoistVar(String prefix, Type sourceType) {
+    String name = freshName(prefix);
+    ScopedVar sv =
+        new ScopedVar(new Identifier(name), new VarDecl(name, Sort.of(sourceType)), sourceType);
+    scope.add(sv);
+    return sv;
   }
 
   /**
@@ -237,23 +319,6 @@ final class Context {
   }
 
   /**
-   * Brings a synthetic hoist variable into scope. Pass a {@code $}-prefixed {@code prefix} (e.g.
-   * {@code $div}, {@code $call}), legal in Cora but not in Rust, so it can't collide with a source
-   * variable.
-   *
-   * @param prefix the base name to derive a fresh LCTRS name from
-   * @param sourceType the source type, driving the variable's sort and inferred width
-   * @return the newly bound hoist variable
-   */
-  ScopedVar addHoistVar(String prefix, Type sourceType) {
-    String name = freshName(prefix);
-    ScopedVar sv =
-        new ScopedVar(new Identifier(name), new VarDecl(name, Sort.of(sourceType)), sourceType);
-    scope.add(sv);
-    return sv;
-  }
-
-  /**
    * Reports whether any variable currently live in the scope already carries the given LCTRS name.
    *
    * @param name the candidate LCTRS variable name
@@ -263,55 +328,7 @@ final class Context {
     return scope.stream().anyMatch(v -> v.varDecl().name().equals(name));
   }
 
-  /**
-   * Truncates the scope back to the given size, dropping the variables bound since. Used when
-   * leaving a block whose local bindings fall out of scope.
-   *
-   * @param newSize the number of variables to retain, counting from the outermost
-   */
-  private void shrinkScope(int newSize) {
-    scope = new ArrayList<>(scope.subList(0, newSize));
-  }
-
-  /**
-   * Records a constrained rewrite rule produced during translation.
-   *
-   * @param r the rule to accumulate
-   */
-  void addRule(Rule r) {
-    if (LOG.isDebugEnabled()) {
-      LOG.debug("Adding rule {}", Serialiser.serialise(r));
-    }
-    rules.add(r);
-  }
-
-  /**
-   * Returns an immutable snapshot of the rules accumulated so far.
-   *
-   * @return the accumulated rewrite rules
-   */
-  List<Rule> rules() {
-    return List.copyOf(rules);
-  }
-
-  /**
-   * Resolves a source identifier to its binding, searching innermost-first so that the nearest
-   * enclosing binding wins. This is what makes a shadowing binding take precedence over the one it
-   * shadows.
-   *
-   * @param name the source identifier to look up
-   * @return the matching scope binding
-   * @throws IllegalStateException if no variable of that name is in scope
-   */
-  ScopedVar resolve(Identifier name) {
-    for (int i = scope.size() - 1; i >= 0; i--) {
-      ScopedVar scopedVar = scope.get(i);
-      if (scopedVar.sourceName().equals(name)) {
-        return scopedVar;
-      }
-    }
-    throw new IllegalStateException("Unbound variable in scope: " + name.name());
-  }
+  // --- Lexical scope nesting ------------------------------------------------
 
   /**
    * Opens a lexical scope, recording the current scope size so the bindings made inside can be
@@ -336,6 +353,18 @@ final class Context {
   }
 
   /**
+   * Truncates the scope back to the given size, dropping the variables bound since. Used when
+   * leaving a block whose local bindings fall out of scope.
+   *
+   * @param newSize the number of variables to retain, counting from the outermost
+   */
+  private void shrinkScope(int newSize) {
+    scope = new ArrayList<>(scope.subList(0, newSize));
+  }
+
+  // --- Loops ----------------------------------------------------------------
+
+  /**
    * Opens a loop, pushing a fresh {@link LoopContext} so nested {@code break}/{@code continue}
    * statements resolve to this loop until the matching {@link #leaveLoop()}.
    *
@@ -355,10 +384,10 @@ final class Context {
    */
   LoopContext leaveLoop() {
     LoopContext loop = loopContexts.pollFirst();
-    if (loop != null) {
-      return loop;
+    if (loop == null) {
+      throw new IllegalStateException("leaveLoop() called with no open loop");
     }
-    throw new IllegalStateException("leaveLoop() called with no open loop");
+    return loop;
   }
 
   /**
@@ -383,22 +412,9 @@ final class Context {
    */
   Term getCurrentContinueTarget() {
     LoopContext loop = loopContexts.peekFirst();
-    if (loop != null) {
-      return loop.continueTarget();
+    if (loop == null) {
+      throw new IllegalStateException("getCurrentContinueTarget() called with no open loop");
     }
-    throw new IllegalStateException("getCurrentContinueTarget() called with no open loop");
-  }
-
-  /**
-   * Builds a program-point function symbol {@code u<counter>} whose argument sorts are the sorts of
-   * the current scope variables and whose result sort is the function's shared return sort.
-   *
-   * @param counter the program-point number to name the symbol after
-   * @return the program-point function symbol for the current scope
-   */
-  private Symbol symbolFor(int counter) {
-    String notation = "u" + String.valueOf(counter);
-    List<Sort> argSorts = scope.stream().map((v) -> v.varDecl().sort()).toList();
-    return new TermSymbol(notation, argSorts, returnSort);
+    return loop.continueTarget();
   }
 }
