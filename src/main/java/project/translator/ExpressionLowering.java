@@ -1,6 +1,5 @@
 package project.translator;
 
-import java.math.BigInteger;
 import java.util.List;
 import java.util.Optional;
 import project.ast.BinaryOp;
@@ -68,24 +67,18 @@ final class ExpressionLowering {
                 new FnApp(TheorySymbol.LT, List.of(right, IntValue.of(0)))));
     List<Corrected> corrected =
         switch (division.operator()) {
-          case DIV -> {
-            List<Corrected> corrections =
-                List.of(
-                    new Corrected(agree, quotient),
-                    new Corrected(
-                        divPos, new FnApp(TheorySymbol.ADD, List.of(quotient, IntValue.of(1)))),
-                    new Corrected(
-                        divNeg, new FnApp(TheorySymbol.SUB, List.of(quotient, IntValue.of(1)))));
-            yield corrections;
-          }
-          case MOD -> {
-            List<Corrected> corrections =
-                List.of(
-                    new Corrected(agree, remainder),
-                    new Corrected(divPos, new FnApp(TheorySymbol.SUB, List.of(remainder, right))),
-                    new Corrected(divNeg, new FnApp(TheorySymbol.ADD, List.of(remainder, right))));
-            yield corrections;
-          }
+          case DIV ->
+              List.of(
+                  new Corrected(agree, quotient),
+                  new Corrected(
+                      divPos, new FnApp(TheorySymbol.ADD, List.of(quotient, IntValue.of(1)))),
+                  new Corrected(
+                      divNeg, new FnApp(TheorySymbol.SUB, List.of(quotient, IntValue.of(1)))));
+          case MOD ->
+              List.of(
+                  new Corrected(agree, remainder),
+                  new Corrected(divPos, new FnApp(TheorySymbol.SUB, List.of(remainder, right))),
+                  new Corrected(divNeg, new FnApp(TheorySymbol.ADD, List.of(remainder, right))));
           default ->
               throw new IllegalArgumentException(
                   "hoistInfo on non-division: " + division.operator());
@@ -159,7 +152,7 @@ final class ExpressionLowering {
                 Term divisorNonZero =
                     new FnApp(
                         TheorySymbol.NEQ_INT,
-                        List.of(lower(ctx, expr.right()), new IntValue(BigInteger.valueOf(0))));
+                        List.of(lower(ctx, expr.right()), IntValue.of(0)));
                 // Rust panics on MIN / -1 and MIN % -1: the true quotient MAX+1 is unrepresentable.
                 // A result bound only catches DIV (MIN / -1 lands out of range); MIN % -1 evaluates
                 // to 0, which is in range, so it would slip through. Guard the precise overflow
@@ -258,7 +251,7 @@ final class ExpressionLowering {
               Term rightIsNegOne =
                   new FnApp(
                       TheorySymbol.EQ_INT,
-                      List.of(lower(ctx, expr.right()), new IntValue(BigInteger.valueOf(-1))));
+                      List.of(lower(ctx, expr.right()), IntValue.of(-1)));
               return new FnApp(
                   TheorySymbol.NOT,
                   List.of(new FnApp(TheorySymbol.AND, List.of(leftIsMin, rightIsNegOne))));

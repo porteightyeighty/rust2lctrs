@@ -177,21 +177,9 @@ public class Translator {
     Symbol entry = ctx.calleeEntry(functionDeclaration.identifier());
     ctx.register(entry);
     ctx.setEntry(entry);
-    // register return and error symbols for the function (FKN §8.1: ret wraps the value into the
-    // result sort, err is the nullary error sink). Held on the Context so return lowering shares
-    // one definition instead of rebuilding it.
-    // Cora forbids overloading one symbol name across sorts, so a crate mixing Int- and Bool-valued
-    // functions cannot share a bare `ret`. Qualify by value sort (ret_Int, ret_Bool) so each is a
-    // distinct, well-sorted symbol; same-sort functions dedup onto one via Context.register.
-    Symbol ret;
-    if (functionDeclaration.returnType().isPresent()) {
-      Sort functionReturnSort = Sort.of(functionDeclaration.returnType().get());
-      ret =
-          new TermSymbol(
-              "ret_" + functionReturnSort.notation(), List.of(functionReturnSort), Sort.RESULT);
-    } else {
-      ret = new TermSymbol("ret_unit", List.of(), Sort.RESULT);
-    }
+    // ret wraps the value into the result sort, err is the nullary error sink (FKN §8.1). Held on
+    // the Context so return lowering shares one definition instead of rebuilding it.
+    Symbol ret = retSymbol(functionDeclaration.returnType());
     Symbol err = new TermSymbol("err", List.of(), Sort.RESULT);
     ctx.setResultSymbols(ret, err);
     Term incoming = new FnApp(entry, ctx.argsFromScope());
@@ -199,6 +187,31 @@ public class Translator {
     if (ctx.returnType().isEmpty() && tail.isPresent()) {
       ctx.addRule(new Rule(tail.get(), new FnApp(ctx.ret(), List.of()), Optional.empty()));
     }
+  }
+
+  /**
+   * Mints the {@code ret} program-point symbol for a function's return type (FKN §8.1). Cora forbids
+   * overloading one name across sorts, so the symbol is qualified by value sort ({@code ret_Int},
+   * {@code ret_Bool}) — or {@code ret_unit}, a nullary sink, for a {@code ()}-returning function.
+   *
+   * @param returnType the declared return type, empty if unit
+   * @return the qualified, well-sorted return symbol
+   */
+  private static Symbol retSymbol(Optional<Type> returnType) {
+    return returnType.isEmpty()
+        ? new TermSymbol("ret_unit", List.of(), Sort.RESULT)
+        : retSymbol(returnType.get());
+  }
+
+  /**
+   * Mints the sorted {@code ret_<sort>} symbol for a function that returns a value (FKN §8.1).
+   *
+   * @param valueType the declared, non-unit return type
+   * @return the qualified, well-sorted return symbol
+   */
+  private static Symbol retSymbol(Type valueType) {
+    Sort sort = Sort.of(valueType);
+    return new TermSymbol("ret_" + sort.notation(), List.of(sort), Sort.RESULT);
   }
 
   /**
@@ -267,81 +280,29 @@ public class Translator {
   }
 
   /**
-   * Lowers an unconditional {@code loop}. Mints a loop-head program point that the incoming
-   * configuration unconditionally enters, lowers the body against it, and feeds any fall-through
-   * back to the head to close the loop. A {@code loop} is exited only via {@code break}: if the
-   * body records no break sites the loop diverges and nothing flows out; otherwise a merge program
-   * point is minted that every break site rewrites to, and control resumes there.
+   * Lowers a {@code let} binding: evaluates the bound expression over the pre-binding scope, brings
+   * the new variable into scope, and rewrites the incoming configuration to a fresh program point
+   * whose configuration extends the scope with the bound value.
    *
    * @param ctx the per-function translation state
-   * @param stmt the {@code loop} statement to translate
-   * @param incoming the configuration flowing into the loop
-   * @return the configuration at the merge point, or empty if the loop has no {@code break} and so
-   *     diverges
+   * @param let the let binding to translate
+   * @param incoming the configuration flowing into the binding
+   * @return the configuration at the fresh program point, over the extended scope
    */
-  private Optional<Term> processLoopStatement(Context ctx, Loop stmt, Term incoming) {
-    List<Term> preScope = ctx.argsFromScope();
-    Symbol uLoop = ctx.advance();
-    Term continueTarget = new FnApp(uLoop, preScope);
-    ctx.enterLoop(continueTarget);
-    ctx.addRule(new Rule(incoming, continueTarget, Optional.empty()));
-    Optional<Term> loopBlockOut = processBlock(ctx, stmt.block(), continueTarget);
-    LoopContext loop = ctx.leaveLoop();
-    if (loopBlockOut.isPresent()) {
-      ctx.addRule(new Rule(loopBlockOut.get(), incoming, Optional.empty()));
-    }
-    if (loop.breakPoints().isEmpty()) {
-      return Optional.empty();
-    }
-    Symbol uMerge = ctx.advance();
-    Term merge = new FnApp(uMerge, preScope);
-    for (Term site : loop.breakPoints()) {
-      ctx.addRule(new Rule(site, merge, Optional.empty()));
-    }
-    return Optional.of(merge);
-  }
-
-  /**
-   * Lowers a {@code while} loop. Mints a loop-head program point reached from the incoming
-   * configuration when the condition holds, lowers the body against it, and feeds the body's
-   * outgoing configuration back to the incoming configuration to close the loop. A merge program
-   * point is reached when the condition fails, and is where control resumes after the loop.
-   *
-   * @param ctx the per-function translation state
-   * @param stmt the {@code while} statement to translate
-   * @param incoming the configuration flowing into the loop
-   * @return the configuration at the merge point, over the scope live before the loop
-   */
-  private Term processWhileStatement(Context ctx, While stmt, Term incoming) {
-    // The condition is re-evaluated on every iteration, so when it hoists a division the back-edge
-    // and continue must return to the loop top (pre-condition), not to the post-condition point:
-    // the next iteration has to re-run the hoist. incoming is that loop top; afterCond is where the
-    // condition's hoist program points (if any) flow to, and is where the true/false guards apply.
-    // With a division-free condition hoistAll is a no-op and afterCond == incoming, recovering the
-    // plain encoding.
-    Term loopTop = incoming;
-    LoweredCond guards = conditionGuards(ctx, stmt.condition(), loopTop);
-    Term afterCond = guards.outgoing();
-    Constraint phi = guards.whenTrue();
-    Constraint notPhi = guards.whenFalse();
-    List<Term> preScope = ctx.argsFromScope();
-    Symbol uWhile = ctx.advance();
-    Term head = new FnApp(uWhile, preScope);
-    ctx.enterLoop(loopTop);
-    ctx.addRule(new Rule(afterCond, head, Optional.of(phi)));
-    Optional<Term> whileBlockOut = processBlock(ctx, stmt.block(), head);
-    LoopContext loop = ctx.leaveLoop();
-    Symbol uMerge = ctx.advance();
-    Term merge = new FnApp(uMerge, preScope);
-    ctx.addRule(new Rule(afterCond, merge, Optional.of(notPhi)));
-    if (whileBlockOut.isPresent()) {
-      ctx.addRule(new Rule(whileBlockOut.get(), loopTop, Optional.empty()));
-    }
-
-    for (Term site : loop.breakPoints()) {
-      ctx.addRule(new Rule(site, merge, Optional.empty()));
-    }
-    return merge;
+  private Term processLetStatement(Context ctx, Let let, Term incoming) {
+    // Lower the safety formula now, over the pre-binding scope, before addToScope can shadow a name
+    // the value reads. Otherwise the value and its overflow guard would resolve the same name to
+    // different variables.
+    LoweredExpr low = lowerHoisted(ctx, let.value(), intWidth(let.type()), incoming);
+    incoming = low.outgoing();
+    List<Term> oldArgs = ctx.argsFromScope();
+    ctx.addToScope(let.identifier(), let.type());
+    Symbol to = ctx.advance();
+    List<Term> rhsArgs = new ArrayList<>(oldArgs);
+    rhsArgs.add(low.term());
+    Term rhs = new FnApp(to, rhsArgs);
+    emitDivSafe(ctx, low.safety(), incoming, rhs);
+    return new FnApp(to, ctx.argsFromScope());
   }
 
   /**
@@ -395,6 +356,84 @@ public class Translator {
   }
 
   /**
+   * Lowers a {@code while} loop. Mints a loop-head program point reached from the incoming
+   * configuration when the condition holds, lowers the body against it, and feeds the body's
+   * outgoing configuration back to the incoming configuration to close the loop. A merge program
+   * point is reached when the condition fails, and is where control resumes after the loop.
+   *
+   * @param ctx the per-function translation state
+   * @param stmt the {@code while} statement to translate
+   * @param incoming the configuration flowing into the loop
+   * @return the configuration at the merge point, over the scope live before the loop
+   */
+  private Term processWhileStatement(Context ctx, While stmt, Term incoming) {
+    // The condition is re-evaluated on every iteration, so when it hoists a division the back-edge
+    // and continue must return to the loop top (pre-condition), not to the post-condition point:
+    // the next iteration has to re-run the hoist. incoming is that loop top; afterCond is where the
+    // condition's hoist program points (if any) flow to, and is where the true/false guards apply.
+    // With a division-free condition hoistAll is a no-op and afterCond == incoming, recovering the
+    // plain encoding.
+    Term loopTop = incoming;
+    LoweredCond guards = conditionGuards(ctx, stmt.condition(), loopTop);
+    Term afterCond = guards.outgoing();
+    Constraint phi = guards.whenTrue();
+    Constraint notPhi = guards.whenFalse();
+    List<Term> preScope = ctx.argsFromScope();
+    Symbol uWhile = ctx.advance();
+    Term head = new FnApp(uWhile, preScope);
+    ctx.enterLoop(loopTop);
+    ctx.addRule(new Rule(afterCond, head, Optional.of(phi)));
+    Optional<Term> whileBlockOut = processBlock(ctx, stmt.block(), head);
+    LoopContext loop = ctx.leaveLoop();
+    Symbol uMerge = ctx.advance();
+    Term merge = new FnApp(uMerge, preScope);
+    ctx.addRule(new Rule(afterCond, merge, Optional.of(notPhi)));
+    if (whileBlockOut.isPresent()) {
+      ctx.addRule(new Rule(whileBlockOut.get(), loopTop, Optional.empty()));
+    }
+
+    for (Term site : loop.breakPoints()) {
+      ctx.addRule(new Rule(site, merge, Optional.empty()));
+    }
+    return merge;
+  }
+
+  /**
+   * Lowers an unconditional {@code loop}. Mints a loop-head program point that the incoming
+   * configuration unconditionally enters, lowers the body against it, and feeds any fall-through
+   * back to the head to close the loop. A {@code loop} is exited only via {@code break}: if the
+   * body records no break sites the loop diverges and nothing flows out; otherwise a merge program
+   * point is minted that every break site rewrites to, and control resumes there.
+   *
+   * @param ctx the per-function translation state
+   * @param stmt the {@code loop} statement to translate
+   * @param incoming the configuration flowing into the loop
+   * @return the configuration at the merge point, or empty if the loop has no {@code break} and so
+   *     diverges
+   */
+  private Optional<Term> processLoopStatement(Context ctx, Loop stmt, Term incoming) {
+    List<Term> preScope = ctx.argsFromScope();
+    Symbol uLoop = ctx.advance();
+    Term continueTarget = new FnApp(uLoop, preScope);
+    ctx.enterLoop(continueTarget);
+    ctx.addRule(new Rule(incoming, continueTarget, Optional.empty()));
+    Optional<Term> loopBlockOut = processBlock(ctx, stmt.block(), continueTarget);
+    LoopContext loop = ctx.leaveLoop();
+    if (loopBlockOut.isPresent()) {
+      ctx.addRule(new Rule(loopBlockOut.get(), incoming, Optional.empty()));
+    }
+    if (loop.breakPoints().isEmpty()) {
+      return Optional.empty();
+    }
+    Symbol uMerge = ctx.advance();
+    Term merge = new FnApp(uMerge, preScope);
+    for (Term site : loop.breakPoints()) {
+      ctx.addRule(new Rule(site, merge, Optional.empty()));
+    }
+    return Optional.of(merge);
+  }
+
+  /**
    * Lowers a {@code return}: evaluates the returned expression and rewrites the incoming
    * configuration to {@code ret(value)}, the normal-completion term of the function's {@code
    * result} sort (FKN §8.1). Control diverges here, so the caller discards anything after it.
@@ -402,20 +441,16 @@ public class Translator {
    * @param ctx the per-function translation state
    * @param ret the return statement to translate
    * @param incoming the configuration flowing into the return
-   * @return the term the configuration rewrites to ({@code ret(value)})
    */
-  private Term processReturnStatement(Context ctx, Return ret, Term incoming) {
+  private void processReturnStatement(Context ctx, Return ret, Term incoming) {
     if (ret.value().isEmpty()) {
-      Term wrapped = new FnApp(ctx.ret(), List.of());
-      ctx.addRule(new Rule(incoming, wrapped, Optional.empty()));
-      return wrapped;
+      ctx.addRule(new Rule(incoming, new FnApp(ctx.ret(), List.of()), Optional.empty()));
+      return;
     }
     Optional<Type.Int> ctxWidth = ctx.returnType().flatMap(Translator::intWidth);
     LoweredExpr low = lowerHoisted(ctx, ret.value().get(), ctxWidth, incoming);
     Term wrapped = new FnApp(ctx.ret(), List.of(low.term()));
-    incoming = low.outgoing();
-    emitDivSafe(ctx, low.safety(), incoming, wrapped);
-    return wrapped;
+    emitDivSafe(ctx, low.safety(), low.outgoing(), wrapped);
   }
 
   /**
@@ -437,32 +472,6 @@ public class Translator {
     // Fails if variable is not in scope
     Symbol to = ctx.advance();
     Term rhs = new FnApp(to, ctx.argsWithValue(target, low.term()));
-    emitDivSafe(ctx, low.safety(), incoming, rhs);
-    return new FnApp(to, ctx.argsFromScope());
-  }
-
-  /**
-   * Lowers a {@code let} binding: evaluates the bound expression over the pre-binding scope, brings
-   * the new variable into scope, and rewrites the incoming configuration to a fresh program point
-   * whose configuration extends the scope with the bound value.
-   *
-   * @param ctx the per-function translation state
-   * @param let the let binding to translate
-   * @param incoming the configuration flowing into the binding
-   * @return the configuration at the fresh program point, over the extended scope
-   */
-  private Term processLetStatement(Context ctx, Let let, Term incoming) {
-    // Lower the safety formula now, over the pre-binding scope, before addToScope can shadow a name
-    // the value reads. Otherwise the value and its overflow guard would resolve the same name to
-    // different variables.
-    LoweredExpr low = lowerHoisted(ctx, let.value(), intWidth(let.type()), incoming);
-    incoming = low.outgoing();
-    List<Term> oldArgs = ctx.argsFromScope();
-    ctx.addToScope(let.identifier(), let.type());
-    Symbol to = ctx.advance();
-    List<Term> rhsArgs = new ArrayList<>(oldArgs);
-    rhsArgs.add(low.term());
-    Term rhs = new FnApp(to, rhsArgs);
     emitDivSafe(ctx, low.safety(), incoming, rhs);
     return new FnApp(to, ctx.argsFromScope());
   }
@@ -613,10 +622,7 @@ public class Translator {
                     new UnsupportedConstructException(
                         "calling a ()-returning function is not supported", spans.describe(c)));
     ScopedVar r = ctx.addHoistVar("$call", calleeType);
-
-    Sort calleeSort = Sort.of(calleeType);
-    Symbol calleeRet =
-        new TermSymbol("ret_" + calleeSort.notation(), List.of(calleeSort), Sort.RESULT);
+    Symbol calleeRet = retSymbol(calleeType);
 
     Symbol uNext = ctx.advance();
     Term uNextTm = new FnApp(uNext, ctx.argsFromScope());
@@ -670,11 +676,7 @@ public class Translator {
     Symbol point = ctx.advance();
     Term target = new FnApp(point, ctx.argsFromScope()); // carries `fresh`
     // err [¬S_D]
-    ctx.addRule(
-        new Rule(
-            incoming,
-            new FnApp(ctx.err(), List.of()),
-            Optional.of(new Constraint(new FnApp(TheorySymbol.NOT, List.of(info.safety()))))));
+    emitErrIfFaulty(ctx, Optional.of(info.safety()), incoming);
     for (Corrected c : info.alternatives()) {
       Term bind = new FnApp(TheorySymbol.EQ_INT, List.of(fresh.varDecl(), c.value()));
       Term g =

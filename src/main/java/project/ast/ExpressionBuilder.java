@@ -9,7 +9,6 @@ import java.util.Set;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import project.parser.RustParser.ArithmeticOrLogicalExpressionContext;
 import project.parser.RustParser.CallExpressionContext;
-import project.parser.RustParser.CallParamsContext;
 import project.parser.RustParser.ComparisonExpressionContext;
 import project.parser.RustParser.ComparisonOperatorContext;
 import project.parser.RustParser.ExpressionContext;
@@ -73,27 +72,6 @@ final class ExpressionBuilder {
     };
   }
 
-  private FunctionCall buildCallExpression(CallExpressionContext c) {
-    if (!(c.expression() instanceof PathExpression_Context)) {
-      throw new UnsupportedConstructException(
-          c, "CallExpressionContext should be PathExpression_Context");
-    }
-    Identifier callee = extractPathIdentifier((PathExpression_Context) c.expression());
-    if (!declaredFunctions.contains(callee)) {
-      throw new UnsupportedConstructException(
-          c, "Function call to non-local function " + callee + " is not supported");
-    }
-    List<Expression> params = new ArrayList<>();
-    if (c.callParams() != null) {
-      CallParamsContext callParamsCtx = c.callParams();
-      for (ExpressionContext exprCtx : callParamsCtx.expression()) {
-        Expression current = buildExpression(exprCtx);
-        params.add(current);
-      }
-    }
-    return new FunctionCall(callee, params);
-  }
-
   /**
    * Builds a {@link Literal} from a literal-expression parse-tree context. Only integer and boolean
    * literals are supported.
@@ -129,85 +107,6 @@ final class ExpressionBuilder {
     }
     throw new UnsupportedConstructException(
         ctx, "Unsupported literal, only integer and boolean literals are supported");
-  }
-
-  /**
-   * Builds an expression from a unary negation context: arithmetic negation ({@code -e}) or boolean
-   * not ({@code !e}), which share this grammar rule.
-   *
-   * <p>A negated integer literal folds into a single negative {@link IntegerLiteral}; any other
-   * operand becomes a {@link UnaryMinus} node. Boolean {@code not} likewise negates the boolean
-   * literal and otherwise becomes a {@link UnaryNot} node.
-   *
-   * @param ctx the negation-expression context
-   * @return the corresponding {@link Expression} node
-   */
-  Expression buildNegation(NegationExpressionContext ctx) {
-    Expression operand = buildExpression(ctx.expression());
-    if (ctx.MINUS() == null) {
-      // Boolean not (!e). Input is rustc-valid (CLAUDE.md invariant 5), so the operand is bool.
-      if (operand instanceof BooleanLiteral literal) {
-        return spans.track(new BooleanLiteral(!literal.value()), ctx);
-      }
-      return spans.track(new UnaryNot(operand), ctx);
-    }
-    if (operand instanceof IntegerLiteral literal) {
-      return spans.track(new IntegerLiteral(literal.value().negate()), ctx);
-    }
-    return spans.track(new UnaryMinus(operand), ctx);
-  }
-
-  /**
-   * Builds an expression from a parenthesised group. Parentheses carry no semantics of their own —
-   * operator precedence is already resolved in the parse tree — so the group is its inner
-   * expression with no wrapping AST node. Inner attributes ({@code (#![...] e)}) are out of scope.
-   *
-   * @param ctx the grouped-expression context
-   * @return the {@link Expression} node for the inner expression
-   * @throws UnsupportedConstructException if the group carries inner attributes
-   */
-  Expression buildGrouped(GroupedExpressionContext ctx) {
-    if (!ctx.innerAttribute().isEmpty()) {
-      throw new UnsupportedConstructException(ctx, "Inner attributes are not supported");
-    }
-    return buildExpression(ctx.expression());
-  }
-
-  /**
-   * Builds a {@link Variable} from a path expression context. Only single-segment paths with no
-   * generic arguments are supported (i.e. a plain variable name).
-   *
-   * @param ctx the path expression context
-   * @return the corresponding {@link Variable} node
-   * @throws UnsupportedConstructException if the path is not a simple identifier reference
-   */
-  Variable buildVarExpression(PathExpression_Context ctx) {
-    return spans.track(new Variable(extractPathIdentifier(ctx)), ctx);
-  }
-
-  /**
-   * Extracts a simple variable name from a path expression context. Only single-segment paths with
-   * no generic arguments are supported (i.e. a plain identifier). Exposed for the statement
-   * builder, which reuses it to read an assignment target.
-   *
-   * @param ctx the path expression context
-   * @return the {@link Identifier} named by the path
-   * @throws UnsupportedConstructException if the path is not a simple identifier reference
-   */
-  Identifier extractPathIdentifier(PathExpression_Context ctx) {
-    PathInExpressionContext path = ctx.pathExpression().pathInExpression();
-    if (path == null || path.pathExprSegment().size() != 1 || !path.PATHSEP().isEmpty()) {
-      throw new UnsupportedConstructException(ctx, "Only simple variable references are supported");
-    }
-    PathExprSegmentContext segment = path.pathExprSegment().get(0);
-    if (segment.genericArgs() != null) {
-      throw new UnsupportedConstructException(ctx, "Generic arguments in paths are not supported");
-    }
-    IdentifierContext identifier = segment.pathIdentSegment().identifier();
-    if (identifier == null) {
-      throw new UnsupportedConstructException(ctx, "Only simple variable references are supported");
-    }
-    return new Identifier(identifier.getText());
   }
 
   /**
@@ -268,5 +167,103 @@ final class ExpressionBuilder {
     Expression left = buildExpression(ctx.expression().get(0));
     Expression right = buildExpression(ctx.expression().get(1));
     return spans.track(new BinaryOp(op, left, right), ctx);
+  }
+
+  /**
+   * Builds a {@link Variable} from a path expression context. Only single-segment paths with no
+   * generic arguments are supported (i.e. a plain variable name).
+   *
+   * @param ctx the path expression context
+   * @return the corresponding {@link Variable} node
+   * @throws UnsupportedConstructException if the path is not a simple identifier reference
+   */
+  Variable buildVarExpression(PathExpression_Context ctx) {
+    return spans.track(new Variable(extractPathIdentifier(ctx)), ctx);
+  }
+
+  /**
+   * Builds an expression from a unary negation context: arithmetic negation ({@code -e}) or boolean
+   * not ({@code !e}), which share this grammar rule.
+   *
+   * <p>A negated integer literal folds into a single negative {@link IntegerLiteral}; any other
+   * operand becomes a {@link UnaryMinus} node. Boolean {@code not} likewise negates the boolean
+   * literal and otherwise becomes a {@link UnaryNot} node.
+   *
+   * @param ctx the negation-expression context
+   * @return the corresponding {@link Expression} node
+   */
+  Expression buildNegation(NegationExpressionContext ctx) {
+    Expression operand = buildExpression(ctx.expression());
+    if (ctx.MINUS() == null) {
+      // Boolean not (!e). Input is rustc-valid (CLAUDE.md invariant 5), so the operand is bool.
+      if (operand instanceof BooleanLiteral literal) {
+        return spans.track(new BooleanLiteral(!literal.value()), ctx);
+      }
+      return spans.track(new UnaryNot(operand), ctx);
+    }
+    if (operand instanceof IntegerLiteral literal) {
+      return spans.track(new IntegerLiteral(literal.value().negate()), ctx);
+    }
+    return spans.track(new UnaryMinus(operand), ctx);
+  }
+
+  /**
+   * Builds an expression from a parenthesised group. Parentheses carry no semantics of their own —
+   * operator precedence is already resolved in the parse tree — so the group is its inner
+   * expression with no wrapping AST node. Inner attributes ({@code (#![...] e)}) are out of scope.
+   *
+   * @param ctx the grouped-expression context
+   * @return the {@link Expression} node for the inner expression
+   * @throws UnsupportedConstructException if the group carries inner attributes
+   */
+  Expression buildGrouped(GroupedExpressionContext ctx) {
+    if (!ctx.innerAttribute().isEmpty()) {
+      throw new UnsupportedConstructException(ctx, "Inner attributes are not supported");
+    }
+    return buildExpression(ctx.expression());
+  }
+
+  private FunctionCall buildCallExpression(CallExpressionContext c) {
+    if (!(c.expression() instanceof PathExpression_Context pathCtx)) {
+      throw new UnsupportedConstructException(
+          c, "CallExpressionContext should be PathExpression_Context");
+    }
+    Identifier callee = extractPathIdentifier(pathCtx);
+    if (!declaredFunctions.contains(callee)) {
+      throw new UnsupportedConstructException(
+          c, "Function call to non-local function " + callee + " is not supported");
+    }
+    List<Expression> params = new ArrayList<>();
+    if (c.callParams() != null) {
+      for (ExpressionContext exprCtx : c.callParams().expression()) {
+        params.add(buildExpression(exprCtx));
+      }
+    }
+    return new FunctionCall(callee, params);
+  }
+
+  /**
+   * Extracts a simple variable name from a path expression context. Only single-segment paths with
+   * no generic arguments are supported (i.e. a plain identifier). Exposed for the statement
+   * builder, which reuses it to read an assignment target.
+   *
+   * @param ctx the path expression context
+   * @return the {@link Identifier} named by the path
+   * @throws UnsupportedConstructException if the path is not a simple identifier reference
+   */
+  Identifier extractPathIdentifier(PathExpression_Context ctx) {
+    PathInExpressionContext path = ctx.pathExpression().pathInExpression();
+    if (path == null || path.pathExprSegment().size() != 1 || !path.PATHSEP().isEmpty()) {
+      throw new UnsupportedConstructException(ctx, "Only simple variable references are supported");
+    }
+    PathExprSegmentContext segment = path.pathExprSegment().get(0);
+    if (segment.genericArgs() != null) {
+      throw new UnsupportedConstructException(ctx, "Generic arguments in paths are not supported");
+    }
+    IdentifierContext identifier = segment.pathIdentSegment().identifier();
+    if (identifier == null) {
+      throw new UnsupportedConstructException(ctx, "Only simple variable references are supported");
+    }
+    return new Identifier(identifier.getText());
   }
 }
