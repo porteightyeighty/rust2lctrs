@@ -63,11 +63,11 @@ final class ItemBuilder {
   }
 
   /**
-   * Returns the function context of an item, or {@code null} if the item is not a plain function.
-   * Shared by the name pre-pass and {@link #buildItem}.
+   * Returns the function context of an item, or empty if the item is not a plain function. Shared
+   * by the name pre-pass and {@link #buildItem}.
    *
    * @param ctx the item context
-   * @return the function context, or {@code null}
+   * @return the function context, or empty
    */
   private static Optional<Function_Context> functionOf(ItemContext ctx) {
     VisItemContext visItem = ctx.visItem();
@@ -147,7 +147,7 @@ final class ItemBuilder {
     }
     for (FunctionParamContext param : ctx.functionParam()) {
       try {
-        if (param.outerAttribute().size() > 0) {
+        if (!param.outerAttribute().isEmpty()) {
           throw new UnsupportedConstructException(
               param, "Function parameter outer attributes are not supported");
         }

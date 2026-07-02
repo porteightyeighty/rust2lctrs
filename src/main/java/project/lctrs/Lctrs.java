@@ -10,8 +10,8 @@ import java.util.List;
  */
 public class Lctrs {
 
-  List<Symbol> sigma;
-  List<Rule> rules;
+  private final List<Symbol> sigma;
+  private final List<Rule> rules;
 
   /** Creates an empty LCTRS with no signature symbols and no rules. */
   public Lctrs() {
@@ -31,17 +31,6 @@ public class Lctrs {
         sigma.add(s);
       }
     }
-    return this;
-  }
-
-  /**
-   * Appends a single rewrite rule.
-   *
-   * @param rule the rule to add
-   * @return this LCTRS, for chaining
-   */
-  public Lctrs appendRule(Rule rule) {
-    this.rules.add(rule);
     return this;
   }
 
