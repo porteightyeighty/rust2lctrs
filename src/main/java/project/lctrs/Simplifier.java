@@ -132,7 +132,7 @@ public final class Simplifier {
    * @return the rewritten term
    */
   private static Term redirect(Term t, Map<Symbol, Symbol> forward) {
-    if (!(t instanceof FnApp)) {
+    if (!(t instanceof FnApp(Symbol s, List<Term> args))) {
       return t;
     }
     Symbol target = s;
