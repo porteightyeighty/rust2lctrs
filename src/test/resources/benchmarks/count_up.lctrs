@@ -3,13 +3,11 @@ ret_Int :: Int -> result
 err :: result
 u1 :: Int -> Int -> result
 u2 :: Int -> Int -> result
-u3 :: Int -> Int -> result
 u4 :: Int -> Int -> result
 
 count_up(x) -> u1(x, 0)
 u1(x, y) -> u2(x, y) | x > y
 u2(x, y) -> err | ¬((-32768 ≤ (y + 1)) ∧ ((y + 1) ≤ 32767))
-u2(x, y) -> u3(x, y + 1) | (-32768 ≤ (y + 1)) ∧ ((y + 1) ≤ 32767)
+u2(x, y) -> u1(x, y + 1) | (-32768 ≤ (y + 1)) ∧ ((y + 1) ≤ 32767)
 u1(x, y) -> u4(x, y) | ¬(x > y)
-u3(x, y) -> u1(x, y)
 u4(x, y) -> ret_Int(y)

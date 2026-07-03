@@ -2,22 +2,14 @@ two_breaks :: Int -> result
 ret_Int :: Int -> result
 err :: result
 u1 :: Int -> result
-u2 :: Int -> result
 u3 :: Int -> result
 u4 :: Int -> result
-u5 :: Int -> result
-u6 :: Int -> result
-u7 :: Int -> result
 
 two_breaks(x) -> u1(x) | x < 100
-u1(x) -> u2(x) | x = 42
+u1(x) -> ret_Int(x) | x = 42
 u1(x) -> u3(x) | ¬(x = 42)
 u3(x) -> err | ¬((-32768 ≤ (x + 7)) ∧ ((x + 7) ≤ 32767))
 u3(x) -> u4(x + 7) | (-32768 ≤ (x + 7)) ∧ ((x + 7) ≤ 32767)
-u4(x) -> u5(x) | x > 80
-u4(x) -> u6(x) | ¬(x > 80)
-two_breaks(x) -> u7(x) | ¬(x < 100)
-u6(x) -> two_breaks(x)
-u2(x) -> u7(x)
-u5(x) -> u7(x)
-u7(x) -> ret_Int(x)
+u4(x) -> ret_Int(x) | x > 80
+u4(x) -> two_breaks(x) | ¬(x > 80)
+two_breaks(x) -> ret_Int(x) | ¬(x < 100)

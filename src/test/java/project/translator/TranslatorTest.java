@@ -403,7 +403,9 @@ class TranslatorTest {
   /**
    * A literal-only tree has no inferable width, and rustc const-evaluates and rejects its overflow
    * at compile time in both profiles, so release emits it unwrapped. {@code let y = 2 + 3} binds
-   * the plain sum {@code 2 + 3} with no wrap and no constraint.
+   * the plain sum {@code 2 + 3} with no wrap and no constraint; with no parameters the binding's
+   * program point is a pure forward onto {@code ret_Int}, so chain removal folds the whole body
+   * into the entry rule.
    */
   @Test
   void releaseEmitsLiteralOnlyArithmeticUnwrapped() {
@@ -415,20 +417,15 @@ class TranslatorTest {
             block(let("y", I16, add(intLit(2), intLit(3))), ret(var("y"))),
             Profile.release);
 
-    VarDecl y = new VarDecl("y", Sort.INT);
     FnApp entry = new FnApp(new TermSymbol("f", List.of(), Sort.RESULT), List.of());
     FnApp twoPlusThree =
         new FnApp(
             TheorySymbol.ADD,
             List.of(new IntValue(BigInteger.TWO), new IntValue(BigInteger.valueOf(3))));
-    TermSymbol u1Symbol = new TermSymbol("u1", List.of(Sort.INT), Sort.RESULT);
-    FnApp u1 = new FnApp(u1Symbol, List.of(twoPlusThree));
-    FnApp u1scope = new FnApp(u1Symbol, List.of(y));
-    FnApp retY = new FnApp(new TermSymbol("ret_Int", List.of(Sort.INT), Sort.RESULT), List.of(y));
+    FnApp retSum =
+        new FnApp(new TermSymbol("ret_Int", List.of(Sort.INT), Sort.RESULT), List.of(twoPlusThree));
 
-    assertEquals(
-        List.of(new Rule(entry, u1, Optional.empty()), new Rule(u1scope, retY, Optional.empty())),
-        lctrs.rules());
+    assertEquals(List.of(new Rule(entry, retSum, Optional.empty())), lctrs.rules());
   }
 
   /**

@@ -5,7 +5,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import project.ast.Assignment;
@@ -39,6 +41,7 @@ import project.lctrs.Lctrs;
 import project.lctrs.Rule;
 import project.lctrs.ScopedVar;
 import project.lctrs.Serialiser;
+import project.lctrs.Simplifier;
 import project.lctrs.Sort;
 import project.lctrs.Symbol;
 import project.lctrs.Term;
@@ -111,7 +114,11 @@ public class Translator {
     for (Item item : crate.items()) {
       processItem(lctrs, item, scope);
     }
-    return lctrs;
+    // Entry symbols head a call's redex and name the function to Cora, so they are never chained
+    // away even when a body is a pure forward.
+    Set<Symbol> entries =
+        scope.registry().values().stream().map(Signature::entry).collect(Collectors.toSet());
+    return Simplifier.removeForwardingRules(lctrs, entries);
   }
 
   /**

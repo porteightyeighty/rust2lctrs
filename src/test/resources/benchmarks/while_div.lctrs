@@ -4,7 +4,6 @@ err :: result
 u1 :: Int -> Int -> result
 u2 :: Int -> Int -> Int -> result
 u3 :: Int -> Int -> result
-u4 :: Int -> Int -> result
 u5 :: Int -> Int -> result
 
 while_div(n) -> u1(n, 0)
@@ -14,7 +13,6 @@ u1(n, i) -> u2(n, i, $div) | (((2 ≠ 0) ∧ ¬((i = -32768) ∧ (2 = -1))) ∧ 
 u1(n, i) -> u2(n, i, $div) | (((2 ≠ 0) ∧ ¬((i = -32768) ∧ (2 = -1))) ∧ (((i < 0) ∧ ((i % 2) ≠ 0)) ∧ (2 < 0))) ∧ ($div = ((i / 2) - 1))
 u2(n, i, $div) -> u3(n, i) | $div < n
 u3(n, i) -> err | ¬((-32768 ≤ (i + 1)) ∧ ((i + 1) ≤ 32767))
-u3(n, i) -> u4(n, i + 1) | (-32768 ≤ (i + 1)) ∧ ((i + 1) ≤ 32767)
+u3(n, i) -> u1(n, i + 1) | (-32768 ≤ (i + 1)) ∧ ((i + 1) ≤ 32767)
 u2(n, i, $div) -> u5(n, i) | ¬($div < n)
-u4(n, i) -> u1(n, i)
 u5(n, i) -> ret_Int(i)
