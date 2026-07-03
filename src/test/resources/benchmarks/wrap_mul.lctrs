@@ -1,0 +1,7 @@
+wrap_mul :: Int -> result
+ret_Int :: Int -> result
+err :: result
+u1 :: Int -> Int -> result
+
+wrap_mul(x) -> u1(x, (((x * x) - -32768) % 65536) + -32768)
+u1(x, y) -> ret_Int(y)

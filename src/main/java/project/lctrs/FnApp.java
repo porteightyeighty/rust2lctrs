@@ -45,4 +45,38 @@ public record FnApp(Symbol symbol, List<Term> args) implements Term {
   public Sort sort() {
     return symbol.resultSort();
   }
+
+  /**
+   * The integer sum {@code a + b}.
+   *
+   * @param a the left summand
+   * @param b the right summand
+   * @return the application of {@link TheorySymbol#ADD} to the two terms
+   */
+  public static FnApp add(Term a, Term b) {
+    return new FnApp(TheorySymbol.ADD, List.of(a, b));
+  }
+
+  /**
+   * The integer difference {@code a - b}.
+   *
+   * @param a the minuend
+   * @param b the subtrahend
+   * @return the application of {@link TheorySymbol#SUB} to the two terms
+   */
+  public static FnApp subtract(Term a, Term b) {
+    return new FnApp(TheorySymbol.SUB, List.of(a, b));
+  }
+
+  /**
+   * The integer remainder {@code a % b}, with Cora's Euclidean semantics (result in {@code [0,
+   * |b|)}).
+   *
+   * @param a the dividend
+   * @param b the divisor
+   * @return the application of {@link TheorySymbol#MOD} to the two terms
+   */
+  public static FnApp modulo(Term a, Term b) {
+    return new FnApp(TheorySymbol.MOD, List.of(a, b));
+  }
 }

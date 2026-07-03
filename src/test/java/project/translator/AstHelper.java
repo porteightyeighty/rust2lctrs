@@ -21,6 +21,7 @@ import project.ast.Let;
 import project.ast.Loop;
 import project.ast.Parameter;
 import project.ast.Return;
+import project.ast.SpanTable;
 import project.ast.Statement;
 import project.ast.Type;
 import project.ast.UnaryMinus;
@@ -43,6 +44,7 @@ final class AstHelper {
 
   // --- types (the two the fragment has) ------------------------------------
 
+  static final Type I16 = Type.Int.i16;
   static final Type I32 = Type.Int.i32;
   static final Type BOOL = Type.BOOL;
 
@@ -80,6 +82,10 @@ final class AstHelper {
 
   static BinaryOp mul(Expression l, Expression r) {
     return bin(BinaryOp.Op.MUL, l, r);
+  }
+
+  static BinaryOp div(Expression l, Expression r) {
+    return bin(BinaryOp.Op.DIV, l, r);
   }
 
   static BinaryOp eq(Expression l, Expression r) {
@@ -183,6 +189,23 @@ final class AstHelper {
    */
   static Lctrs translateFn(String name, List<Parameter> params, Type returnType, Block body) {
     return new Translator(crate(fn(name, params, returnType, body))).translate();
+  }
+
+  /**
+   * As {@link #translateFn(String, List, Type, Block)}, but under a chosen overflow {@link Profile}
+   * so tests can pin the release (wrapping) encoding against the default debug (panic) one.
+   *
+   * @param name the function name (also the entry program-point symbol)
+   * @param params the parameter list
+   * @param returnType the declared return type
+   * @param body the function body
+   * @param profile the overflow semantics to encode
+   * @return the translated LCTRS
+   */
+  static Lctrs translateFn(
+      String name, List<Parameter> params, Type returnType, Block body, Profile profile) {
+    return new Translator(crate(fn(name, params, returnType, body)), new SpanTable(), profile)
+        .translate();
   }
 
   static Lctrs translateUnitFn(String name, List<Parameter> params, Block body) {

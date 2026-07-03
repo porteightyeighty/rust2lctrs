@@ -20,6 +20,7 @@ import project.lctrs.Lctrs;
 import project.lctrs.Serialiser;
 import project.parser.RustParsing;
 import project.parser.SyntaxErrorException;
+import project.translator.Profile;
 import project.translator.Translator;
 
 /**
@@ -38,6 +39,14 @@ public class Rust2LctrsCommand implements Callable<Integer> {
       names = {"-o", "--output"},
       description = "output file; if omitted, the LCTRS is written to stdout")
   Path outputPath;
+
+  @Option(
+      names = "--profile",
+      defaultValue = "debug",
+      description =
+          "overflow semantics: debug (arithmetic overflow panics) or release (wraps, two's "
+              + "complement). Default: ${DEFAULT-VALUE}.")
+  Profile profile;
 
   @Parameters(index = "0", description = "Rust source file to translate")
   Path inputPath;
@@ -70,7 +79,7 @@ public class Rust2LctrsCommand implements Callable<Integer> {
         recorded.forEach(d -> LOG.error("Out-of-scope Rust: {}", d));
         return 2;
       }
-      Lctrs lctrs = new Translator(crate, spanTable).translate();
+      Lctrs lctrs = new Translator(crate, spanTable, profile).translate();
       LOG.info(
           "Translated {}: {} symbols, {} rules",
           inputPath,

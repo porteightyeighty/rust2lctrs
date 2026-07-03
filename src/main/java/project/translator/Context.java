@@ -36,7 +36,7 @@ final class Context {
 
   private static final Logger LOG = LoggerFactory.getLogger(Context.class);
 
-  private final Translator.CrateScope crateScope;
+  private final CrateScope crateScope;
   private List<ScopedVar> scope = new ArrayList<>();
   private final List<Symbol> sigma = new ArrayList<>();
   private final List<Rule> rules = new ArrayList<>();
@@ -55,10 +55,15 @@ final class Context {
    * @param returnType the function's declared return type
    * @param crateScope the crate-wide state (counter and registry) shared across all functions
    */
-  Context(Sort returnSort, Optional<Type> returnType, Translator.CrateScope crateScope) {
+  Context(Sort returnSort, Optional<Type> returnType, CrateScope crateScope) {
     this.returnSort = returnSort;
     this.returnType = returnType;
     this.crateScope = crateScope;
+  }
+
+  // --- Profile --------------------------------------------------------------
+  Profile profile() {
+    return crateScope.profile();
   }
 
   // --- Function-level facts -------------------------------------------------
