@@ -34,7 +34,7 @@ final class SnapshotTest {
   @ParameterizedTest(name = "{0}")
   @MethodSource("benchmarks")
   void translationMatchesGolden(Benchmark benchmark) throws IOException {
-    String actual = Translate.toLctrs(Files.readString(benchmark.rust()));
+    String actual = Translate.toLctrs(Files.readString(benchmark.rust()), benchmark.profile());
 
     if (Boolean.getBoolean(UPDATE_PROPERTY)) {
       Files.writeString(benchmark.golden(), actual, StandardCharsets.UTF_8);

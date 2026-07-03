@@ -6,6 +6,7 @@ import project.ast.DiagnosticRecorder;
 import project.ast.SpanTable;
 import project.lctrs.Serialiser;
 import project.parser.RustParsing;
+import project.translator.Profile;
 import project.translator.Translator;
 
 /**
@@ -19,12 +20,23 @@ public final class Translate {
   private Translate() {}
 
   /**
-   * Translates Rust source to its serialised LCTRS form.
+   * Translates Rust source to its serialised LCTRS form under the default debug profile.
    *
    * @param source the Rust source text (assumed valid, in-scope Rust)
    * @return the LCTRS rendered in Cora's input format
    */
   public static String toLctrs(String source) {
+    return toLctrs(source, Profile.debug);
+  }
+
+  /**
+   * Translates Rust source to its serialised LCTRS form under a chosen overflow profile.
+   *
+   * @param source the Rust source text (assumed valid, in-scope Rust)
+   * @param profile the overflow semantics to encode
+   * @return the LCTRS rendered in Cora's input format
+   */
+  public static String toLctrs(String source, Profile profile) {
     DiagnosticRecorder diagnostics = new DiagnosticRecorder();
     SpanTable spanTable = new SpanTable();
     AstBuilder astBuilder = new AstBuilder(spanTable, diagnostics);
@@ -34,6 +46,6 @@ public final class Translate {
           "Source is out of scope; expected valid, in-scope Rust but got diagnostics: "
               + diagnostics.diagnostics());
     }
-    return Serialiser.serialise(new Translator(crate, spanTable).translate());
+    return Serialiser.serialise(new Translator(crate, spanTable, profile).translate());
   }
 }

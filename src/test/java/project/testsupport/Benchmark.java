@@ -2,6 +2,7 @@ package project.testsupport;
 
 import java.nio.file.Path;
 import java.util.Optional;
+import project.translator.Profile;
 
 /**
  * One entry in the shared benchmark corpus: a Rust source file paired with its committed golden
@@ -17,8 +18,11 @@ import java.util.Optional;
  * @param rust path to the Rust source
  * @param golden path to the committed golden LCTRS (sibling {@code .lctrs} file)
  * @param expectedVerdict the verdict declared by the source's {@code // cora:} marker, if any
+ * @param profile the overflow semantics to translate under, from the source's {@code // profile:}
+ *     marker; defaults to {@link Profile#debug} when unmarked
  */
-public record Benchmark(String name, Path rust, Path golden, Optional<Verdict> expectedVerdict) {
+public record Benchmark(
+    String name, Path rust, Path golden, Optional<Verdict> expectedVerdict, Profile profile) {
 
   /**
    * @return the benchmark name, so parameterised tests display it instead of the record dump

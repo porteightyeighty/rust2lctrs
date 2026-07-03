@@ -63,6 +63,7 @@ public class Translator {
 
   final Crate crate;
   private final SpanTable spans;
+  private final Profile profile;
 
   /**
    * Creates a translator for a single crate with no span information, so provenance trace lines
@@ -71,7 +72,7 @@ public class Translator {
    * @param crate the AST to translate
    */
   public Translator(Crate crate) {
-    this(crate, new SpanTable());
+    this(crate, new SpanTable(), Profile.debug);
   }
 
   /**
@@ -82,8 +83,21 @@ public class Translator {
    * @param spans the span table populated during the parse-to-AST walk
    */
   public Translator(Crate crate, SpanTable spans) {
+    this(crate, spans, Profile.debug);
+  }
+
+  /**
+   * Creates a translator for a single crate under the given overflow profile, reading source
+   * locations from the span table for provenance trace output.
+   *
+   * @param crate the AST to translate
+   * @param spans the span table populated during the parse-to-AST walk
+   * @param profile the overflow semantics to encode ({@code debug} panics, {@code release} wraps)
+   */
+  public Translator(Crate crate, SpanTable spans, Profile profile) {
     this.crate = crate;
     this.spans = spans;
+    this.profile = profile;
   }
 
   /**
@@ -93,20 +107,12 @@ public class Translator {
    */
   public Lctrs translate() {
     Lctrs lctrs = new Lctrs();
-    CrateScope scope = new CrateScope(new AtomicInteger(), buildRegistry());
+    CrateScope scope = new CrateScope(new AtomicInteger(), buildRegistry(), this.profile);
     for (Item item : crate.items()) {
       processItem(lctrs, item, scope);
     }
     return lctrs;
   }
-
-  /**
-   * Crate-wide state shared by every function's {@link Context}.
-   *
-   * @param counter the program-point counter, shared so {@code u}-symbols stay globally unique
-   * @param registry the function name to {@link Signature} map for resolving calls
-   */
-  record CrateScope(AtomicInteger counter, Map<String, Signature> registry) {}
 
   /**
    * The callee-facing facts about a function needed to encode a call to it: the entry program-point

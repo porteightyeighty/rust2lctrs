@@ -38,6 +38,24 @@ java -jar target/rust2lctrs-1.0-SNAPSHOT.jar input.rs -o out.lctrs
 Run with `--help` for the option list. Out-of-scope Rust exits non-zero with a
 diagnostic on stderr.
 
+### Overflow profile
+
+`--profile` picks the arithmetic-overflow semantics to encode, mirroring
+rustc's two compilation modes:
+
+| `--profile` | Overflow of `+ - * ` and unary `-` | Models |
+|---|---|---|
+| `debug` (default) | **panics** — rewrites to `err`, guarded by a width bound | `cargo build` |
+| `release` | **wraps** two's-complement — `((t − MIN) % 2^w) + MIN` | `cargo build --release` |
+
+```sh
+java -jar target/rust2lctrs-1.0-SNAPSHOT.jar input.rs --profile release > out.lctrs
+```
+
+`/` and `%` panic in **both** profiles (division by zero and `MIN / -1`), so
+their encoding is unchanged by the flag. The default is `debug`, so output is
+byte-for-byte identical to omitting the flag.
+
 ## Benchmark corpus & snapshot tests
 
 A single corpus under `src/test/resources/benchmarks/` drives two of the three
@@ -67,11 +85,30 @@ fn sum(a: i8, b: i8) -> i8 {
   *golden* is analysed — not a fresh translation — the snapshot layer pins the
   artifact and the e2e layer proves that pinned artifact is sound.
 
+A benchmark can also carry a `// profile: release` line to translate it under
+the wrapping overflow semantics (see [Overflow profile](#overflow-profile));
+omitting it defaults to `debug`. For example `wrap_count.rs` — an `i16` counter
+that terminates *only because* it wraps negative, where the debug translation
+would instead reach `err`:
+
+```rust
+// profile: release
+// cora: MAYBE
+fn wrap_count(x: i16) -> i16 {
+    let mut y: i16 = x;
+    while y > 0 {
+        y = y + 1;
+    }
+    y
+}
+```
+
 ### Adding a benchmark
 
 1. Drop `name.rs` into `src/test/resources/benchmarks/`. Add a `// cora: YES`
    (or `MAYBE` / `NO`) line if you want it checked end-to-end; omit the marker
-   to make it snapshot-only.
+   to make it snapshot-only. Add a `// profile: release` line to translate it
+   under wrapping overflow (default is `debug`).
 2. Generate its golden and **review the diff** before committing:
 
    ```sh
