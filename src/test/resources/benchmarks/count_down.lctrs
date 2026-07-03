@@ -2,12 +2,10 @@ count_down :: Int -> result
 ret_unit :: result
 err :: result
 u1 :: Int -> result
-u2 :: Int -> result
 u3 :: Int -> result
 
 count_down(n) -> u1(n) | n > 0
 u1(n) -> err | ¬((-2147483648 ≤ (n - 1)) ∧ ((n - 1) ≤ 2147483647))
-u1(n) -> u2(n - 1) | (-2147483648 ≤ (n - 1)) ∧ ((n - 1) ≤ 2147483647)
+u1(n) -> count_down(n - 1) | (-2147483648 ≤ (n - 1)) ∧ ((n - 1) ≤ 2147483647)
 count_down(n) -> u3(n) | ¬(n > 0)
-u2(n) -> count_down(n)
 u3(n) -> ret_unit
