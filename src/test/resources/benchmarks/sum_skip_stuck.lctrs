@@ -4,22 +4,18 @@ err :: result
 u1 :: Int -> Int -> result
 u2 :: Int -> Int -> Int -> result
 u3 :: Int -> Int -> Int -> result
-u4 :: Int -> Int -> Int -> result
 u5 :: Int -> Int -> Int -> result
 u6 :: Int -> Int -> Int -> result
-u7 :: Int -> Int -> Int -> result
 u8 :: Int -> Int -> Int -> result
 
 sum_skip_stuck(n) -> u1(n, 0)
 u1(n, i) -> u2(n, i, 0)
 u2(n, i, acc) -> u3(n, i, acc) | i < n
-u3(n, i, acc) -> u4(n, i, acc) | i = 5
-u4(n, i, acc) -> u2(n, i, acc)
+u3(n, i, acc) -> u2(n, i, acc) | i = 5
 u3(n, i, acc) -> u5(n, i, acc) | ¬(i = 5)
 u5(n, i, acc) -> err | ¬((-32768 ≤ (i + 1)) ∧ ((i + 1) ≤ 32767))
 u5(n, i, acc) -> u6(n, i + 1, acc) | (-32768 ≤ (i + 1)) ∧ ((i + 1) ≤ 32767)
 u6(n, i, acc) -> err | ¬((-32768 ≤ (acc + i)) ∧ ((acc + i) ≤ 32767))
-u6(n, i, acc) -> u7(n, i, acc + i) | (-32768 ≤ (acc + i)) ∧ ((acc + i) ≤ 32767)
+u6(n, i, acc) -> u2(n, i, acc + i) | (-32768 ≤ (acc + i)) ∧ ((acc + i) ≤ 32767)
 u2(n, i, acc) -> u8(n, i, acc) | ¬(i < n)
-u7(n, i, acc) -> u2(n, i, acc)
 u8(n, i, acc) -> ret_Int(acc)

@@ -3,17 +3,13 @@ ret_Int :: Int -> result
 err :: result
 u1 :: Int -> Int -> result
 u2 :: Int -> Int -> result
-u3 :: Int -> Int -> result
 u4 :: Int -> Int -> result
-u5 :: Int -> Int -> result
 u6 :: Int -> Int -> result
 
 step(x) -> u1(x, 0)
 u1(x, y) -> u2(x, y) | x > 0
-u2(x, y) -> u3(x, 1)
+u2(x, y) -> u6(x, 1)
 u1(x, y) -> u4(x, y) | ¬(x > 0)
 u4(x, y) -> err | ¬((-128 ≤ (x - 1)) ∧ ((x - 1) ≤ 127))
-u4(x, y) -> u5(x, x - 1) | (-128 ≤ (x - 1)) ∧ ((x - 1) ≤ 127)
-u3(x, y) -> u6(x, y)
-u5(x, y) -> u6(x, y)
+u4(x, y) -> u6(x, x - 1) | (-128 ≤ (x - 1)) ∧ ((x - 1) ≤ 127)
 u6(x, y) -> ret_Int(y)
