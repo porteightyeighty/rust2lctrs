@@ -1,0 +1,14 @@
+wrap_count :: Int -> result
+ret_Int :: Int -> result
+err :: result
+u1 :: Int -> Int -> result
+u2 :: Int -> Int -> result
+u3 :: Int -> Int -> result
+u4 :: Int -> Int -> result
+
+wrap_count(x) -> u1(x, x)
+u1(x, y) -> u2(x, y) | y > 0
+u2(x, y) -> u3(x, (((y + 1) - -32768) % 65536) + -32768)
+u1(x, y) -> u4(x, y) | ¬(y > 0)
+u3(x, y) -> u1(x, y)
+u4(x, y) -> ret_Int(y)

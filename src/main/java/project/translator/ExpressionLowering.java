@@ -1,8 +1,10 @@
 package project.translator;
 
+import java.math.BigInteger;
 import java.util.List;
 import java.util.Optional;
 import project.ast.BinaryOp;
+import project.ast.BinaryOp.Op;
 import project.ast.BooleanLiteral;
 import project.ast.Expression;
 import project.ast.FunctionCall;
@@ -104,12 +106,28 @@ final class ExpressionLowering {
       case BinaryOp expr -> {
         Term left = lower(ctx, expr.left());
         Term right = lower(ctx, expr.right());
+        Op operator = expr.operator();
         Symbol theorySymbol = theorySymbolFor(expr.operator(), left.sort());
-        yield new FnApp(theorySymbol, List.of(left, right));
+        FnApp app = new FnApp(theorySymbol, List.of(left, right));
+        boolean needsWrap = operator == Op.ADD || operator == Op.SUB || operator == Op.MUL;
+        if (ctx.profile() == Profile.release && needsWrap) {
+          // rustc const-evals and rejects its overflow at compile time in both profiles, so
+          // unwrapped is already exact.
+          yield inferWidth(ctx, expression).map(w -> wrap(app, w)).orElse(app);
+        }
+        yield app;
       }
       case Variable expr -> ctx.resolve(expr.name()).varDecl();
       case UnaryNot expr -> new FnApp(TheorySymbol.NOT, List.of(lower(ctx, expr.operand())));
-      case UnaryMinus expr -> new FnApp(TheorySymbol.NEG, List.of(lower(ctx, expr.operand())));
+      case UnaryMinus expr -> {
+        FnApp app = new FnApp(TheorySymbol.NEG, List.of(lower(ctx, expr.operand())));
+        if (ctx.profile() == Profile.release) {
+          // Release -MIN wraps to MIN.
+          // rustc const-eval overflow check in both profiles, so unwrapped is already exact.
+          yield inferWidth(ctx, expression).map(w -> wrap(app, w)).orElse(app);
+        }
+        yield app;
+      }
       case FunctionCall expr ->
           throw new IllegalStateException("FunctionCall should have been hoisted before lowering");
     };
@@ -134,7 +152,12 @@ final class ExpressionLowering {
       // ¬ cannot fault; its operand still can (e.g. a nested division), so propagate that.
       case UnaryNot e -> safety(ctx, e.operand());
       // -x overflows on -MIN (debug panic), so guard the result width alongside the operand's own.
-      case UnaryMinus e -> conjoin(safety(ctx, e.operand()), withinWidth(ctx, e));
+      // In release the result wraps and cannot fault, so only the operand's own clause survives.
+      case UnaryMinus e -> {
+        Optional<Term> resultBound =
+            ctx.profile() == Profile.release ? Optional.empty() : withinWidth(ctx, e);
+        yield conjoin(safety(ctx, e.operand()), resultBound);
+      }
       case BinaryOp expr -> {
         // Each node carries its own bound (withinWidth below); recursing collects the operands' own
         // overflow clauses, so this node and its children are bounded in separate roles.
@@ -143,19 +166,22 @@ final class ExpressionLowering {
         Optional<Term> combined = conjoin(leftFree, rightFree);
         Optional<Term> clause =
             switch (expr.operator()) {
-              // Encodes Rust's *debug* semantics: overflowing +,-,* panics. In release these
-              // wrap (two's-complement), which is equally well-defined, so guarding the width
-              // here is a deliberate choice of the panicking model — unlike DIV/MOD below, whose
-              // checks fire in release too and so are unconditional Rust semantics.
-              case ADD, SUB, MUL -> withinWidth(ctx, expression);
+              // Overflowing +,-,* panics under debug (width guard here) but wraps under release,
+              // where it cannot fault — so no clause, no err rule. DIV/MOD below fire in both
+              // profiles and stay unconditional.
+              case ADD, SUB, MUL ->
+                  ctx.profile() == Profile.release
+                      ? Optional.empty()
+                      : withinWidth(ctx, expression);
               case DIV, MOD -> {
                 Term divisorNonZero =
                     new FnApp(
                         TheorySymbol.NEQ_INT, List.of(lower(ctx, expr.right()), IntValue.of(0)));
-                // Rust panics on MIN / -1 and MIN % -1: the true quotient MAX+1 is unrepresentable.
+                // Rust panics on MIN / -1 and MIN % -1: the actual quotient MAX+1 is
+                // unrepresentable.
                 // A result bound only catches DIV (MIN / -1 lands out of range); MIN % -1 evaluates
-                // to 0, which is in range, so it would slip through. Guard the precise overflow
-                // condition for both operators instead: unsafe iff left = MIN and right = -1.
+                // to 0, which is in range, so it would slip through. Guard the overflow
+                // condition for both operators instead: unsafe if left = MIN and right = -1.
                 yield conjoin(Optional.of(divisorNonZero), notMinOverNegOne(ctx, expr));
               }
               // Comparisons (GT..NE): bool-valued, so no overflow clause; operands are already
@@ -277,5 +303,17 @@ final class ExpressionLowering {
       case EQ -> operandSort == Sort.BOOL ? TheorySymbol.EQ_BOOL : TheorySymbol.EQ_INT;
       case NE -> operandSort == Sort.BOOL ? TheorySymbol.NEQ_BOOL : TheorySymbol.NEQ_INT;
     };
+  }
+
+  private static Term wrap(Term term, Type.Int width) {
+    IntValue min = new IntValue(width.min());
+    IntValue span = new IntValue(width.max().subtract(width.min()).add(BigInteger.ONE));
+    if (width.min().signum() == 0) {
+      return FnApp.modulo(term, span);
+    }
+    // ((t − MIN) % SPAN) + MIN
+    Term shifted = FnApp.subtract(term, min);
+    Term wrapped = FnApp.modulo(shifted, span);
+    return FnApp.add(wrapped, min);
   }
 }
