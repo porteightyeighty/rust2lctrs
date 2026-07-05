@@ -25,11 +25,10 @@ public final class AstBuilder {
   }
 
   /**
-   * Builds the root {@link Crate} from a crate parse-tree context. Only a single top-level function
-   * is supported.
+   * Builds the root {@link Crate} from a crate parse-tree context. All top-level items are visited.
    *
    * @param ctx the top-level crate context produced by the parser
-   * @return the corresponding {@link Crate} node; an empty crate if more than one item is present.
+   * @return the corresponding {@link Crate} node, containing every item that built successfully.
    *     Out-of-scope constructs are recorded as diagnostics rather than thrown, so callers must
    *     inspect the {@link DiagnosticRecorder} before treating the result as complete.
    */
