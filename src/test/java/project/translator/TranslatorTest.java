@@ -8,6 +8,7 @@ import static project.translator.AstHelper.I32;
 import static project.translator.AstHelper.add;
 import static project.translator.AstHelper.block;
 import static project.translator.AstHelper.boolLit;
+import static project.translator.AstHelper.brk;
 import static project.translator.AstHelper.call;
 import static project.translator.AstHelper.crate;
 import static project.translator.AstHelper.div;
@@ -233,15 +234,23 @@ class TranslatorTest {
   }
 
   @Test
-  void translatesUnitFunctionWithWhileLoop() {
-    Lctrs lctrs =
-        translateUnitFn(
-            "f", List.of(), block(whileStmt(boolLit(true), block(ret(Optional.empty())))));
+  void whileTrueWithNoBreakDiverges() {
+    Lctrs lctrs = translateUnitFn("f", List.of(), block(whileStmt(boolLit(true), block())));
 
-    FnApp entry = new FnApp(new TermSymbol("f", List.of(), Sort.RESULT), List.of());
     TermSymbol retUnitSym = new TermSymbol("ret_unit", List.of(), Sort.RESULT);
+    boolean foundUnitTail =
+        lctrs.rules().stream().anyMatch(r -> r.rhs().equals(new FnApp(retUnitSym, List.of())));
 
-    // There will be a merge point for the while loop, which falls through to the unit return tail
+    assertEquals(false, foundUnitTail);
+    boolean anyGuarded = lctrs.rules().stream().anyMatch(r -> r.constraint().isPresent());
+    assertEquals(false, anyGuarded);
+  }
+
+  @Test
+  void whileTrueWithBreakMerges() {
+    Lctrs lctrs = translateUnitFn("f", List.of(), block(whileStmt(boolLit(true), block(brk()))));
+
+    TermSymbol retUnitSym = new TermSymbol("ret_unit", List.of(), Sort.RESULT);
     boolean foundUnitTail =
         lctrs.rules().stream().anyMatch(r -> r.rhs().equals(new FnApp(retUnitSym, List.of())));
 
