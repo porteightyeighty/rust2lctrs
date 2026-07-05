@@ -14,6 +14,7 @@ import project.ast.Assignment;
 import project.ast.BinaryOp;
 import project.ast.BinaryOp.Op;
 import project.ast.Block;
+import project.ast.BooleanLiteral;
 import project.ast.Break;
 import project.ast.Continue;
 import project.ast.Crate;
@@ -275,7 +276,7 @@ public class Translator {
     return switch (statement) {
       case Let stmt -> Optional.of(processLetStatement(ctx, stmt, incoming));
       case If stmt -> processIfStatement(ctx, stmt, incoming);
-      case While stmt -> Optional.of(processWhileStatement(ctx, stmt, incoming));
+      case While stmt -> processWhileStatement(ctx, stmt, incoming);
       case Loop stmt -> processLoopStatement(ctx, stmt, incoming);
       case Break stmt -> {
         ctx.addBreakPoint(incoming);
@@ -375,12 +376,14 @@ public class Translator {
    * outgoing configuration back to the incoming configuration to close the loop. A merge program
    * point is reached when the condition fails, and is where control resumes after the loop.
    *
-   * @param ctx the per-function translation state
    * @param stmt the {@code while} statement to translate
    * @param incoming the configuration flowing into the loop
-   * @return the configuration at the merge point, over the scope live before the loop
+   * @return the configuration at the merge point over the scope live before the loop, or empty if
+   *     the loop diverges ({@code while true} with no {@code break})
    */
-  private Term processWhileStatement(Context ctx, While stmt, Term incoming) {
+  private Optional<Term> processWhileStatement(Context ctx, While stmt, Term incoming) {
+    // A `while true` condition is never false, so there is no false-branch guard and no hoisting.
+    boolean constTrue = stmt.condition() instanceof BooleanLiteral b && b.value();
     // The condition is re-evaluated on every iteration, so when it hoists a division the back-edge
     // and continue must return to the loop top (pre-condition), not to the post-condition point:
     // the next iteration has to re-run the hoist. incoming is that loop top; afterCond is where the
@@ -388,28 +391,48 @@ public class Translator {
     // With a division-free condition hoistAll is a no-op and afterCond == incoming, recovering the
     // plain encoding.
     Term loopTop = incoming;
-    LoweredCond guards = conditionGuards(ctx, stmt.condition(), loopTop);
-    Term afterCond = guards.outgoing();
-    Constraint phi = guards.whenTrue();
-    Constraint notPhi = guards.whenFalse();
+    Term afterCond;
+    Optional<Constraint> phi;
+    Optional<Constraint> notPhi;
+    if (constTrue) {
+      afterCond = loopTop;
+      phi = Optional.empty();
+      notPhi = Optional.empty();
+    } else {
+      LoweredCond guards = conditionGuards(ctx, stmt.condition(), loopTop);
+      afterCond = guards.outgoing();
+      phi = Optional.of(guards.whenTrue());
+      notPhi = Optional.of(guards.whenFalse());
+    }
     List<Term> preScope = ctx.argsFromScope();
     Symbol uWhile = ctx.advance();
     Term head = new FnApp(uWhile, preScope);
     ctx.enterLoop(loopTop);
-    ctx.addRule(new Rule(afterCond, head, Optional.of(phi)));
+    ctx.addRule(new Rule(afterCond, head, phi));
+
     Optional<Term> whileBlockOut = processBlock(ctx, stmt.block(), head);
     LoopContext loop = ctx.leaveLoop();
+
+    // A `while true` has no false branch, so its only exit is `break`; with no break sites the loop
+    // diverges and nothing flows out (cf. loop {}).
+    if (constTrue && loop.breakPoints().isEmpty()) {
+      if (whileBlockOut.isPresent()) {
+        ctx.addRule(new Rule(whileBlockOut.get(), loopTop, Optional.empty()));
+      }
+      return Optional.empty();
+    }
     Symbol uMerge = ctx.advance();
     Term merge = new FnApp(uMerge, preScope);
-    ctx.addRule(new Rule(afterCond, merge, Optional.of(notPhi)));
+    if (notPhi.isPresent()) {
+      ctx.addRule(new Rule(afterCond, merge, notPhi));
+    }
     if (whileBlockOut.isPresent()) {
       ctx.addRule(new Rule(whileBlockOut.get(), loopTop, Optional.empty()));
     }
-
     for (Term site : loop.breakPoints()) {
       ctx.addRule(new Rule(site, merge, Optional.empty()));
     }
-    return merge;
+    return Optional.of(merge);
   }
 
   /**

@@ -1,5 +1,5 @@
 endless_loop :: result
-ret_Int :: Int -> result
+ret_unit :: result
 err :: result
 
 endless_loop -> endless_loop
