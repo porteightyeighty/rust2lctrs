@@ -48,6 +48,13 @@ public class Rust2LctrsCommand implements Callable<Integer> {
               + "complement). Default: ${DEFAULT-VALUE}.")
   Profile profile;
 
+  @Option(
+      names = {"-r", "--raw"},
+      description =
+          "keep the forwarding rules the statement-by-statement translation leaves behind "
+              + "(skip the simplification pass)")
+  boolean raw;
+
   @Parameters(index = "0", description = "Rust source file to translate")
   Path inputPath;
 
@@ -79,7 +86,7 @@ public class Rust2LctrsCommand implements Callable<Integer> {
         recorded.forEach(d -> LOG.error("Out-of-scope Rust: {}", d));
         return 2;
       }
-      Lctrs lctrs = new Translator(crate, spanTable, profile).translate();
+      Lctrs lctrs = new Translator(crate, spanTable, profile).translate(!raw);
       LOG.info(
           "Translated {}: {} symbols, {} rules",
           inputPath,
