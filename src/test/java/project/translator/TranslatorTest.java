@@ -2,10 +2,12 @@ package project.translator;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static project.translator.AstHelper.BOOL;
 import static project.translator.AstHelper.I16;
 import static project.translator.AstHelper.I32;
 import static project.translator.AstHelper.add;
+import static project.translator.AstHelper.assign;
 import static project.translator.AstHelper.block;
 import static project.translator.AstHelper.boolLit;
 import static project.translator.AstHelper.brk;
@@ -16,6 +18,7 @@ import static project.translator.AstHelper.fn;
 import static project.translator.AstHelper.fnUnit;
 import static project.translator.AstHelper.intLit;
 import static project.translator.AstHelper.let;
+import static project.translator.AstHelper.lt;
 import static project.translator.AstHelper.mul;
 import static project.translator.AstHelper.neg;
 import static project.translator.AstHelper.not;
@@ -30,6 +33,7 @@ import java.math.BigInteger;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import project.ast.Crate;
 import project.ast.UnsupportedConstructException;
 import project.lctrs.Constraint;
 import project.lctrs.FnApp;
@@ -468,5 +472,29 @@ class TranslatorTest {
     Rule normalRule = new Rule(entry, u1, Optional.of(new Constraint(bound)));
     Rule retRule = new Rule(u1scope, retY, Optional.empty());
     assertEquals(List.of(errRule, normalRule, retRule), lctrs.rules());
+  }
+
+  /**
+   * {@code translate(false)} keeps the forwarding rule a while loop's body end leaves behind, so it
+   * yields more rules and symbols than the simplified form.
+   */
+  @Test
+  void translateWithoutSimplifyKeepsForwardingRules() {
+    Crate crateAst =
+        crate(
+            fn(
+                "f",
+                List.of(param("x", I32)),
+                I32,
+                block(
+                    let("y", I32, intLit(0)),
+                    whileStmt(lt(var("y"), var("x")), block(assign("y", add(var("y"), intLit(1))))),
+                    ret(var("y")))));
+
+    Lctrs simplified = new Translator(crateAst).translate();
+    Lctrs raw = new Translator(crateAst).translate(false);
+
+    assertTrue(raw.rules().size() > simplified.rules().size());
+    assertTrue(raw.sigma().size() > simplified.sigma().size());
   }
 }
