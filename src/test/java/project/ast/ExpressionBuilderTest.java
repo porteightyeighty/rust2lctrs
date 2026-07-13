@@ -183,6 +183,56 @@ public class ExpressionBuilderTest {
   }
 
   @Test
+  void buildsLazyAndOfComparisons() {
+    ExpressionContext ctx = TestHelper.parseExpr("x < 1 && y > 2");
+    BinaryOp actual = assertInstanceOf(BinaryOp.class, expressionBuilder.buildExpression(ctx));
+    assertEquals(BinaryOp.Op.AND, actual.operator());
+    assertEquals(BinaryOp.Op.LT, assertInstanceOf(BinaryOp.class, actual.left()).operator());
+    assertEquals(BinaryOp.Op.GT, assertInstanceOf(BinaryOp.class, actual.right()).operator());
+  }
+
+  @Test
+  void buildsLazyOrExpression() {
+    ExpressionContext ctx = TestHelper.parseExpr("a || b");
+    BinaryOp expected =
+        new BinaryOp(
+            BinaryOp.Op.OR, new Variable(new Identifier("a")), new Variable(new Identifier("b")));
+    BinaryOp actual = assertInstanceOf(BinaryOp.class, expressionBuilder.buildExpression(ctx));
+    assertEquals(expected, actual);
+  }
+
+  @Test
+  void allowsDivisionLeftOfLazyAnd() {
+    // The left operand is always evaluated in Rust, so a division there loses nothing.
+    ExpressionContext ctx = TestHelper.parseExpr("10 / x > 2 && y > 1");
+    BinaryOp actual = assertInstanceOf(BinaryOp.class, expressionBuilder.buildExpression(ctx));
+    assertEquals(BinaryOp.Op.AND, actual.operator());
+  }
+
+  // The right operand of `&&`/`||` is skipped when the left decides the result; the eager
+  // encoding always evaluates it, so anything there that can panic or diverge is rejected.
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "a && 10 / b > 2",
+        "a && 10 % b > 2",
+        "a || 10 / b > 2",
+        "a && (b || 10 / c > 1)", // division nested deep in the right subtree
+        "a && !(10 / b > 2)", // division under a unary operator
+      })
+  void rejectsDivisionRightOfLazyBoolean(String input) {
+    ExpressionContext ctx = TestHelper.parseExpr(input);
+    assertThrows(UnsupportedConstructException.class, () -> expressionBuilder.buildExpression(ctx));
+  }
+
+  @Test
+  void rejectsCallRightOfLazyBoolean() {
+    expressionBuilder.addFunctionIdentifier(new Identifier("f"));
+    ExpressionContext ctx = TestHelper.parseExpr("a && f(b)");
+    assertThrows(UnsupportedConstructException.class, () -> expressionBuilder.buildExpression(ctx));
+  }
+
+  @Test
   void buildsVariableExpression() {
     String testInput = "x";
     ExpressionContext expressionContext = TestHelper.parseExpr(testInput);

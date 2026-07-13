@@ -14,6 +14,7 @@ import project.parser.RustParser.ComparisonOperatorContext;
 import project.parser.RustParser.ExpressionContext;
 import project.parser.RustParser.GroupedExpressionContext;
 import project.parser.RustParser.IdentifierContext;
+import project.parser.RustParser.LazyBooleanExpressionContext;
 import project.parser.RustParser.LiteralExpressionContext;
 import project.parser.RustParser.LiteralExpression_Context;
 import project.parser.RustParser.NegationExpressionContext;
@@ -64,6 +65,7 @@ final class ExpressionBuilder {
       case LiteralExpression_Context c -> buildLiteral(c);
       case ArithmeticOrLogicalExpressionContext c -> buildArithmeticExpression(c);
       case ComparisonExpressionContext c -> buildComparisonExpression(c);
+      case LazyBooleanExpressionContext c -> buildLazyBooleanExpression(c);
       case PathExpression_Context c -> buildVarExpression(c);
       case NegationExpressionContext c -> buildNegation(c);
       case GroupedExpressionContext c -> buildGrouped(c);
@@ -167,6 +169,47 @@ final class ExpressionBuilder {
     Expression left = buildExpression(ctx.expression().get(0));
     Expression right = buildExpression(ctx.expression().get(1));
     return spans.track(new BinaryOp(op, left, right), ctx);
+  }
+
+  /**
+   * Builds a {@link BinaryOp} from a lazy-boolean-expression context ({@code &&} or {@code ||}).
+   *
+   * <p>The translator encodes these eagerly, as {@code ∧}/{@code ∨} inside the rule constraint, so
+   * Rust's short-circuit evaluation of the right operand is not preserved. That is only observable
+   * when the right operand can panic or diverge: a division, a remainder, or a function call. Those
+   * are rejected here so the translation never silently changes panic or termination behaviour. The
+   * left operand is always evaluated in Rust, so it may contain them freely.
+   *
+   * @param ctx the lazy-boolean-expression context
+   * @return the corresponding {@link BinaryOp} node
+   * @throws UnsupportedConstructException if the right operand contains a division, remainder, or
+   *     function call
+   */
+  BinaryOp buildLazyBooleanExpression(LazyBooleanExpressionContext ctx) {
+    BinaryOp.Op op = ctx.ANDAND() != null ? BinaryOp.Op.AND : BinaryOp.Op.OR;
+    Expression left = buildExpression(ctx.expression().get(0));
+    Expression right = buildExpression(ctx.expression().get(1));
+    if (containsDivisionOrCall(right)) {
+      throw new UnsupportedConstructException(
+          ctx,
+          "Division, remainder, and function calls to the right of `&&`/`||` are not supported:"
+              + " the eager encoding would lose Rust's short-circuit semantics");
+    }
+    return spans.track(new BinaryOp(op, left, right), ctx);
+  }
+
+  /** Whether the expression contains a {@code /}, {@code %}, or function call anywhere. */
+  private static boolean containsDivisionOrCall(Expression e) {
+    return switch (e) {
+      case FunctionCall c -> true;
+      case BinaryOp b ->
+          b.operator() == BinaryOp.Op.DIV
+              || b.operator() == BinaryOp.Op.MOD
+              || containsDivisionOrCall(b.left())
+              || containsDivisionOrCall(b.right());
+      case UnaryOp u -> containsDivisionOrCall(u.operand());
+      default -> false;
+    };
   }
 
   /**

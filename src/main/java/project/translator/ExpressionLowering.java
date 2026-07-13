@@ -163,6 +163,17 @@ final class ExpressionLowering {
         // overflow clauses, so this node and its children are bounded in separate roles.
         Optional<Term> leftFree = safety(ctx, expr.left());
         Optional<Term> rightFree = safety(ctx, expr.right());
+        // `&&`/`||` short-circuit: Rust only evaluates the right operand when the left doesn't
+        // decide the result, so its safety clause is vacuous on the short-circuit path. Divisions
+        // and calls on the right are rejected in AstBuilder; this covers what remains (debug-
+        // profile overflow), keeping the err rule unreachable exactly when Rust cannot panic.
+        if (expr.operator() == Op.AND) {
+          Term leftFalse = new FnApp(TheorySymbol.NOT, List.of(lower(ctx, expr.left())));
+          rightFree = rightFree.map(r -> new FnApp(TheorySymbol.OR, List.of(leftFalse, r)));
+        } else if (expr.operator() == Op.OR) {
+          Term leftTrue = lower(ctx, expr.left());
+          rightFree = rightFree.map(r -> new FnApp(TheorySymbol.OR, List.of(leftTrue, r)));
+        }
         Optional<Term> combined = conjoin(leftFree, rightFree);
         Optional<Term> clause =
             switch (expr.operator()) {
@@ -302,6 +313,8 @@ final class ExpressionLowering {
       case GE -> TheorySymbol.GE;
       case EQ -> operandSort == Sort.BOOL ? TheorySymbol.EQ_BOOL : TheorySymbol.EQ_INT;
       case NE -> operandSort == Sort.BOOL ? TheorySymbol.NEQ_BOOL : TheorySymbol.NEQ_INT;
+      case AND -> TheorySymbol.AND;
+      case OR -> TheorySymbol.OR;
     };
   }
 
