@@ -96,6 +96,18 @@ final class AstHelper {
     return bin(BinaryOp.Op.LT, l, r);
   }
 
+  static BinaryOp gt(Expression l, Expression r) {
+    return bin(BinaryOp.Op.GT, l, r);
+  }
+
+  static BinaryOp and(Expression l, Expression r) {
+    return bin(BinaryOp.Op.AND, l, r);
+  }
+
+  static BinaryOp or(Expression l, Expression r) {
+    return bin(BinaryOp.Op.OR, l, r);
+  }
+
   static UnaryNot not(Expression operand) {
     return new UnaryNot(operand);
   }

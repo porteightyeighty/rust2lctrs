@@ -3,9 +3,9 @@ package project.ast;
 import java.util.Objects;
 
 /**
- * A binary arithmetic expression ({@code left op right}).
+ * A binary expression ({@code left op right}): arithmetic, comparison, or lazy boolean.
  *
- * @param operator the arithmetic operator
+ * @param operator the operator
  * @param left the left-hand operand
  * @param right the right-hand operand
  */
@@ -16,7 +16,7 @@ public record BinaryOp(Op operator, Expression left, Expression right) implement
     Objects.requireNonNull(right);
   }
 
-  /** The set of arithmetic operators supported in the current fragment. */
+  /** The set of binary operators supported in the current fragment. */
   public enum Op {
     ADD,
     SUB,
@@ -28,6 +28,8 @@ public record BinaryOp(Op operator, Expression left, Expression right) implement
     LT,
     LE,
     EQ,
-    NE
+    NE,
+    AND,
+    OR
   }
 }

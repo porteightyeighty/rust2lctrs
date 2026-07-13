@@ -1,0 +1,15 @@
+and_or :: Int -> Int -> result
+ret_Int :: Int -> result
+err :: result
+u1 :: Int -> Int -> result
+u2 :: Int -> Int -> result
+u3 :: Int -> Int -> result
+u4 :: Int -> Int -> result
+
+and_or(x, y) -> u1(x, y) | (x < 0) ∨ (x > 9)
+u1(x, y) -> ret_Int(0)
+and_or(x, y) -> u2(x, y) | ¬((x < 0) ∨ (x > 9))
+u2(x, y) -> u3(x, y) | (x < 1) ∧ (y > 2)
+u3(x, y) -> ret_Int(1)
+u2(x, y) -> u4(x, y) | ¬((x < 1) ∧ (y > 2))
+u4(x, y) -> ret_Int(2)

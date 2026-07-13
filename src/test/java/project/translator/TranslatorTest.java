@@ -7,6 +7,7 @@ import static project.translator.AstHelper.BOOL;
 import static project.translator.AstHelper.I16;
 import static project.translator.AstHelper.I32;
 import static project.translator.AstHelper.add;
+import static project.translator.AstHelper.and;
 import static project.translator.AstHelper.assign;
 import static project.translator.AstHelper.block;
 import static project.translator.AstHelper.boolLit;
@@ -16,12 +17,15 @@ import static project.translator.AstHelper.crate;
 import static project.translator.AstHelper.div;
 import static project.translator.AstHelper.fn;
 import static project.translator.AstHelper.fnUnit;
+import static project.translator.AstHelper.gt;
+import static project.translator.AstHelper.ifStmt;
 import static project.translator.AstHelper.intLit;
 import static project.translator.AstHelper.let;
 import static project.translator.AstHelper.lt;
 import static project.translator.AstHelper.mul;
 import static project.translator.AstHelper.neg;
 import static project.translator.AstHelper.not;
+import static project.translator.AstHelper.or;
 import static project.translator.AstHelper.param;
 import static project.translator.AstHelper.ret;
 import static project.translator.AstHelper.translateFn;
@@ -206,6 +210,127 @@ class TranslatorTest {
     Rule retRule = new Rule(u2scope, retShadow, Optional.empty());
 
     assertEquals(List.of(firstLet, errRule, normalRule, retRule), lctrs.rules());
+  }
+
+  /**
+   * {@code fn f(x: i32, y: i32) -> i32 { if x < 1 && y > 2 { return 1; } 0 }}. A lazy boolean
+   * operator over panic-free operands lowers eagerly: one conjunction inside the branch guards, no
+   * extra program points, no err rule.
+   */
+  @Test
+  void lazyAndLowersToConjunctionInBranchGuards() {
+    Lctrs lctrs =
+        translateFn(
+            "f",
+            List.of(param("x", I32), param("y", I32)),
+            I32,
+            block(
+                ifStmt(
+                    and(lt(var("x"), intLit(1)), gt(var("y"), intLit(2))), block(ret(intLit(1)))),
+                ret(intLit(0))));
+
+    VarDecl x = new VarDecl("x", Sort.INT);
+    VarDecl y = new VarDecl("y", Sort.INT);
+    FnApp entry =
+        new FnApp(new TermSymbol("f", List.of(Sort.INT, Sort.INT), Sort.RESULT), List.of(x, y));
+    FnApp cond =
+        new FnApp(
+            TheorySymbol.AND,
+            List.of(
+                new FnApp(TheorySymbol.LT, List.of(x, IntValue.of(1))),
+                new FnApp(TheorySymbol.GT, List.of(y, IntValue.of(2)))));
+    TermSymbol u1 = new TermSymbol("u1", List.of(Sort.INT, Sort.INT), Sort.RESULT);
+    TermSymbol u2 = new TermSymbol("u2", List.of(Sort.INT, Sort.INT), Sort.RESULT);
+    TermSymbol retInt = new TermSymbol("ret_Int", List.of(Sort.INT), Sort.RESULT);
+
+    Rule thenRule =
+        new Rule(entry, new FnApp(u1, List.of(x, y)), Optional.of(new Constraint(cond)));
+    Rule thenRet =
+        new Rule(
+            new FnApp(u1, List.of(x, y)),
+            new FnApp(retInt, List.of(IntValue.of(1))),
+            Optional.empty());
+    Rule mergeRule =
+        new Rule(
+            entry,
+            new FnApp(u2, List.of(x, y)),
+            Optional.of(new Constraint(new FnApp(TheorySymbol.NOT, List.of(cond)))));
+    Rule tailRet =
+        new Rule(
+            new FnApp(u2, List.of(x, y)),
+            new FnApp(retInt, List.of(IntValue.of(0))),
+            Optional.empty());
+    assertEquals(List.of(thenRule, thenRet, mergeRule, tailRet), lctrs.rules());
+  }
+
+  /**
+   * {@code fn f(x: i32, y: i32) -> i32 { if x < 1 && y + 1 > 2 { return 1; } 0 }} under the debug
+   * profile. Rust only evaluates {@code y + 1} when {@code x < 1} holds, so the overflow clause of
+   * the right operand is guarded by the left's value: safety is {@code ¬(x < 1) ∨ bound(y + 1)},
+   * and the err rule is unreachable whenever the left conjunct is false.
+   */
+  @Test
+  void lazyAndGuardsRightOperandOverflowByLeftValue() {
+    Lctrs lctrs =
+        translateFn(
+            "f",
+            List.of(param("x", I32), param("y", I32)),
+            I32,
+            block(
+                ifStmt(
+                    and(lt(var("x"), intLit(1)), gt(add(var("y"), intLit(1)), intLit(2))),
+                    block(ret(intLit(1)))),
+                ret(intLit(0))));
+
+    VarDecl x = new VarDecl("x", Sort.INT);
+    VarDecl y = new VarDecl("y", Sort.INT);
+    FnApp entry =
+        new FnApp(new TermSymbol("f", List.of(Sort.INT, Sort.INT), Sort.RESULT), List.of(x, y));
+    FnApp yPlusOne = new FnApp(TheorySymbol.ADD, List.of(y, IntValue.of(1)));
+    FnApp leftFalse =
+        new FnApp(
+            TheorySymbol.NOT, List.of(new FnApp(TheorySymbol.LT, List.of(x, IntValue.of(1)))));
+    FnApp safety = new FnApp(TheorySymbol.OR, List.of(leftFalse, i32Bound(yPlusOne)));
+
+    Rule errRule = lctrs.rules().get(0);
+    assertEquals(entry, errRule.lhs());
+    assertEquals(err(), errRule.rhs());
+    assertEquals(
+        Optional.of(new Constraint(new FnApp(TheorySymbol.NOT, List.of(safety)))),
+        errRule.constraint());
+  }
+
+  /**
+   * As {@link #lazyAndGuardsRightOperandOverflowByLeftValue()} but for {@code ||}: the right
+   * operand only evaluates when the left is false, so safety is {@code (x < 1) ∨ bound(y + 1)}.
+   */
+  @Test
+  void lazyOrGuardsRightOperandOverflowByLeftValue() {
+    Lctrs lctrs =
+        translateFn(
+            "f",
+            List.of(param("x", I32), param("y", I32)),
+            I32,
+            block(
+                ifStmt(
+                    or(lt(var("x"), intLit(1)), gt(add(var("y"), intLit(1)), intLit(2))),
+                    block(ret(intLit(1)))),
+                ret(intLit(0))));
+
+    VarDecl x = new VarDecl("x", Sort.INT);
+    VarDecl y = new VarDecl("y", Sort.INT);
+    FnApp entry =
+        new FnApp(new TermSymbol("f", List.of(Sort.INT, Sort.INT), Sort.RESULT), List.of(x, y));
+    FnApp yPlusOne = new FnApp(TheorySymbol.ADD, List.of(y, IntValue.of(1)));
+    FnApp leftTrue = new FnApp(TheorySymbol.LT, List.of(x, IntValue.of(1)));
+    FnApp safety = new FnApp(TheorySymbol.OR, List.of(leftTrue, i32Bound(yPlusOne)));
+
+    Rule errRule = lctrs.rules().get(0);
+    assertEquals(entry, errRule.lhs());
+    assertEquals(err(), errRule.rhs());
+    assertEquals(
+        Optional.of(new Constraint(new FnApp(TheorySymbol.NOT, List.of(safety)))),
+        errRule.constraint());
   }
 
   /**
