@@ -51,7 +51,7 @@ public class Lctrs {
   }
 
   /**
-   * Marks symbols as function entry symbols. so that simplification never removes them.
+   * Marks symbols as function entry symbols, so that simplification never removes them.
    *
    * @param symbols the entry symbols to record
    * @return this LCTRS
