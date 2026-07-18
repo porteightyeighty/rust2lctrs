@@ -16,11 +16,11 @@ import org.slf4j.LoggerFactory;
  * Post-translation simplification. Two passes:
  *
  * <ul>
- *   <li>{@link #foldConstantConstraints}: constant-folds rule constraints, dropping constraints
- *       that fold to {@code true} and rules whose constraint folds to {@code false}. The uniform
- *       panic guards instantiate to constant atoms when an operand is a literal (e.g. {@code 2 ≠ 0}
- *       and {@code 2 = -1} for a division by the literal 2), leaving vacuous {@code err} rules
- *       behind.
+ *   <li>{@link #foldConstantConstraints}: constant-folds rule constraints, dropping ground
+ *       constraints that fold to {@code true} and rules whose constraint folds to {@code false}.
+ *       The uniform panic guards instantiate to constant atoms when an operand is a literal (e.g.
+ *       {@code 2 ≠ 0} and {@code 2 = -1} for a division by the literal 2), leaving vacuous {@code
+ *       err} rules behind.
  *   <li>{@link #removeForwardingRules}: removes forwarding rules {@code f(x₁, …, xₙ) -> g(x₁, …,
  *       xₙ)} and redirects every occurrence of {@code f} to {@code g}. The statement-by-statement
  *       translation leaves such rules behind (cf. Fuhs, Kop &amp; Nishida (2017)). A rule is a
@@ -36,7 +36,7 @@ public final class Simplifier {
   private Simplifier() {}
 
   /**
-   * Runs both {@link foldConstantConstraints()} and {@link #removeForwardingRules())} on the given
+   * Runs both {@link #foldConstantConstraints} and {@link #removeForwardingRules} on the given
    * LCTRS. Constant constraints are folded first, then forwarding rules are removed.
    *
    * @param lctrs the LCTRS to simplify
@@ -47,9 +47,11 @@ public final class Simplifier {
   }
 
   /**
-   * Constant-folds every rule's constraint. A constraint that folds to {@code true} is dropped (the
-   * rule becomes unconstrained); a rule whose constraint folds to {@code false} can never fire and
-   * is removed. Left- and right-hand sides are never touched.
+   * Constant-folds every rule's constraint. A ground constraint that folds to {@code true} is
+   * dropped (the rule becomes unconstrained); a rule whose constraint is logically unsatisfiable
+   * can never fire and is removed whole. A surviving constraint never loses a variable (see {@link
+   * #fold}), since every variable of the constraint is in LVar. Left- and right-hand sides are
+   * never touched.
    *
    * @param lctrs the LCTRS to simplify
    * @return a new, simplified LCTRS, or {@code lctrs} itself when nothing folds
@@ -63,19 +65,21 @@ public final class Simplifier {
         kept.add(r);
         continue;
       }
-      // Checked before the identity shortcut: a constraint that already *is* a boolean value
-      // folds to itself, but must still be dropped (true) or drop its rule (false).
+      // Before the identity shortcut: a bare boolean-value constraint folds to itself.
       Term folded = fold(formula);
       if (folded instanceof BoolValue(boolean satisfiable)) {
-        changed = true;
-        if (satisfiable) {
+        if (!satisfiable) {
+          changed = true;
+          LOG.debug("Dropping rule with unsatisfiable constraint: {} -> {}", r.lhs(), r.rhs());
+        } else if (variables(formula).isEmpty()) {
+          changed = true;
           kept.add(new Rule(r.lhs(), r.rhs(), Optional.empty()));
         } else {
-          LOG.debug("Dropping rule with unsatisfiable constraint: {} -> {}", r.lhs(), r.rhs());
+          kept.add(r);
         }
         continue;
       }
-      if (folded == formula) {
+      if (folded == formula || !variables(folded).equals(variables(formula))) {
         kept.add(r);
         continue;
       }
@@ -95,6 +99,12 @@ public final class Simplifier {
    * Folds the constant subterms of a formula: comparisons of two integer values, (in)equality of
    * two boolean values, and the boolean connectives over a constant operand. Returns {@code t}
    * itself when nothing folds.
+   *
+   * <p>Folding preserves logical equivalence but may discard variable-containing subterms ({@code P
+   * ∨ true} folds to {@code true}), so the caller must check that the result mentions the same
+   * variables before keeping it: every variable of a constraint is in LVar and must be instantiated
+   * by a theory value for the rule to fire, so erasing one from a surviving constraint would
+   * enlarge the rewrite relation (Kop &amp; Nishida (2013), Def. 2.6).
    *
    * @param t the term to fold
    * @return the folded term, or {@code t} unchanged
@@ -156,6 +166,24 @@ public final class Simplifier {
         yield Optional.empty();
       }
       default -> Optional.empty();
+    };
+  }
+
+  /**
+   * Collects the variables occurring in a term.
+   *
+   * @param t the term to walk
+   * @return the set of variables occurring in {@code t}
+   */
+  private static Set<VarDecl> variables(Term t) {
+    return switch (t) {
+      case VarDecl v -> Set.of(v);
+      case Value v -> Set.of();
+      case FnApp(Symbol s, List<Term> args) -> {
+        Set<VarDecl> vars = new HashSet<>();
+        args.forEach(a -> vars.addAll(variables(a)));
+        yield vars;
+      }
     };
   }
 
