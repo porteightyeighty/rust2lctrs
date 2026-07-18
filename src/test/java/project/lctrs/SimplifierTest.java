@@ -99,6 +99,31 @@ class SimplifierTest {
     assertEquals(List.of(rule(app(U1, X), app(RET, X))), simplified.rules());
   }
 
+  /**
+   * A constraint that is already the bare value {@code true} (e.g. from {@code if true} with no
+   * safety clauses) is dropped even though folding it is an identity.
+   */
+  @Test
+  void dropsBareTrueConstraint() {
+    Rule r = new Rule(app(U1, X), app(RET, X), Optional.of(constraint(new BoolValue(true))));
+
+    Lctrs simplified = Simplifier.foldConstantConstraints(lctrs(List.of(F, U1, RET), r));
+
+    assertEquals(List.of(rule(app(U1, X), app(RET, X))), simplified.rules());
+  }
+
+  /** A rule whose constraint is already the bare value {@code false} can never fire. */
+  @Test
+  void dropsRuleWithBareFalseConstraint() {
+    Rule dead = new Rule(app(U1, X), app(RET, X), Optional.of(constraint(new BoolValue(false))));
+    Rule live = rule(app(U2, X), app(RET, X));
+
+    Lctrs simplified =
+        Simplifier.foldConstantConstraints(lctrs(List.of(F, U1, U2, RET), dead, live));
+
+    assertEquals(List.of(live), simplified.rules());
+  }
+
   /** A constraint with no constant atoms is untouched, and the LCTRS is returned as-is. */
   @Test
   void leavesVariableOnlyConstraintsAlone() {
