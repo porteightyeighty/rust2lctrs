@@ -208,7 +208,7 @@ final class ExpressionBuilder {
               || containsDivisionOrCall(b.left())
               || containsDivisionOrCall(b.right());
       case UnaryOp u -> containsDivisionOrCall(u.operand());
-      default -> false;
+      case Literal _, Variable _ -> false;
     };
   }
 
