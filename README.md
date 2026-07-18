@@ -38,17 +38,24 @@ assumed to be valid, `rustc`-compilable Rust.
 
 ## Install
 
-Requires **JDK 25**. Build a self-contained jar with the bundled Maven
-wrapper:
+Requires **JDK 25**. Download the self-contained jar from the
+[latest release](https://github.com/porteightyeighty/rust2lctrs/releases/latest)
+and run it:
 
 ```sh
-./mvnw package        # produces target/rust2lctrs-1.0-SNAPSHOT.jar
+java -jar rust2lctrs-0.2.0.jar sum.rs -o sum.lctrs
 ```
 
-Run it directly, or drop a shell alias so `rust2lctrs` works from anywhere:
+Or build from source with the bundled Maven wrapper:
 
 ```sh
-alias rust2lctrs='java -jar /path/to/target/rust2lctrs-1.0-SNAPSHOT.jar'
+./mvnw package        # produces target/rust2lctrs-0.2.0.jar
+```
+
+To invoke `rust2lctrs` from any directory, define a shell alias:
+
+```sh
+alias rust2lctrs='java -jar /path/to/rust2lctrs-0.2.0.jar'
 ```
 
 ## Usage
