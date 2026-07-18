@@ -84,14 +84,51 @@ class SimplifierTest {
         simplified.rules());
   }
 
-  /** A constraint that folds to {@code true} is dropped, leaving the rule unconstrained. */
+  /**
+   * A tautological constraint still mentioning a variable is kept untouched: its variables are in
+   * LVar, so dropping it would enlarge the rewrite relation.
+   */
   @Test
-  void dropsConstraintFoldingToTrue() {
+  void keepsTautologyMentioningVariable() {
     Term formula =
         app(
             TheorySymbol.OR,
             app(TheorySymbol.GT, IntValue.of(2), IntValue.of(0)),
             app(TheorySymbol.LT, X, IntValue.of(0)));
+    Rule r = new Rule(app(U1, X), app(RET, X), Optional.of(constraint(formula)));
+    Lctrs in = lctrs(List.of(F, U1, RET), r);
+
+    assertEquals(in.rules(), Simplifier.foldConstantConstraints(in).rules());
+  }
+
+  /**
+   * A fold whose result mentions fewer variables than the original constraint is discarded: {@code
+   * ((x < 1) ∨ true) ∧ (y > 0)} would fold to {@code y > 0}, erasing {@code x} from LVar, so the
+   * constraint stays untouched.
+   */
+  @Test
+  void keepsConstraintWhenFoldWouldEraseVariable() {
+    VarDecl y = new VarDecl("y", Sort.INT);
+    TermSymbol u3 = new TermSymbol("u3", List.of(Sort.INT, Sort.INT), Sort.RESULT);
+    Term formula =
+        app(
+            TheorySymbol.AND,
+            app(TheorySymbol.OR, app(TheorySymbol.LT, X, IntValue.of(1)), new BoolValue(true)),
+            app(TheorySymbol.GT, y, IntValue.of(0)));
+    Rule r = new Rule(app(u3, X, y), app(RET, X), Optional.of(constraint(formula)));
+    Lctrs in = lctrs(List.of(F, u3, RET), r);
+
+    assertEquals(in.rules(), Simplifier.foldConstantConstraints(in).rules());
+  }
+
+  /** A ground constraint that folds to {@code true} is dropped, leaving the rule unconstrained. */
+  @Test
+  void dropsGroundConstraintFoldingToTrue() {
+    Term formula =
+        app(
+            TheorySymbol.OR,
+            app(TheorySymbol.GT, IntValue.of(2), IntValue.of(0)),
+            app(TheorySymbol.LT, IntValue.of(1), IntValue.of(0)));
     Rule r = new Rule(app(U1, X), app(RET, X), Optional.of(constraint(formula)));
 
     Lctrs simplified = Simplifier.foldConstantConstraints(lctrs(List.of(F, U1, RET), r));
