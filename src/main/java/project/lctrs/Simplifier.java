@@ -63,21 +63,24 @@ public final class Simplifier {
         kept.add(r);
         continue;
       }
+      // Checked before the identity shortcut: a constraint that already *is* a boolean value
+      // folds to itself, but must still be dropped (true) or drop its rule (false).
       Term folded = fold(formula);
-      if (folded == formula) {
-        kept.add(r);
-        continue;
-      }
-      changed = true;
       if (folded instanceof BoolValue(boolean satisfiable)) {
+        changed = true;
         if (satisfiable) {
           kept.add(new Rule(r.lhs(), r.rhs(), Optional.empty()));
         } else {
           LOG.debug("Dropping rule with unsatisfiable constraint: {} -> {}", r.lhs(), r.rhs());
         }
-      } else {
-        kept.add(new Rule(r.lhs(), r.rhs(), Optional.of(new Constraint(folded))));
+        continue;
       }
+      if (folded == formula) {
+        kept.add(r);
+        continue;
+      }
+      changed = true;
+      kept.add(new Rule(r.lhs(), r.rhs(), Optional.of(new Constraint(folded))));
     }
     if (!changed) {
       return lctrs;
