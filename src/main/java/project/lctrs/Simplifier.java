@@ -43,7 +43,8 @@ public final class Simplifier {
    * @return a new, simplified LCTRS, or itself when nothing changes
    */
   public static Lctrs simplify(Lctrs lctrs) {
-    return removeForwardingRules(foldConstantConstraints(lctrs), lctrs.entries());
+    Lctrs folded = foldConstantConstraints(lctrs);
+    return removeForwardingRules(folded, folded.entries());
   }
 
   /**
