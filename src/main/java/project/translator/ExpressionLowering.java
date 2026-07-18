@@ -167,12 +167,12 @@ final class ExpressionLowering {
         // decide the result, so its safety clause is vacuous on the short-circuit path. Divisions
         // and calls on the right are rejected in AstBuilder; this covers what remains (debug-
         // profile overflow), keeping the err rule unreachable exactly when Rust cannot panic.
-        if (expr.operator() == Op.AND) {
-          Term leftFalse = new FnApp(TheorySymbol.NOT, List.of(lower(ctx, expr.left())));
-          rightFree = rightFree.map(r -> new FnApp(TheorySymbol.OR, List.of(leftFalse, r)));
-        } else if (expr.operator() == Op.OR) {
-          Term leftTrue = lower(ctx, expr.left());
-          rightFree = rightFree.map(r -> new FnApp(TheorySymbol.OR, List.of(leftTrue, r)));
+        if (rightFree.isPresent() && (expr.operator() == Op.AND || expr.operator() == Op.OR)) {
+          Term left = lower(ctx, expr.left());
+          Term leftDecides =
+              expr.operator() == Op.AND ? new FnApp(TheorySymbol.NOT, List.of(left)) : left;
+          rightFree =
+              Optional.of(new FnApp(TheorySymbol.OR, List.of(leftDecides, rightFree.get())));
         }
         Optional<Term> combined = conjoin(leftFree, rightFree);
         Optional<Term> clause =
