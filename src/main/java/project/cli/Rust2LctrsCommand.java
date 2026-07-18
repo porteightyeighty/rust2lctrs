@@ -18,6 +18,7 @@ import project.ast.SpanTable;
 import project.ast.UnsupportedConstructException;
 import project.lctrs.Lctrs;
 import project.lctrs.Serialiser;
+import project.lctrs.Simplifier;
 import project.parser.RustParsing;
 import project.parser.SyntaxErrorException;
 import project.translator.Profile;
@@ -86,7 +87,10 @@ public class Rust2LctrsCommand implements Callable<Integer> {
         recorded.forEach(d -> LOG.error("Out-of-scope Rust: {}", d));
         return 2;
       }
-      Lctrs lctrs = new Translator(crate, spanTable, profile).translate(!raw);
+      Lctrs lctrs = new Translator(crate, spanTable, profile).translate();
+      if (!raw) {
+        lctrs = Simplifier.simplify(lctrs);
+      }
       LOG.info(
           "Translated {}: {} symbols, {} rules",
           inputPath,

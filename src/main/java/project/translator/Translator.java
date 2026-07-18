@@ -5,7 +5,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
@@ -42,7 +41,6 @@ import project.lctrs.Lctrs;
 import project.lctrs.Rule;
 import project.lctrs.ScopedVar;
 import project.lctrs.Serialiser;
-import project.lctrs.Simplifier;
 import project.lctrs.Sort;
 import project.lctrs.Symbol;
 import project.lctrs.Term;
@@ -105,36 +103,19 @@ public class Translator {
   }
 
   /**
-   * Translates the whole crate into an LCTRS by lowering each top-level item in turn, then
-   * simplifying the result.
+   * Translates the whole crate into an LCTRS by lowering each top-level item in turn. The result is
+   * the raw statement-by-statement encoding.
    *
    * @return the resulting LCTRS
    */
   public Lctrs translate() {
-    return translate(true);
-  }
-
-  /**
-   * Translates the whole crate into an LCTRS by lowering each top-level item in turn.
-   *
-   * @param simplify whether to run the post-translation simplification pass that removes the
-   *     forwarding rules the statement-by-statement translation leaves behind
-   * @return the resulting LCTRS
-   */
-  public Lctrs translate(boolean simplify) {
     Lctrs lctrs = new Lctrs();
     CrateScope scope = new CrateScope(new AtomicInteger(), buildRegistry(), this.profile);
     for (Item item : crate.items()) {
       processItem(lctrs, item, scope);
     }
-    if (!simplify) {
-      return lctrs;
-    }
-    // Entry symbols head a call's redex and name the function to Cora, so they are never chained
-    // away even when a body is a pure forward.
-    Set<Symbol> entries =
-        scope.registry().values().stream().map(Signature::entry).collect(Collectors.toSet());
-    return Simplifier.removeForwardingRules(lctrs, entries);
+    return lctrs.appendEntrySymbols(
+        scope.registry().values().stream().map(Signature::entry).collect(Collectors.toSet()));
   }
 
   /**

@@ -44,6 +44,7 @@ import project.lctrs.FnApp;
 import project.lctrs.IntValue;
 import project.lctrs.Lctrs;
 import project.lctrs.Rule;
+import project.lctrs.Simplifier;
 import project.lctrs.Sort;
 import project.lctrs.Term;
 import project.lctrs.TermSymbol;
@@ -600,11 +601,12 @@ class TranslatorTest {
   }
 
   /**
-   * {@code translate(false)} keeps the forwarding rule a while loop's body end leaves behind, so it
-   * yields more rules and symbols than the simplified form.
+   * {@code translate()} keeps the forwarding rule a while loop's body end leaves behind, so the raw
+   * LCTRS has more rules and symbols than its {@link Simplifier#simplify simplified} form, and the
+   * entry symbol survives simplification.
    */
   @Test
-  void translateWithoutSimplifyKeepsForwardingRules() {
+  void translateIsRawUntilSimplified() {
     Crate crateAst =
         crate(
             fn(
@@ -616,10 +618,11 @@ class TranslatorTest {
                     whileStmt(lt(var("y"), var("x")), block(assign("y", add(var("y"), intLit(1))))),
                     ret(var("y")))));
 
-    Lctrs simplified = new Translator(crateAst).translate();
-    Lctrs raw = new Translator(crateAst).translate(false);
+    Lctrs raw = new Translator(crateAst).translate();
+    Lctrs simplified = Simplifier.simplify(raw);
 
     assertTrue(raw.rules().size() > simplified.rules().size());
     assertTrue(raw.sigma().size() > simplified.sigma().size());
+    assertTrue(simplified.sigma().containsAll(raw.entries()));
   }
 }

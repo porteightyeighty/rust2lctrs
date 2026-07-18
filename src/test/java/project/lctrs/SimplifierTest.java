@@ -29,6 +29,90 @@ class SimplifierTest {
     return new Lctrs().appendSymbols(sigma).appendRules(List.of(rules));
   }
 
+  private static Constraint constraint(Term formula) {
+    return new Constraint(formula);
+  }
+
+  /**
+   * The shape a division by the literal 2 leaves on its {@code err} rule: {@code ¬((2 ≠ 0) ∧ ¬((y =
+   * MIN) ∧ (2 = -1)))} folds to {@code false}, so the rule can never fire and is dropped.
+   */
+  @Test
+  void dropsRuleWithUnsatisfiableConstraint() {
+    Term guard =
+        app(
+            TheorySymbol.AND,
+            app(TheorySymbol.NEQ_INT, IntValue.of(2), IntValue.of(0)),
+            app(
+                TheorySymbol.NOT,
+                app(
+                    TheorySymbol.AND,
+                    app(TheorySymbol.EQ_INT, X, IntValue.of(-2147483648L)),
+                    app(TheorySymbol.EQ_INT, IntValue.of(2), IntValue.of(-1)))));
+    Rule err =
+        new Rule(app(U1, X), app(RET, X), Optional.of(constraint(app(TheorySymbol.NOT, guard))));
+    Rule live = rule(app(U2, X), app(RET, X));
+
+    Lctrs simplified =
+        Simplifier.foldConstantConstraints(lctrs(List.of(F, U1, U2, RET), err, live));
+
+    assertEquals(List.of(live), simplified.rules());
+    assertEquals(List.of(F, U1, U2, RET), simplified.sigma());
+  }
+
+  /**
+   * A partially constant conjunction keeps its variable part: {@code ((2 ≠ 0) ∧ ¬(false)) ∧ (x ≥
+   * 0)} folds to {@code x ≥ 0}.
+   */
+  @Test
+  void foldsConstantConjunctsKeepingVariablePart() {
+    Term agree = app(TheorySymbol.GE, X, IntValue.of(0));
+    Term formula =
+        app(
+            TheorySymbol.AND,
+            app(
+                TheorySymbol.AND,
+                app(TheorySymbol.NEQ_INT, IntValue.of(2), IntValue.of(0)),
+                app(TheorySymbol.NOT, new BoolValue(false))),
+            agree);
+    Rule r = new Rule(app(U1, X), app(RET, X), Optional.of(constraint(formula)));
+
+    Lctrs simplified = Simplifier.foldConstantConstraints(lctrs(List.of(F, U1, RET), r));
+
+    assertEquals(
+        List.of(new Rule(app(U1, X), app(RET, X), Optional.of(constraint(agree)))),
+        simplified.rules());
+  }
+
+  /** A constraint that folds to {@code true} is dropped, leaving the rule unconstrained. */
+  @Test
+  void dropsConstraintFoldingToTrue() {
+    Term formula =
+        app(
+            TheorySymbol.OR,
+            app(TheorySymbol.GT, IntValue.of(2), IntValue.of(0)),
+            app(TheorySymbol.LT, X, IntValue.of(0)));
+    Rule r = new Rule(app(U1, X), app(RET, X), Optional.of(constraint(formula)));
+
+    Lctrs simplified = Simplifier.foldConstantConstraints(lctrs(List.of(F, U1, RET), r));
+
+    assertEquals(List.of(rule(app(U1, X), app(RET, X))), simplified.rules());
+  }
+
+  /** A constraint with no constant atoms is untouched, and the LCTRS is returned as-is. */
+  @Test
+  void leavesVariableOnlyConstraintsAlone() {
+    Term formula =
+        app(
+            TheorySymbol.AND,
+            app(TheorySymbol.LT, X, IntValue.of(0)),
+            app(TheorySymbol.NEQ_INT, app(TheorySymbol.MOD, X, IntValue.of(2)), IntValue.of(0)));
+    Rule r = new Rule(app(U1, X), app(RET, X), Optional.of(constraint(formula)));
+    Lctrs in = lctrs(List.of(F, U1, RET), r);
+
+    assertEquals(in.rules(), Simplifier.foldConstantConstraints(in).rules());
+  }
+
   /**
    * A forwarding chain {@code f -> u1 -> u2 -> ret} collapses transitively: the entry rule is
    * redirected straight to {@code ret_Int}, the forwarding rules disappear, and so do their head

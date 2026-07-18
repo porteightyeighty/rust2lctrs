@@ -5,6 +5,7 @@ import project.ast.Crate;
 import project.ast.DiagnosticRecorder;
 import project.ast.SpanTable;
 import project.lctrs.Serialiser;
+import project.lctrs.Simplifier;
 import project.parser.RustParsing;
 import project.translator.Profile;
 import project.translator.Translator;
@@ -46,6 +47,7 @@ public final class Translate {
           "Source is out of scope; expected valid, in-scope Rust but got diagnostics: "
               + diagnostics.diagnostics());
     }
-    return Serialiser.serialise(new Translator(crate, spanTable, profile).translate());
+    return Serialiser.serialise(
+        Simplifier.simplify(new Translator(crate, spanTable, profile).translate()));
   }
 }
