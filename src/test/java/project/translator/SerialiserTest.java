@@ -30,6 +30,7 @@ import project.lctrs.IntValue;
 import project.lctrs.Lctrs;
 import project.lctrs.Rule;
 import project.lctrs.Serialiser;
+import project.lctrs.Simplifier;
 import project.lctrs.Sort;
 import project.lctrs.TermSymbol;
 import project.lctrs.TheorySymbol;
@@ -220,11 +221,12 @@ final class SerialiserTest {
   void crossFunctionCallHeadsRedexWithCalleeEntry() {
     // fn f(n: i32) -> i32 { return g(n); } fn g(n: i32) -> i32 { return n; }
     Lctrs lctrs =
-        new Translator(
-                crate(
-                    fn("f", List.of(param("n", I32)), I32, block(ret(call("g", var("n"))))),
-                    fn("g", List.of(param("n", I32)), I32, block(ret(var("n"))))))
-            .translate();
+        Simplifier.simplify(
+            new Translator(
+                    crate(
+                        fn("f", List.of(param("n", I32)), I32, block(ret(call("g", var("n"))))),
+                        fn("g", List.of(param("n", I32)), I32, block(ret(var("n"))))))
+                .translate());
 
     assertEquals("f(n) -> u1(n, g(n))", Serialiser.serialise(lctrs.rules().get(0)));
     assertEquals(

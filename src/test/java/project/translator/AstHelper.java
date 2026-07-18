@@ -29,6 +29,7 @@ import project.ast.UnaryNot;
 import project.ast.Variable;
 import project.ast.While;
 import project.lctrs.Lctrs;
+import project.lctrs.Simplifier;
 
 /**
  * Test-only DSL for hand-building {@link project.ast} fragments without going through the ANTLR
@@ -190,8 +191,8 @@ final class AstHelper {
   // --- one-call convenience for the common case ----------------------------
 
   /**
-   * Builds a single-function crate and translates it, returning the resulting LCTRS so the test can
-   * assert over {@link Lctrs#rules()}.
+   * Builds a single-function crate, translates it, and simplifies the result, returning the LCTRS
+   * so the test can assert over {@link Lctrs#rules()}.
    *
    * @param name the function name (also the entry program-point symbol)
    * @param params the parameter list
@@ -200,7 +201,8 @@ final class AstHelper {
    * @return the translated LCTRS
    */
   static Lctrs translateFn(String name, List<Parameter> params, Type returnType, Block body) {
-    return new Translator(crate(fn(name, params, returnType, body))).translate();
+    return Simplifier.simplify(
+        new Translator(crate(fn(name, params, returnType, body))).translate());
   }
 
   /**
@@ -216,11 +218,12 @@ final class AstHelper {
    */
   static Lctrs translateFn(
       String name, List<Parameter> params, Type returnType, Block body, Profile profile) {
-    return new Translator(crate(fn(name, params, returnType, body)), new SpanTable(), profile)
-        .translate();
+    return Simplifier.simplify(
+        new Translator(crate(fn(name, params, returnType, body)), new SpanTable(), profile)
+            .translate());
   }
 
   static Lctrs translateUnitFn(String name, List<Parameter> params, Block body) {
-    return new Translator(crate(fnUnit(name, params, body))).translate();
+    return Simplifier.simplify(new Translator(crate(fnUnit(name, params, body))).translate());
   }
 }
