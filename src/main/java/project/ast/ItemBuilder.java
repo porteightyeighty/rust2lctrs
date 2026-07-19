@@ -94,7 +94,8 @@ final class ItemBuilder {
 
   /**
    * Builds a {@link FunctionDeclaration} from a function parse-tree context. Qualifiers (async,
-   * unsafe, const, extern), generics, and a missing return type are all rejected.
+   * unsafe, const, extern) and generics are rejected; a missing or {@code ()} return type is
+   * accepted as a unit-returning function.
    *
    * @param ctx the function context
    * @return the corresponding {@link FunctionDeclaration} node
