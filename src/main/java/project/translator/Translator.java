@@ -648,12 +648,15 @@ public class Translator {
     // Landing pad and error propagation. The fresh variable carries the callee's return value,
     // typed
     // by the callee's return type, so downstream arithmetic recovers its width through inferWidth.
+    // Unreachable on rustc-valid input: calls occur only in value position (Statement has no
+    // expression-statement), where a unit return is a type error rustc already rejects (invariant 5).
     Type calleeType =
         ctx.calleeReturnType(c.function())
             .orElseThrow(
                 () ->
-                    new UnsupportedConstructException(
-                        "calling a ()-returning function is not supported", spans.describe(c)));
+                    new IllegalStateException(
+                        "unit-returning call reached value-position lowering at "
+                            + spans.describe(c)));
     ScopedVar r = ctx.addHoistVar("$call", calleeType);
     Symbol calleeRet = retSymbol(calleeType);
 
