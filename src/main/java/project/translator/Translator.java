@@ -649,7 +649,8 @@ public class Translator {
     // typed
     // by the callee's return type, so downstream arithmetic recovers its width through inferWidth.
     // Unreachable on rustc-valid input: calls occur only in value position (Statement has no
-    // expression-statement), where a unit return is a type error rustc already rejects (invariant 5).
+    // expression-statement), where a unit return is a type error rustc already rejects (invariant
+    // 5).
     Type calleeType =
         ctx.calleeReturnType(c.function())
             .orElseThrow(

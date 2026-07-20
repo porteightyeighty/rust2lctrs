@@ -400,12 +400,11 @@ class TranslatorTest {
   }
 
   @Test
-  void rejectsCallingAUnitReturningFunction() {
+  void failsFastOnAUnitReturningCallInValuePosition() {
     var g = fnUnit("g", List.of(), block(ret(Optional.empty())));
     var f = fn("f", List.of(), I32, block(let("x", I32, call("g")), ret(intLit(0))));
 
-    assertThrows(
-        UnsupportedConstructException.class, () -> new Translator(crate(g, f)).translate());
+    assertThrows(IllegalStateException.class, () -> new Translator(crate(g, f)).translate());
   }
 
   /**
