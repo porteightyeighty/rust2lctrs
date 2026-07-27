@@ -43,19 +43,19 @@ Requires **JDK 25**. Download the self-contained jar from the
 and run it:
 
 ```sh
-java -jar rust2lctrs-0.2.0.jar sum.rs -o sum.lctrs
+java -jar rust2lctrs-0.2.1.jar sum.rs -o sum.lctrs
 ```
 
 Or build from source with the bundled Maven wrapper:
 
 ```sh
-./mvnw package        # produces target/rust2lctrs-0.2.0.jar
+./mvnw package        # produces target/rust2lctrs-0.2.1.jar
 ```
 
 To invoke `rust2lctrs` from any directory, define a shell alias:
 
 ```sh
-alias rust2lctrs='java -jar /path/to/rust2lctrs-0.2.0.jar'
+alias rust2lctrs='java -jar /path/to/rust2lctrs-0.2.1.jar'
 ```
 
 ## Usage
