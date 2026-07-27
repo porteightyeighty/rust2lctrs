@@ -4,9 +4,13 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import project.translator.Profile;
 
@@ -17,6 +21,14 @@ import project.translator.Profile;
  * snapshot layer writes in update mode land in the git-tracked originals rather than in a copy
  * under {@code target/}. Tests run with the module root as their working directory, so the relative
  * path resolves.
+ *
+ * <p>A source declares which overflow profiles to translate under, and the Cora verdict expected of
+ * each, with per-profile markers {@code // debug: <verdict>} and {@code // release: <verdict>}.
+ * Each marker present yields one {@link Benchmark}, whose golden lands in the matching profile
+ * subdirectory ({@code debug/} or {@code release/}). So a single {@code .rs} can drive both
+ * profiles with different expected verdicts. The verdict is optional: a bare {@code // debug:}
+ * translates under debug but is snapshot-only (no e2e check). A source with no profile marker at
+ * all defaults to a single, snapshot-only debug benchmark.
  */
 public final class Benchmarks {
 
@@ -25,19 +37,16 @@ public final class Benchmarks {
    */
   public static final Path DIR = Path.of("src", "test", "resources", "benchmarks");
 
-  /** Marker that declares a benchmark's expected Cora verdict, e.g. {@code // cora: YES}. */
-  private static final String VERDICT_MARKER = "// cora:";
-
-  /** Marker that selects the overflow profile, e.g. {@code // profile: release}. */
-  private static final String PROFILE_MARKER = "// profile:";
+  /** Shape of a profile marker, used only to detect one whose profile name is misspelt. */
+  private static final Pattern PROFILE_MARKER = Pattern.compile("^//\\s*(\\w+):.*");
 
   private Benchmarks() {}
 
   /**
-   * Loads every benchmark in the corpus, ordered by name.
+   * Loads every benchmark in the corpus, ordered by source name then profile.
    *
-   * @return one {@link Benchmark} per {@code .rs} file, each paired with its sibling {@code .lctrs}
-   *     golden (which need not exist yet) and parsed verdict marker
+   * @return one {@link Benchmark} per profile marker on each {@code .rs} file (its golden under the
+   *     profile subdirectory need not exist yet); one debug benchmark for an unmarked source
    * @throws UncheckedIOException if the corpus directory cannot be read
    */
   public static List<Benchmark> all() {
@@ -45,19 +54,86 @@ public final class Benchmarks {
       return entries
           .filter(p -> p.getFileName().toString().endsWith(".rs"))
           .sorted()
-          .map(Benchmarks::load)
+          .flatMap(Benchmarks::load)
           .toList();
     } catch (IOException e) {
       throw new UncheckedIOException("Cannot read benchmark corpus at " + DIR.toAbsolutePath(), e);
     }
   }
 
-  private static Benchmark load(Path rust) {
+  private static Stream<Benchmark> load(Path rust) {
     String fileName = rust.getFileName().toString();
     String name = fileName.substring(0, fileName.length() - ".rs".length());
-    Path golden = rust.resolveSibling(name + ".lctrs");
     List<String> lines = readAllLines(rust);
-    return new Benchmark(name, rust, golden, readVerdict(lines), readProfile(lines));
+    rejectUnknownProfiles(rust, lines);
+
+    List<Benchmark> found = new ArrayList<>();
+    for (Profile profile : Profile.values()) {
+      marker(lines, "// " + profile.name() + ":")
+          .ifPresent(verdict -> found.add(benchmark(name, rust, profile, verdict)));
+    }
+    if (found.isEmpty()) {
+      found.add(benchmark(name, rust, Profile.debug, ""));
+    }
+    return found.stream();
+  }
+
+  private static Benchmark benchmark(String name, Path rust, Profile profile, String verdict) {
+    Path golden = DIR.resolve(profile.name()).resolve(name + ".lctrs");
+    return new Benchmark(name, rust, golden, parseVerdict(rust, verdict), profile);
+  }
+
+  /**
+   * Turns a marker's value into an expected verdict. A blank value means snapshot-only. {@link
+   * Verdict#UNKNOWN} is rejected: it is the sentinel for output Cora's parser did not recognise, so
+   * declaring it would let a benchmark pass by producing garbage.
+   */
+  private static Optional<Verdict> parseVerdict(Path rust, String verdict) {
+    if (verdict.isBlank()) {
+      return Optional.empty();
+    }
+    Verdict parsed;
+    try {
+      parsed = Verdict.valueOf(verdict);
+    } catch (IllegalArgumentException e) {
+      throw new IllegalArgumentException(
+          "Unknown verdict '"
+              + verdict
+              + "' in "
+              + rust
+              + "; expected one of "
+              + Arrays.toString(Verdict.values()),
+          e);
+    }
+    if (parsed == Verdict.UNKNOWN) {
+      throw new IllegalArgumentException(
+          "Verdict UNKNOWN cannot be expected in " + rust + "; it means Cora printed no verdict");
+    }
+    return Optional.of(parsed);
+  }
+
+  /**
+   * Fails loudly on a marker whose profile name is not a {@link Profile}, so a typo like {@code //
+   * releaes: NO} is caught rather than silently degrading the source to an unmarked, snapshot-only
+   * debug benchmark.
+   */
+  private static void rejectUnknownProfiles(Path rust, List<String> lines) {
+    for (String line : lines) {
+      Matcher matcher = PROFILE_MARKER.matcher(line.strip());
+      if (matcher.matches() && !isProfile(matcher.group(1))) {
+        throw new IllegalArgumentException(
+            "Unknown profile marker '// "
+                + matcher.group(1)
+                + ":' in "
+                + rust
+                + "; expected one of "
+                + Arrays.toString(Profile.values()));
+      }
+    }
+  }
+
+  private static boolean isProfile(String name) {
+    return Arrays.stream(Profile.values()).anyMatch(p -> p.name().equals(name));
   }
 
   private static List<String> readAllLines(Path rust) {
@@ -69,23 +145,10 @@ public final class Benchmarks {
   }
 
   /**
-   * Reads the {@code // cora: <verdict>} marker, if present. Scans the whole file (not just the
-   * first line) so the marker can sit wherever reads most naturally.
+   * Reads the value of the first {@code <prefix> <value>} marker, if present, uppercased so verdict
+   * names match the {@link Verdict} enum. Scans the whole file (not just the first line) so markers
+   * can sit wherever reads most naturally. A present-but-empty marker yields {@code ""}.
    */
-  private static Optional<Verdict> readVerdict(List<String> lines) {
-    return marker(lines, VERDICT_MARKER).map(Verdict::valueOf);
-  }
-
-  /**
-   * Reads the {@code // profile: <profile>} marker, defaulting to {@link Profile#debug} when absent
-   * so every existing (unmarked) benchmark keeps its byte-identical debug translation.
-   */
-  private static Profile readProfile(List<String> lines) {
-    return marker(lines, PROFILE_MARKER)
-        .map(v -> Profile.valueOf(v.toLowerCase(Locale.ROOT)))
-        .orElse(Profile.debug);
-  }
-
   private static Optional<String> marker(List<String> lines, String prefix) {
     return lines.stream()
         .map(String::strip)

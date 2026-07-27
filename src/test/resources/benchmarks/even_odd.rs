@@ -1,4 +1,4 @@
-// cora: YES
+// debug: YES
 fn is_even(n: i8) -> bool {
     if n == 0 {
         return true;

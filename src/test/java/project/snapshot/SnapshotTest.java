@@ -1,16 +1,25 @@
 package project.snapshot;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import project.testsupport.Benchmark;
 import project.testsupport.Benchmarks;
 import project.testsupport.Translate;
+import project.translator.Profile;
 
 /**
  * Golden-file (snapshot) tests: translate each benchmark's Rust source and assert the result
@@ -27,8 +36,40 @@ final class SnapshotTest {
   /** System property that switches the suite from asserting to rewriting goldens. */
   private static final String UPDATE_PROPERTY = "snapshot.update";
 
-  static java.util.List<Benchmark> benchmarks() {
+  static List<Benchmark> benchmarks() {
     return Benchmarks.all();
+  }
+
+  /**
+   * Guards the other direction of the corpus mapping: discovery walks {@code .rs} to golden, so a
+   * golden left behind by a renamed source or a deleted profile marker would otherwise sit in the
+   * profile subdirectories forever, never asserted and never regenerated.
+   */
+  @Test
+  void everyGoldenBelongsToABenchmark() throws IOException {
+    Set<Path> claimed = benchmarks().stream().map(Benchmark::golden).collect(Collectors.toSet());
+
+    List<Path> orphans = new ArrayList<>();
+    for (Profile profile : Profile.values()) {
+      Path dir = Benchmarks.DIR.resolve(profile.name());
+      if (!Files.isDirectory(dir)) {
+        continue;
+      }
+      try (Stream<Path> files = Files.list(dir)) {
+        files
+            .filter(p -> p.getFileName().toString().endsWith(".lctrs"))
+            .filter(p -> !claimed.contains(p))
+            .forEach(orphans::add);
+      }
+    }
+    orphans.sort(null);
+
+    assertTrue(
+        orphans.isEmpty(),
+        () ->
+            "Golden files with no benchmark claiming them: "
+                + orphans
+                + ". Either restore the source's profile marker or delete the golden.");
   }
 
   @ParameterizedTest(name = "{0}")
@@ -37,6 +78,7 @@ final class SnapshotTest {
     String actual = Translate.toLctrs(Files.readString(benchmark.rust()), benchmark.profile());
 
     if (Boolean.getBoolean(UPDATE_PROPERTY)) {
+      Files.createDirectories(benchmark.golden().getParent());
       Files.writeString(benchmark.golden(), actual, StandardCharsets.UTF_8);
       return;
     }

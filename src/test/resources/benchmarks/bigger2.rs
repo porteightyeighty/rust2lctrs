@@ -1,4 +1,4 @@
-// cora: YES
+// debug: YES
 fn bigger2(x: i8, y: i8) -> i8 {
     if x > y {
         return x;
