@@ -87,6 +87,7 @@ public class Rust2LctrsCommand implements Callable<Integer> {
         recorded.forEach(d -> LOG.error("Out-of-scope Rust: {}", d));
         return 2;
       }
+      LOG.trace("Crate: {}", crate);
       Lctrs lctrs = new Translator(crate, spanTable, profile).translate();
       if (!raw) {
         lctrs = Simplifier.simplify(lctrs);
