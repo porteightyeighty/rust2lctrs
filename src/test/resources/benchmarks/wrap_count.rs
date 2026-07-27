@@ -1,5 +1,5 @@
-// profile: release
-// cora: MAYBE
+// debug: YES
+// release: MAYBE
 fn wrap_count(x: i16) -> i16 {
     let mut y: i16 = x;
     while y > 0 {
