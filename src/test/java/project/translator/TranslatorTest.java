@@ -420,7 +420,7 @@ class TranslatorTest {
             List.of(param("x", I16)),
             I16,
             block(let("y", I16, add(var("x"), intLit(1))), ret(var("y"))),
-            Profile.release);
+            IntegerSemantics.release);
 
     VarDecl x = new VarDecl("x", Sort.INT);
     VarDecl y = new VarDecl("y", Sort.INT);
@@ -449,7 +449,7 @@ class TranslatorTest {
             List.of(param("x", I16)),
             I16,
             block(let("y", I16, mul(var("x"), var("x"))), ret(var("y"))),
-            Profile.release);
+            IntegerSemantics.release);
 
     VarDecl x = new VarDecl("x", Sort.INT);
     VarDecl y = new VarDecl("y", Sort.INT);
@@ -477,7 +477,7 @@ class TranslatorTest {
             List.of(param("x", I16)),
             I16,
             block(let("y", I16, neg(var("x"))), ret(var("y"))),
-            Profile.release);
+            IntegerSemantics.release);
 
     VarDecl x = new VarDecl("x", Sort.INT);
     VarDecl y = new VarDecl("y", Sort.INT);
@@ -505,7 +505,7 @@ class TranslatorTest {
             List.of(param("b", BOOL)),
             BOOL,
             block(let("y", BOOL, not(var("b"))), ret(var("y"))),
-            Profile.release);
+            IntegerSemantics.release);
 
     VarDecl b = new VarDecl("b", Sort.BOOL);
     VarDecl y = new VarDecl("y", Sort.BOOL);
@@ -522,25 +522,25 @@ class TranslatorTest {
   }
 
   /**
-   * Division panics in both profiles, so its encoding is shared: the release translation of {@code
-   * let y = x / z} is byte-identical to the debug one (the guarded {@code err} rule plus the
-   * Euclidean-correction hoist). Asserting equality of the two profiles' output pins that {@code /}
-   * is untouched by the wrap feature.
+   * Division panics under both rustc profiles, so its encoding is shared: the release translation
+   * of {@code let y = x / z} is byte-identical to the debug one (the guarded {@code err} rule plus
+   * the Euclidean-correction hoist). Asserting equality of the two outputs pins that {@code /} is
+   * untouched by the wrap feature.
    */
   @Test
   void releaseLeavesDivisionIdenticalToDebug() {
     var body = block(let("y", I16, div(var("x"), var("z"))), ret(var("y")));
     var params = List.of(param("x", I16), param("z", I16));
 
-    Lctrs debug = translateFn("f", params, I16, body, Profile.debug);
-    Lctrs release = translateFn("f", params, I16, body, Profile.release);
+    Lctrs debug = translateFn("f", params, I16, body, IntegerSemantics.debug);
+    Lctrs release = translateFn("f", params, I16, body, IntegerSemantics.release);
 
     assertEquals(debug.rules(), release.rules());
   }
 
   /**
    * A literal-only tree has no inferable width, and rustc const-evaluates and rejects its overflow
-   * at compile time in both profiles, so release emits it unwrapped. {@code let y = 2 + 3} binds
+   * at compile time under both profiles, so release emits it unwrapped. {@code let y = 2 + 3} binds
    * the plain sum {@code 2 + 3} with no wrap and no constraint; with no parameters the binding's
    * program point is a pure forward onto {@code ret_Int}, so chain removal folds the whole body
    * into the entry rule.
@@ -553,7 +553,7 @@ class TranslatorTest {
             List.of(),
             I16,
             block(let("y", I16, add(intLit(2), intLit(3))), ret(var("y"))),
-            Profile.release);
+            IntegerSemantics.release);
 
     FnApp entry = new FnApp(new TermSymbol("f", List.of(), Sort.RESULT), List.of());
     FnApp twoPlusThree =
@@ -573,7 +573,7 @@ class TranslatorTest {
    * canary.
    */
   @Test
-  void defaultProfileStillPanicsOnOverflow() {
+  void defaultSemanticsStillPanicOnOverflow() {
     Lctrs lctrs =
         translateFn(
             "f",
@@ -597,6 +597,59 @@ class TranslatorTest {
     Rule normalRule = new Rule(entry, u1, Optional.of(new Constraint(bound)));
     Rule retRule = new Rule(u1scope, retY, Optional.empty());
     assertEquals(List.of(errRule, normalRule, retRule), lctrs.rules());
+  }
+
+  /**
+   * The {@code let y = x + 1} that splits into a guarded rule plus an {@code err} rule under debug
+   * ({@link #defaultSemanticsStillPanicOnOverflow}) and wraps under release ({@link
+   * #releaseWrapsAdditionWithNoErrRule}) is just the bare sum here: no bound, no wrap, no err.
+   */
+  @Test
+  void unboundedEmitsArithmeticWithNoBoundAndNoErrRule() {
+    Lctrs lctrs =
+        translateFn(
+            "f",
+            List.of(param("x", I16)),
+            I16,
+            block(let("y", I16, add(var("x"), intLit(1))), ret(var("y"))),
+            IntegerSemantics.unbounded);
+
+    VarDecl x = new VarDecl("x", Sort.INT);
+    VarDecl y = new VarDecl("y", Sort.INT);
+    FnApp entry = new FnApp(new TermSymbol("f", List.of(Sort.INT), Sort.RESULT), List.of(x));
+    FnApp xPlusOne = new FnApp(TheorySymbol.ADD, List.of(x, new IntValue(BigInteger.ONE)));
+    TermSymbol u1Symbol = new TermSymbol("u1", List.of(Sort.INT, Sort.INT), Sort.RESULT);
+    FnApp u1 = new FnApp(u1Symbol, List.of(x, xPlusOne));
+    FnApp u1scope = new FnApp(u1Symbol, List.of(x, y));
+    FnApp retY = new FnApp(new TermSymbol("ret_Int", List.of(Sort.INT), Sort.RESULT), List.of(y));
+
+    assertEquals(
+        List.of(new Rule(entry, u1, Optional.empty()), new Rule(u1scope, retY, Optional.empty())),
+        lctrs.rules());
+  }
+
+  /**
+   * Division keeps its {@code divisor ≠ 0} guard (partiality, not width) and loses only the {@code
+   * MIN / -1} conjunct, there being no MIN. The three Euclidean-correction rules are untouched, so
+   * the rule count matches debug's.
+   */
+  @Test
+  void unboundedKeepsDivisorGuardButDropsMinOverNegOne() {
+    var params = List.of(param("x", I16), param("z", I16));
+    var body = block(let("y", I16, div(var("x"), var("z"))), ret(var("y")));
+
+    Lctrs lctrs = translateFn("f", params, I16, body, IntegerSemantics.unbounded);
+
+    VarDecl z = new VarDecl("z", Sort.INT);
+    FnApp divisorNonZero = new FnApp(TheorySymbol.NEQ_INT, List.of(z, IntValue.of(0)));
+    Constraint expected = new Constraint(new FnApp(TheorySymbol.NOT, List.of(divisorNonZero)));
+
+    List<Rule> errRules = lctrs.rules().stream().filter(r -> r.rhs().equals(err())).toList();
+    assertEquals(
+        List.of(expected), errRules.stream().map(r -> r.constraint().orElseThrow()).toList());
+    assertEquals(
+        translateFn("f", params, I16, body, IntegerSemantics.debug).rules().size(),
+        lctrs.rules().size());
   }
 
   /**

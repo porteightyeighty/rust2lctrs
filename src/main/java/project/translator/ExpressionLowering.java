@@ -110,7 +110,7 @@ final class ExpressionLowering {
         Symbol theorySymbol = theorySymbolFor(expr.operator(), left.sort());
         FnApp app = new FnApp(theorySymbol, List.of(left, right));
         boolean needsWrap = operator == Op.ADD || operator == Op.SUB || operator == Op.MUL;
-        if (ctx.profile() == Profile.release && needsWrap) {
+        if (ctx.semantics() == IntegerSemantics.release && needsWrap) {
           // rustc const-evals and rejects its overflow at compile time in both profiles, so
           // unwrapped is already exact.
           yield inferWidth(ctx, expression).map(w -> wrap(app, w)).orElse(app);
@@ -121,7 +121,7 @@ final class ExpressionLowering {
       case UnaryNot expr -> new FnApp(TheorySymbol.NOT, List.of(lower(ctx, expr.operand())));
       case UnaryMinus expr -> {
         FnApp app = new FnApp(TheorySymbol.NEG, List.of(lower(ctx, expr.operand())));
-        if (ctx.profile() == Profile.release) {
+        if (ctx.semantics() == IntegerSemantics.release) {
           // Release -MIN wraps to MIN.
           // rustc const-eval overflow check in both profiles, so unwrapped is already exact.
           yield inferWidth(ctx, expression).map(w -> wrap(app, w)).orElse(app);
@@ -155,7 +155,7 @@ final class ExpressionLowering {
       // In release the result wraps and cannot fault, so only the operand's own clause survives.
       case UnaryMinus e -> {
         Optional<Term> resultBound =
-            ctx.profile() == Profile.release ? Optional.empty() : withinWidth(ctx, e);
+            ctx.semantics() == IntegerSemantics.release ? Optional.empty() : withinWidth(ctx, e);
         yield conjoin(safety(ctx, e.operand()), resultBound);
       }
       case BinaryOp expr -> {
@@ -181,7 +181,7 @@ final class ExpressionLowering {
               // where it cannot fault — so no clause, no err rule. DIV/MOD below fire in both
               // profiles and stay unconditional.
               case ADD, SUB, MUL ->
-                  ctx.profile() == Profile.release
+                  ctx.semantics() == IntegerSemantics.release
                       ? Optional.empty()
                       : withinWidth(ctx, expression);
               case DIV, MOD -> {
@@ -248,11 +248,19 @@ final class ExpressionLowering {
    * Infers the integer width of an expression, taken from the first width-tracked variable operand
    * encountered (left-biased for binary operations). Literals carry no width of their own.
    *
+   * <p>This is the only place {@link IntegerSemantics#unbounded} is checked: reporting everything
+   * as width-less turns off {@link #withinWidth}, {@link #notMinOverNegOne} and {@link #wrap} at
+   * once. The divisor-non-zero clause in {@link #safety} doesn't go through here, so it survives.
+   *
    * @param ctx the per-function translation state
    * @param expression the expression whose width to infer
-   * @return the integer width, or empty if no width-tracked operand is present
+   * @return the integer width, or empty if there's no width-tracked operand or integers are
+   *     unbounded
    */
   private static Optional<Type.Int> inferWidth(Context ctx, Expression expression) {
+    if (ctx.semantics() == IntegerSemantics.unbounded) {
+      return Optional.empty();
+    }
     return switch (expression) {
       case Variable v ->
           ctx.resolve(v.name()).sourceType() instanceof Type.Int i

@@ -15,11 +15,11 @@ import project.testsupport.Benchmarks;
 
 /**
  * End-to-end tests: hand each benchmark's committed golden LCTRS to a real Cora install and assert
- * the termination verdict declared by its profile marker ({@code // debug: <verdict>} or {@code //
- * release: <verdict>}). A source carrying both is checked twice, once per profile, so the two
- * encodings can be held to different verdicts. This is the slow safety net of the three-layer
- * strategy, so it runs in the {@code verify} phase (via the failsafe plugin's {@code *IT}
- * convention), not {@code test}.
+ * the termination verdict declared by its marker ({@code // debug: <verdict>} or {@code // release:
+ * <verdict>}). A source carrying both is checked twice, once per variant, so the two encodings can
+ * be held to different verdicts. This is the slow safety net of the three-layer strategy, so it
+ * runs in the {@code verify} phase (via the failsafe plugin's {@code *IT} convention), not {@code
+ * test}.
  *
  * <p>The golden — not a fresh translation — is what gets analysed, so the snapshot layer pins the
  * exact artifact and this layer proves that pinned artifact is semantically sound. The snapshot

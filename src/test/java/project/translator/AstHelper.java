@@ -206,20 +206,25 @@ final class AstHelper {
   }
 
   /**
-   * As {@link #translateFn(String, List, Type, Block)}, but under a chosen overflow {@link Profile}
-   * so tests can pin the release (wrapping) encoding against the default debug (panic) one.
+   * As {@link #translateFn(String, List, Type, Block)}, but under chosen {@link IntegerSemantics}
+   * so tests can pin the release (wrapping) and unbounded encodings against the default debug
+   * (panic) one.
    *
    * @param name the function name (also the entry program-point symbol)
    * @param params the parameter list
    * @param returnType the declared return type
    * @param body the function body
-   * @param profile the overflow semantics to encode
+   * @param semantics the integer semantics to encode
    * @return the translated LCTRS
    */
   static Lctrs translateFn(
-      String name, List<Parameter> params, Type returnType, Block body, Profile profile) {
+      String name,
+      List<Parameter> params,
+      Type returnType,
+      Block body,
+      IntegerSemantics semantics) {
     return Simplifier.simplify(
-        new Translator(crate(fn(name, params, returnType, body)), new SpanTable(), profile)
+        new Translator(crate(fn(name, params, returnType, body)), new SpanTable(), semantics)
             .translate());
   }
 

@@ -65,7 +65,7 @@ public class Translator {
 
   final Crate crate;
   private final SpanTable spans;
-  private final Profile profile;
+  private final IntegerSemantics semantics;
 
   /**
    * Creates a translator for a single crate with no span information, so provenance trace lines
@@ -74,7 +74,7 @@ public class Translator {
    * @param crate the AST to translate
    */
   public Translator(Crate crate) {
-    this(crate, new SpanTable(), Profile.debug);
+    this(crate, new SpanTable(), IntegerSemantics.debug);
   }
 
   /**
@@ -85,21 +85,22 @@ public class Translator {
    * @param spans the span table populated during the parse-to-AST walk
    */
   public Translator(Crate crate, SpanTable spans) {
-    this(crate, spans, Profile.debug);
+    this(crate, spans, IntegerSemantics.debug);
   }
 
   /**
-   * Creates a translator for a single crate under the given overflow profile, reading source
+   * Creates a translator for a single crate under the given integer semantics, reading source
    * locations from the span table for provenance trace output.
    *
    * @param crate the AST to translate
    * @param spans the span table populated during the parse-to-AST walk
-   * @param profile the overflow semantics to encode ({@code debug} panics, {@code release} wraps)
+   * @param semantics the integer semantics to encode ({@code debug} panics on overflow, {@code
+   *     release} wraps, {@code unbounded} has no width at all)
    */
-  public Translator(Crate crate, SpanTable spans, Profile profile) {
+  public Translator(Crate crate, SpanTable spans, IntegerSemantics semantics) {
     this.crate = crate;
     this.spans = spans;
-    this.profile = profile;
+    this.semantics = semantics;
   }
 
   /**
@@ -110,7 +111,7 @@ public class Translator {
    */
   public Lctrs translate() {
     Lctrs lctrs = new Lctrs();
-    CrateScope scope = new CrateScope(new AtomicInteger(), buildRegistry(), this.profile);
+    CrateScope scope = new CrateScope(new AtomicInteger(), buildRegistry(), this.semantics);
     for (Item item : crate.items()) {
       processItem(lctrs, item, scope);
     }
