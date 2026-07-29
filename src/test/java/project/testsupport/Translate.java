@@ -7,7 +7,7 @@ import project.ast.SpanTable;
 import project.lctrs.Serialiser;
 import project.lctrs.Simplifier;
 import project.parser.RustParsing;
-import project.translator.Profile;
+import project.translator.IntegerSemantics;
 import project.translator.Translator;
 
 /**
@@ -21,23 +21,23 @@ public final class Translate {
   private Translate() {}
 
   /**
-   * Translates Rust source to its serialised LCTRS form under the default debug profile.
+   * Translates Rust source to its serialised LCTRS form under the default debug semantics.
    *
    * @param source the Rust source text (assumed valid, in-scope Rust)
    * @return the LCTRS rendered in Cora's input format
    */
   public static String toLctrs(String source) {
-    return toLctrs(source, Profile.debug);
+    return toLctrs(source, IntegerSemantics.debug);
   }
 
   /**
-   * Translates Rust source to its serialised LCTRS form under a chosen overflow profile.
+   * Translates Rust source to its serialised LCTRS form under chosen integer semantics.
    *
    * @param source the Rust source text (assumed valid, in-scope Rust)
-   * @param profile the overflow semantics to encode
+   * @param semantics the integer semantics to encode
    * @return the LCTRS rendered in Cora's input format
    */
-  public static String toLctrs(String source, Profile profile) {
+  public static String toLctrs(String source, IntegerSemantics semantics) {
     DiagnosticRecorder diagnostics = new DiagnosticRecorder();
     SpanTable spanTable = new SpanTable();
     AstBuilder astBuilder = new AstBuilder(spanTable, diagnostics);
@@ -48,6 +48,6 @@ public final class Translate {
               + diagnostics.diagnostics());
     }
     return Serialiser.serialise(
-        Simplifier.simplify(new Translator(crate, spanTable, profile).translate()));
+        Simplifier.simplify(new Translator(crate, spanTable, semantics).translate()));
   }
 }

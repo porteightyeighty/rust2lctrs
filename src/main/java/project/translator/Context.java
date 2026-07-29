@@ -61,9 +61,9 @@ final class Context {
     this.crateScope = crateScope;
   }
 
-  // --- Profile --------------------------------------------------------------
-  Profile profile() {
-    return crateScope.profile();
+  // --- Integer semantics ----------------------------------------------------
+  IntegerSemantics semantics() {
+    return crateScope.semantics();
   }
 
   // --- Function-level facts -------------------------------------------------

@@ -9,5 +9,7 @@ import project.translator.Translator.Signature;
  *
  * @param counter the program-point counter, shared so {@code u}-symbols stay globally unique
  * @param registry the function name to {@link Signature} map for resolving calls
+ * @param semantics the integer semantics every function in the crate is translated under
  */
-record CrateScope(AtomicInteger counter, Map<String, Signature> registry, Profile profile) {}
+record CrateScope(
+    AtomicInteger counter, Map<String, Signature> registry, IntegerSemantics semantics) {}

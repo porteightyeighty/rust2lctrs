@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import picocli.CommandLine.ArgGroup;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
@@ -21,7 +22,7 @@ import project.lctrs.Serialiser;
 import project.lctrs.Simplifier;
 import project.parser.RustParsing;
 import project.parser.SyntaxErrorException;
-import project.translator.Profile;
+import project.translator.IntegerSemantics;
 import project.translator.Translator;
 
 /**
@@ -41,13 +42,34 @@ public class Rust2LctrsCommand implements Callable<Integer> {
       description = "output file; if omitted, the LCTRS is written to stdout")
   Path outputPath;
 
-  @Option(
-      names = "--profile",
-      defaultValue = "debug",
-      description =
-          "overflow semantics: debug (arithmetic overflow panics) or release (wraps, two's "
-              + "complement). Default: ${DEFAULT-VALUE}.")
-  Profile profile;
+  @ArgGroup(exclusive = true)
+  IntegerOpts ints = new IntegerOpts();
+
+  /**
+   * The two ways of picking integer semantics. {@code --profile} chooses a rustc profile; {@code
+   * --unbounded} steps outside them, so picocli rejects the pair rather than letting one win.
+   */
+  static class IntegerOpts {
+
+    @Option(
+        names = "--profile",
+        description =
+            "overflow semantics: debug (arithmetic overflow panics) or release (wraps, two's "
+                + "complement). Default: ${DEFAULT-VALUE}.")
+    IntegerSemantics profile = IntegerSemantics.debug;
+
+    @Option(
+        names = "--unbounded",
+        description =
+            "idealise integers to Z: no widths, so no overflow constraints and no wrapping. "
+                + "Division by zero is still guarded. Termination verdicts then describe the "
+                + "idealised model, not the Rust program.")
+    boolean unbounded;
+
+    IntegerSemantics semantics() {
+      return unbounded ? IntegerSemantics.unbounded : profile;
+    }
+  }
 
   @Option(
       names = {"-r", "--raw"},
@@ -88,7 +110,7 @@ public class Rust2LctrsCommand implements Callable<Integer> {
         return 2;
       }
       LOG.trace("Crate: {}", crate);
-      Lctrs lctrs = new Translator(crate, spanTable, profile).translate();
+      Lctrs lctrs = new Translator(crate, spanTable, ints.semantics()).translate();
       if (!raw) {
         lctrs = Simplifier.simplify(lctrs);
       }

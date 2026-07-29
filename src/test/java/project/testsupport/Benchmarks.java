@@ -12,7 +12,7 @@ import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
-import project.translator.Profile;
+import project.translator.IntegerSemantics;
 
 /**
  * Discovers the shared benchmark corpus under {@code src/test/resources/benchmarks}.
@@ -22,13 +22,11 @@ import project.translator.Profile;
  * under {@code target/}. Tests run with the module root as their working directory, so the relative
  * path resolves.
  *
- * <p>A source declares which overflow profiles to translate under, and the Cora verdict expected of
- * each, with per-profile markers {@code // debug: <verdict>} and {@code // release: <verdict>}.
- * Each marker present yields one {@link Benchmark}, whose golden lands in the matching profile
- * subdirectory ({@code debug/} or {@code release/}). So a single {@code .rs} can drive both
- * profiles with different expected verdicts. The verdict is optional: a bare {@code // debug:}
- * translates under debug but is snapshot-only (no e2e check). A source with no profile marker at
- * all defaults to a single, snapshot-only debug benchmark.
+ * <p>A source picks its {@link IntegerSemantics} and expected Cora verdict with one marker per
+ * variant, {@code // <semantics>: <verdict>}. Each marker yields a {@link Benchmark} whose golden
+ * lands in the matching subdirectory, so one {@code .rs} can drive several variants with different
+ * verdicts. The verdict is optional: a bare {@code // debug:} is snapshot-only, no e2e check. An
+ * unmarked source defaults to a single snapshot-only debug benchmark.
  */
 public final class Benchmarks {
 
@@ -37,16 +35,16 @@ public final class Benchmarks {
    */
   public static final Path DIR = Path.of("src", "test", "resources", "benchmarks");
 
-  /** Shape of a profile marker, used only to detect one whose profile name is misspelt. */
-  private static final Pattern PROFILE_MARKER = Pattern.compile("^//\\s*(\\w+):.*");
+  /** Shape of a variant marker, used only to detect one whose name is misspelt. */
+  private static final Pattern MARKER = Pattern.compile("^//\\s*(\\w+):.*");
 
   private Benchmarks() {}
 
   /**
-   * Loads every benchmark in the corpus, ordered by source name then profile.
+   * Loads every benchmark in the corpus, ordered by source name then integer semantics.
    *
-   * @return one {@link Benchmark} per profile marker on each {@code .rs} file (its golden under the
-   *     profile subdirectory need not exist yet); one debug benchmark for an unmarked source
+   * @return one {@link Benchmark} per marker on each {@code .rs} file (its golden under the
+   *     matching subdirectory need not exist yet); one debug benchmark for an unmarked source
    * @throws UncheckedIOException if the corpus directory cannot be read
    */
   public static List<Benchmark> all() {
@@ -65,22 +63,23 @@ public final class Benchmarks {
     String fileName = rust.getFileName().toString();
     String name = fileName.substring(0, fileName.length() - ".rs".length());
     List<String> lines = readAllLines(rust);
-    rejectUnknownProfiles(rust, lines);
+    rejectUnknownMarkers(rust, lines);
 
     List<Benchmark> found = new ArrayList<>();
-    for (Profile profile : Profile.values()) {
-      marker(lines, "// " + profile.name() + ":")
-          .ifPresent(verdict -> found.add(benchmark(name, rust, profile, verdict)));
+    for (IntegerSemantics semantics : IntegerSemantics.values()) {
+      marker(lines, "// " + semantics.name() + ":")
+          .ifPresent(verdict -> found.add(benchmark(name, rust, semantics, verdict)));
     }
     if (found.isEmpty()) {
-      found.add(benchmark(name, rust, Profile.debug, ""));
+      found.add(benchmark(name, rust, IntegerSemantics.debug, ""));
     }
     return found.stream();
   }
 
-  private static Benchmark benchmark(String name, Path rust, Profile profile, String verdict) {
-    Path golden = DIR.resolve(profile.name()).resolve(name + ".lctrs");
-    return new Benchmark(name, rust, golden, parseVerdict(rust, verdict), profile);
+  private static Benchmark benchmark(
+      String name, Path rust, IntegerSemantics semantics, String verdict) {
+    Path golden = DIR.resolve(semantics.name()).resolve(name + ".lctrs");
+    return new Benchmark(name, rust, golden, parseVerdict(rust, verdict), semantics);
   }
 
   /**
@@ -113,27 +112,27 @@ public final class Benchmarks {
   }
 
   /**
-   * Fails loudly on a marker whose profile name is not a {@link Profile}, so a typo like {@code //
-   * releaes: NO} is caught rather than silently degrading the source to an unmarked, snapshot-only
-   * debug benchmark.
+   * Fails loudly on a marker whose name is not an {@link IntegerSemantics}, so a typo like {@code
+   * // releaes: NO} is caught rather than silently degrading the source to an unmarked,
+   * snapshot-only debug benchmark.
    */
-  private static void rejectUnknownProfiles(Path rust, List<String> lines) {
+  private static void rejectUnknownMarkers(Path rust, List<String> lines) {
     for (String line : lines) {
-      Matcher matcher = PROFILE_MARKER.matcher(line.strip());
-      if (matcher.matches() && !isProfile(matcher.group(1))) {
+      Matcher matcher = MARKER.matcher(line.strip());
+      if (matcher.matches() && !isKnownMarker(matcher.group(1))) {
         throw new IllegalArgumentException(
-            "Unknown profile marker '// "
+            "Unknown marker '// "
                 + matcher.group(1)
                 + ":' in "
                 + rust
                 + "; expected one of "
-                + Arrays.toString(Profile.values()));
+                + Arrays.toString(IntegerSemantics.values()));
       }
     }
   }
 
-  private static boolean isProfile(String name) {
-    return Arrays.stream(Profile.values()).anyMatch(p -> p.name().equals(name));
+  private static boolean isKnownMarker(String name) {
+    return Arrays.stream(IntegerSemantics.values()).anyMatch(s -> s.name().equals(name));
   }
 
   private static List<String> readAllLines(Path rust) {

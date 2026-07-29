@@ -19,7 +19,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import project.testsupport.Benchmark;
 import project.testsupport.Benchmarks;
 import project.testsupport.Translate;
-import project.translator.Profile;
+import project.translator.IntegerSemantics;
 
 /**
  * Golden-file (snapshot) tests: translate each benchmark's Rust source and assert the result
@@ -42,16 +42,16 @@ final class SnapshotTest {
 
   /**
    * Guards the other direction of the corpus mapping: discovery walks {@code .rs} to golden, so a
-   * golden left behind by a renamed source or a deleted profile marker would otherwise sit in the
-   * profile subdirectories forever, never asserted and never regenerated.
+   * golden left behind by a renamed source or a deleted marker would otherwise sit in the
+   * per-semantics subdirectories forever, never asserted and never regenerated.
    */
   @Test
   void everyGoldenBelongsToABenchmark() throws IOException {
     Set<Path> claimed = benchmarks().stream().map(Benchmark::golden).collect(Collectors.toSet());
 
     List<Path> orphans = new ArrayList<>();
-    for (Profile profile : Profile.values()) {
-      Path dir = Benchmarks.DIR.resolve(profile.name());
+    for (IntegerSemantics semantics : IntegerSemantics.values()) {
+      Path dir = Benchmarks.DIR.resolve(semantics.name());
       if (!Files.isDirectory(dir)) {
         continue;
       }
@@ -69,13 +69,13 @@ final class SnapshotTest {
         () ->
             "Golden files with no benchmark claiming them: "
                 + orphans
-                + ". Either restore the source's profile marker or delete the golden.");
+                + ". Either restore the source's marker or delete the golden.");
   }
 
   @ParameterizedTest(name = "{0}")
   @MethodSource("benchmarks")
   void translationMatchesGolden(Benchmark benchmark) throws IOException {
-    String actual = Translate.toLctrs(Files.readString(benchmark.rust()), benchmark.profile());
+    String actual = Translate.toLctrs(Files.readString(benchmark.rust()), benchmark.semantics());
 
     if (Boolean.getBoolean(UPDATE_PROPERTY)) {
       Files.createDirectories(benchmark.golden().getParent());
