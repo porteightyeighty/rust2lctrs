@@ -176,15 +176,14 @@ class SimplifierTest {
   }
 
   /**
-   * A forwarding chain {@code f -> u1 -> u2 -> ret} collapses transitively: the entry rule is
-   * redirected straight to {@code ret_Int}, the forwarding rules disappear, and so do their head
-   * symbols in the signature. The entry symbol {@code f} is protected even though its rule is
-   * itself a pure forward.
+   * A chain {@code f -> u1 -> u2 -> ret} collapses transitively: the entry rule steps straight to
+   * {@code ret_Int}, the inlined rules disappear, and so do their head symbols in the signature.
+   * The entry symbol {@code f} is protected even though its own rule is a single step.
    */
   @Test
   void collapsesChainTransitivelyAndProtectsEntry() {
     Lctrs simplified =
-        Simplifier.removeForwardingRules(
+        Simplifier.inline(
             lctrs(
                 List.of(F, U1, U2, RET),
                 rule(app(F, X), app(U1, X)),
@@ -196,12 +195,12 @@ class SimplifierTest {
     assertEquals(List.of(F, RET), simplified.sigma());
   }
 
-  /** Redirection reaches occurrences nested inside a right-hand side, not just at its root. */
+  /** Inlining reaches occurrences nested inside a right-hand side, not just at its root. */
   @Test
-  void redirectsNestedOccurrences() {
+  void inlinesNestedOccurrences() {
     TermSymbol wrap = new TermSymbol("u3", List.of(Sort.RESULT), Sort.RESULT);
     Lctrs simplified =
-        Simplifier.removeForwardingRules(
+        Simplifier.inline(
             lctrs(
                 List.of(F, U1, U2, wrap),
                 rule(app(F, X), app(wrap, app(U1, X))),
@@ -213,46 +212,59 @@ class SimplifierTest {
   }
 
   /**
-   * Non-candidates survive untouched: a constrained rule, a head with two rules, a rule that drops
-   * an argument, and a left-hand side that pattern-matches a constructor rather than binding
-   * distinct variables.
+   * A body that computes on its arguments is inlined like any other single step, at every call site
+   * and under the substitution of that site's arguments.
    */
   @Test
-  void keepsRulesThatAreNotPureForwards() {
+  void inlinesComputingBodyAtEveryCallSite() {
     TermSymbol u3 = new TermSymbol("u3", List.of(Sort.INT, Sort.INT), Sort.RESULT);
-    TermSymbol u4 = new TermSymbol("u4", List.of(Sort.INT), Sort.RESULT);
     VarDecl y = new VarDecl("y", Sort.INT);
+    IntValue one = new IntValue(BigInteger.ONE);
+    Lctrs simplified =
+        Simplifier.inline(
+            lctrs(
+                List.of(F, U1, u3, RET),
+                rule(app(F, X), app(u3, X, FnApp.add(X, one))),
+                rule(app(U1, X), app(u3, one, X)),
+                rule(app(u3, X, y), app(RET, y))),
+            Set.of(F, U1));
+
+    assertEquals(
+        List.of(rule(app(F, X), app(RET, FnApp.add(X, one))), rule(app(U1, X), app(RET, X))),
+        simplified.rules());
+    assertEquals(List.of(F, U1, RET), simplified.sigma());
+  }
+
+  /**
+   * Non-candidates survive untouched: a constrained rule, a head with two rules, and a left-hand
+   * side that pattern-matches a constructor rather than binding distinct variables.
+   */
+  @Test
+  void keepsRulesThatAreNotSingleSteps() {
+    TermSymbol u4 = new TermSymbol("u4", List.of(Sort.INT), Sort.RESULT);
     IntValue zero = new IntValue(BigInteger.ZERO);
     Constraint phi = new Constraint(new FnApp(TheorySymbol.LT, List.of(X, zero)));
     Rule constrained = new Rule(app(U1, X), app(U2, X), Optional.of(phi));
     Rule firstOfTwo = rule(app(U2, X), app(RET, X));
     Rule secondOfTwo = rule(app(U2, X), app(U1, X));
-    Rule dropsArg = rule(app(u3, X, y), app(RET, y));
-    // Same argument list on both sides, but a value is not a variable, so no forward.
+    // Same argument list on both sides, but a value is not a variable, so nothing to substitute.
     Rule patternLhs = rule(app(u4, zero), app(RET, zero));
-    Lctrs in =
-        lctrs(
-            List.of(F, U1, U2, u3, u4, RET),
-            constrained,
-            firstOfTwo,
-            secondOfTwo,
-            dropsArg,
-            patternLhs);
+    Lctrs in = lctrs(List.of(F, U1, U2, u4, RET), constrained, firstOfTwo, secondOfTwo, patternLhs);
 
-    Lctrs simplified = Simplifier.removeForwardingRules(in, Set.of(F));
+    Lctrs simplified = Simplifier.inline(in, Set.of(F));
 
     assertEquals(in.rules(), simplified.rules());
     assertEquals(in.sigma(), simplified.sigma());
   }
 
   /**
-   * A forwarding cycle encodes nontermination (e.g. {@code loop { loop {} } }), so its members are
-   * kept; a forward merely leading into the cycle is still removed.
+   * A cycle of single steps has no well-defined expansion, so its members are kept; a step merely
+   * leading into the cycle is still inlined.
    */
   @Test
-  void keepsForwardingCycles() {
+  void keepsInliningCycles() {
     Lctrs simplified =
-        Simplifier.removeForwardingRules(
+        Simplifier.inline(
             lctrs(
                 List.of(F, U1, U2),
                 rule(app(F, X), app(U1, X)),
@@ -269,8 +281,20 @@ class SimplifierTest {
     assertEquals(List.of(F, U1, U2), simplified.sigma());
   }
 
+  /** A self-loop is a cycle of one, so it survives rather than expanding forever. */
+  @Test
+  void keepsSelfLoop() {
+    Lctrs in =
+        lctrs(
+            List.of(F, U1),
+            rule(app(F, X), app(U1, X)),
+            rule(app(U1, X), app(U1, FnApp.add(X, new IntValue(BigInteger.ONE)))));
+
+    assertEquals(in.rules(), Simplifier.inline(in, Set.of(F)).rules());
+  }
+
   /**
-   * A head that also appears inside another rule's left-hand side is not removable: redirecting
+   * A head that also appears inside another rule's left-hand side is not removable: rewriting
    * right-hand sides alone would strand that pattern.
    */
   @Test
@@ -282,7 +306,7 @@ class SimplifierTest {
             rule(app(U1, X), app(RET, X)),
             rule(app(cont, app(U1, X)), app(RET, X)));
 
-    Lctrs simplified = Simplifier.removeForwardingRules(in, Set.of(F));
+    Lctrs simplified = Simplifier.inline(in, Set.of(F));
 
     assertEquals(in.rules(), simplified.rules());
   }

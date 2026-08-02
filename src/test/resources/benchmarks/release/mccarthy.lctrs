@@ -1,20 +1,12 @@
 mccarthy :: Int -> result
 ret_Int :: Int -> result
 err :: result
-u1 :: Int -> result
 u2 :: Int -> result -> result
-u3 :: Int -> Int -> result
 u4 :: Int -> Int -> result -> result
-u5 :: Int -> Int -> Int -> result
-u6 :: Int -> result
 
-mccarthy(n) -> u1(n) | n ≤ 100
-u1(n) -> u2(n, mccarthy((((n + 11) - -2147483648) % 4294967296) + -2147483648))
-u2(n, ret_Int($call)) -> u3(n, $call)
+mccarthy(n) -> u2(n, mccarthy((((n + 11) - -2147483648) % 4294967296) + -2147483648)) | n ≤ 100
+u2(n, ret_Int($call)) -> u4(n, $call, mccarthy($call))
 u2(n, err) -> err
-u3(n, $call) -> u4(n, $call, mccarthy($call))
-u4(n, $call, ret_Int($call_1)) -> u5(n, $call, $call_1)
+u4(n, $call, ret_Int($call_1)) -> ret_Int($call_1)
 u4(n, $call, err) -> err
-u5(n, $call, $call_1) -> ret_Int($call_1)
-mccarthy(n) -> u6(n) | ¬(n ≤ 100)
-u6(n) -> ret_Int((((n - 10) - -2147483648) % 4294967296) + -2147483648)
+mccarthy(n) -> ret_Int((((n - 10) - -2147483648) % 4294967296) + -2147483648) | ¬(n ≤ 100)

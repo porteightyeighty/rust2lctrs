@@ -17,7 +17,7 @@ import static project.translator.AstHelper.not;
 import static project.translator.AstHelper.param;
 import static project.translator.AstHelper.ret;
 import static project.translator.AstHelper.sub;
-import static project.translator.AstHelper.translateFn;
+import static project.translator.AstHelper.translateFnRaw;
 import static project.translator.AstHelper.var;
 
 import java.math.BigInteger;
@@ -30,7 +30,6 @@ import project.lctrs.IntValue;
 import project.lctrs.Lctrs;
 import project.lctrs.Rule;
 import project.lctrs.Serialiser;
-import project.lctrs.Simplifier;
 import project.lctrs.Sort;
 import project.lctrs.TermSymbol;
 import project.lctrs.TheorySymbol;
@@ -38,8 +37,7 @@ import project.lctrs.VarDecl;
 
 /**
  * Rendering tests for {@link Serialiser}. Inputs are built with {@link AstHelper} and run through
- * the {@link Translator}, so these assert over the LCTRS the pipeline actually produces — which is
- * why the test lives in this package (AstHelper is package-private here).
+ * the {@link Translator}, so these assert over the LCTRS the pipeline actually produces
  */
 final class SerialiserTest {
 
@@ -61,7 +59,7 @@ final class SerialiserTest {
   @Test
   void infixBinaryWithinPrefixApplication() {
     Lctrs lctrs =
-        translateFn(
+        translateFnRaw(
             "f",
             List.of(param("n", I32)),
             I32,
@@ -78,15 +76,12 @@ final class SerialiserTest {
   @Test
   void nestedBinaryNestsParentheses() {
     Lctrs lctrs =
-        translateFn(
+        translateFnRaw(
             "f",
             List.of(param("n", I32)),
             I32,
             block(let("x", I32, add(var("n"), mul(var("n"), intLit(2)))), ret(var("x"))));
 
-    // The normal (guarded) rule is at index 1; index 0 is the err rule on the negated bound.
-    // Constraint is a delimited position, so the outer ∧ drops its parens; the two operand bounds
-    // keep theirs.
     String bound = i32Bound("(n * 2)") + " ∧ " + i32Bound("(n + (n * 2))");
     assertEquals(
         "f(n) -> u1(n, n + (n * 2)) | " + bound, Serialiser.serialise(lctrs.rules().get(1)));
@@ -96,7 +91,7 @@ final class SerialiserTest {
   @Test
   void comparisonRendersInfix() {
     Lctrs lctrs =
-        translateFn(
+        translateFnRaw(
             "f",
             List.of(param("n", I32)),
             I32,
@@ -109,7 +104,7 @@ final class SerialiserTest {
   @Test
   void fullLctrsHasSignatureBlankLineThenRules() {
     Lctrs lctrs =
-        translateFn(
+        translateFnRaw(
             "f",
             List.of(param("n", I32)),
             I32,
@@ -179,7 +174,7 @@ final class SerialiserTest {
   @Test
   void booleanNotLowersToTightNot() {
     Lctrs lctrs =
-        translateFn(
+        translateFnRaw(
             "f",
             List.of(param("b", BOOL)),
             BOOL,
@@ -194,7 +189,7 @@ final class SerialiserTest {
   @Test
   void unaryMinusLowersToPrefixMinus() {
     Lctrs lctrs =
-        translateFn(
+        translateFnRaw(
             "f", List.of(param("n", I32)), I32, block(let("x", I32, neg(var("n"))), ret(var("x"))));
 
     String bound = i32BoundBare("-n");
@@ -204,7 +199,8 @@ final class SerialiserTest {
 
   @Test
   void selfCallEmitsContinuationAndLandingPad() {
-    Lctrs lctrs = translateFn("f", List.of(param("n", I32)), I32, block(ret(call("f", var("n")))));
+    Lctrs lctrs =
+        translateFnRaw("f", List.of(param("n", I32)), I32, block(ret(call("f", var("n")))));
 
     assertEquals("f(n) -> u1(n, f(n))", Serialiser.serialise(lctrs.rules().get(0)));
     assertEquals(
@@ -221,12 +217,11 @@ final class SerialiserTest {
   void crossFunctionCallHeadsRedexWithCalleeEntry() {
     // fn f(n: i32) -> i32 { return g(n); } fn g(n: i32) -> i32 { return n; }
     Lctrs lctrs =
-        Simplifier.simplify(
-            new Translator(
-                    crate(
-                        fn("f", List.of(param("n", I32)), I32, block(ret(call("g", var("n"))))),
-                        fn("g", List.of(param("n", I32)), I32, block(ret(var("n"))))))
-                .translate());
+        new Translator(
+                crate(
+                    fn("f", List.of(param("n", I32)), I32, block(ret(call("g", var("n"))))),
+                    fn("g", List.of(param("n", I32)), I32, block(ret(var("n"))))))
+            .translate();
 
     assertEquals("f(n) -> u1(n, g(n))", Serialiser.serialise(lctrs.rules().get(0)));
     assertEquals(
@@ -239,7 +234,7 @@ final class SerialiserTest {
     // fn f(n: i32) -> i32 { return n * f(n); } — the call reduces to $call, and the residual
     // n * $call is evaluated at the resume point u2.
     Lctrs lctrs =
-        translateFn(
+        translateFnRaw(
             "f", List.of(param("n", I32)), I32, block(ret(mul(var("n"), call("f", var("n"))))));
 
     String bound = i32BoundBare("(n * $call)");
@@ -259,7 +254,7 @@ final class SerialiserTest {
     // fn f(n: i32) -> i32 { return f(n - 1); } — the arg n - 1 can overflow, so its safety guards
     // the jump and an err rule is emitted on the negated bound, before the landing-pad rules.
     Lctrs lctrs =
-        translateFn(
+        translateFnRaw(
             "f", List.of(param("n", I32)), I32, block(ret(call("f", sub(var("n"), intLit(1))))));
 
     String bound = i32BoundBare("(n - 1)");
