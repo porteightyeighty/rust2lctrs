@@ -29,6 +29,7 @@ import static project.translator.AstHelper.or;
 import static project.translator.AstHelper.param;
 import static project.translator.AstHelper.ret;
 import static project.translator.AstHelper.translateFn;
+import static project.translator.AstHelper.translateFnRaw;
 import static project.translator.AstHelper.translateUnitFn;
 import static project.translator.AstHelper.var;
 import static project.translator.AstHelper.whileStmt;
@@ -98,12 +99,12 @@ class TranslatorTest {
    * on the right-hand side is evaluated over the <em>pre-binding</em> scope: the first slot is the
    * live variable {@code n} and the second is {@code n + 1}, never {@code x}. Because {@code n + 1}
    * can overflow, the entry splits into a guarded normal rule and an {@code err} rule on the
-   * negated bound.
+   * negated bound. Asserted before simplification, which would inline {@code u1} away.
    */
   @Test
   void letBindingEvaluatesValueOverPreBindingScope() {
     Lctrs lctrs =
-        translateFn(
+        translateFnRaw(
             "f",
             List.of(param("n", I32)),
             I32,
@@ -131,12 +132,13 @@ class TranslatorTest {
    * the first rule is the incoming configuration (left-hand side) of the second. For {@code fn f(n:
    * i32) -> i32 { let x = n + 1; let y = x; x }} this gives {@code f(n) -> u1(n, n + 1)} followed
    * by {@code u1(n, x) -> u2(n, x, x)}: the {@code u1} that closes rule 1 reopens as the head of
-   * rule 2's left-hand side, now over the scope variables.
+   * rule 2's left-hand side, now over the scope variables. Asserted before simplification, which
+   * would inline both {@code u1} and {@code u2} away.
    */
   @Test
   void sequentialLetsThreadConfigurations() {
     Lctrs lctrs =
-        translateFn(
+        translateFnRaw(
             "f",
             List.of(param("n", I32)),
             I32,
@@ -173,12 +175,13 @@ class TranslatorTest {
    * A shadowing {@code let} stays a distinct LCTRS variable rather than collapsing onto the binding
    * it shadows. For {@code fn f(n: i32) -> i32 { let x = n; let x = x + 1; x }} the second {@code
    * x} mints a fresh name {@code x_1}: its value {@code x + 1} is evaluated over the <em>outer</em>
-   * {@code x}.
+   * {@code x}. Asserted before simplification, which would inline {@code u2} and with it every
+   * occurrence of {@code x_1}.
    */
   @Test
   void shadowingLetMintsDistinctVariable() {
     Lctrs lctrs =
-        translateFn(
+        translateFnRaw(
             "f",
             List.of(param("n", I32)),
             I32,
@@ -240,28 +243,17 @@ class TranslatorTest {
             List.of(
                 new FnApp(TheorySymbol.LT, List.of(x, IntValue.of(1))),
                 new FnApp(TheorySymbol.GT, List.of(y, IntValue.of(2)))));
-    TermSymbol u1 = new TermSymbol("u1", List.of(Sort.INT, Sort.INT), Sort.RESULT);
-    TermSymbol u2 = new TermSymbol("u2", List.of(Sort.INT, Sort.INT), Sort.RESULT);
     TermSymbol retInt = new TermSymbol("ret_Int", List.of(Sort.INT), Sort.RESULT);
 
     Rule thenRule =
-        new Rule(entry, new FnApp(u1, List.of(x, y)), Optional.of(new Constraint(cond)));
-    Rule thenRet =
         new Rule(
-            new FnApp(u1, List.of(x, y)),
-            new FnApp(retInt, List.of(IntValue.of(1))),
-            Optional.empty());
+            entry, new FnApp(retInt, List.of(IntValue.of(1))), Optional.of(new Constraint(cond)));
     Rule mergeRule =
         new Rule(
             entry,
-            new FnApp(u2, List.of(x, y)),
-            Optional.of(new Constraint(new FnApp(TheorySymbol.NOT, List.of(cond)))));
-    Rule tailRet =
-        new Rule(
-            new FnApp(u2, List.of(x, y)),
             new FnApp(retInt, List.of(IntValue.of(0))),
-            Optional.empty());
-    assertEquals(List.of(thenRule, thenRet, mergeRule, tailRet), lctrs.rules());
+            Optional.of(new Constraint(new FnApp(TheorySymbol.NOT, List.of(cond)))));
+    assertEquals(List.of(thenRule, mergeRule), lctrs.rules());
   }
 
   /**
@@ -423,17 +415,13 @@ class TranslatorTest {
             IntegerSemantics.release);
 
     VarDecl x = new VarDecl("x", Sort.INT);
-    VarDecl y = new VarDecl("y", Sort.INT);
     FnApp entry = new FnApp(new TermSymbol("f", List.of(Sort.INT), Sort.RESULT), List.of(x));
     FnApp xPlusOne = new FnApp(TheorySymbol.ADD, List.of(x, new IntValue(BigInteger.ONE)));
-    TermSymbol u1Symbol = new TermSymbol("u1", List.of(Sort.INT, Sort.INT), Sort.RESULT);
-    FnApp u1 = new FnApp(u1Symbol, List.of(x, wrap16(xPlusOne)));
-    FnApp u1scope = new FnApp(u1Symbol, List.of(x, y));
-    FnApp retY = new FnApp(new TermSymbol("ret_Int", List.of(Sort.INT), Sort.RESULT), List.of(y));
+    FnApp retWrapped =
+        new FnApp(
+            new TermSymbol("ret_Int", List.of(Sort.INT), Sort.RESULT), List.of(wrap16(xPlusOne)));
 
-    Rule normalRule = new Rule(entry, u1, Optional.empty());
-    Rule retRule = new Rule(u1scope, retY, Optional.empty());
-    assertEquals(List.of(normalRule, retRule), lctrs.rules());
+    assertEquals(List.of(new Rule(entry, retWrapped, Optional.empty())), lctrs.rules());
   }
 
   /**
@@ -452,17 +440,13 @@ class TranslatorTest {
             IntegerSemantics.release);
 
     VarDecl x = new VarDecl("x", Sort.INT);
-    VarDecl y = new VarDecl("y", Sort.INT);
     FnApp entry = new FnApp(new TermSymbol("f", List.of(Sort.INT), Sort.RESULT), List.of(x));
     FnApp xTimesX = new FnApp(TheorySymbol.MUL, List.of(x, x));
-    TermSymbol u1Symbol = new TermSymbol("u1", List.of(Sort.INT, Sort.INT), Sort.RESULT);
-    FnApp u1 = new FnApp(u1Symbol, List.of(x, wrap16(xTimesX)));
-    FnApp u1scope = new FnApp(u1Symbol, List.of(x, y));
-    FnApp retY = new FnApp(new TermSymbol("ret_Int", List.of(Sort.INT), Sort.RESULT), List.of(y));
+    FnApp retWrapped =
+        new FnApp(
+            new TermSymbol("ret_Int", List.of(Sort.INT), Sort.RESULT), List.of(wrap16(xTimesX)));
 
-    assertEquals(
-        List.of(new Rule(entry, u1, Optional.empty()), new Rule(u1scope, retY, Optional.empty())),
-        lctrs.rules());
+    assertEquals(List.of(new Rule(entry, retWrapped, Optional.empty())), lctrs.rules());
   }
 
   /**
@@ -480,17 +464,12 @@ class TranslatorTest {
             IntegerSemantics.release);
 
     VarDecl x = new VarDecl("x", Sort.INT);
-    VarDecl y = new VarDecl("y", Sort.INT);
     FnApp entry = new FnApp(new TermSymbol("f", List.of(Sort.INT), Sort.RESULT), List.of(x));
     FnApp negX = new FnApp(TheorySymbol.NEG, List.of(x));
-    TermSymbol u1Symbol = new TermSymbol("u1", List.of(Sort.INT, Sort.INT), Sort.RESULT);
-    FnApp u1 = new FnApp(u1Symbol, List.of(x, wrap16(negX)));
-    FnApp u1scope = new FnApp(u1Symbol, List.of(x, y));
-    FnApp retY = new FnApp(new TermSymbol("ret_Int", List.of(Sort.INT), Sort.RESULT), List.of(y));
+    FnApp retWrapped =
+        new FnApp(new TermSymbol("ret_Int", List.of(Sort.INT), Sort.RESULT), List.of(wrap16(negX)));
 
-    assertEquals(
-        List.of(new Rule(entry, u1, Optional.empty()), new Rule(u1scope, retY, Optional.empty())),
-        lctrs.rules());
+    assertEquals(List.of(new Rule(entry, retWrapped, Optional.empty())), lctrs.rules());
   }
 
   /**
@@ -508,17 +487,12 @@ class TranslatorTest {
             IntegerSemantics.release);
 
     VarDecl b = new VarDecl("b", Sort.BOOL);
-    VarDecl y = new VarDecl("y", Sort.BOOL);
     FnApp entry = new FnApp(new TermSymbol("f", List.of(Sort.BOOL), Sort.RESULT), List.of(b));
     FnApp notB = new FnApp(TheorySymbol.NOT, List.of(b));
-    TermSymbol u1Symbol = new TermSymbol("u1", List.of(Sort.BOOL, Sort.BOOL), Sort.RESULT);
-    FnApp u1 = new FnApp(u1Symbol, List.of(b, notB));
-    FnApp u1scope = new FnApp(u1Symbol, List.of(b, y));
-    FnApp retY = new FnApp(new TermSymbol("ret_Bool", List.of(Sort.BOOL), Sort.RESULT), List.of(y));
+    FnApp retNotB =
+        new FnApp(new TermSymbol("ret_Bool", List.of(Sort.BOOL), Sort.RESULT), List.of(notB));
 
-    assertEquals(
-        List.of(new Rule(entry, u1, Optional.empty()), new Rule(u1scope, retY, Optional.empty())),
-        lctrs.rules());
+    assertEquals(List.of(new Rule(entry, retNotB, Optional.empty())), lctrs.rules());
   }
 
   /**
@@ -582,21 +556,17 @@ class TranslatorTest {
             block(let("y", I16, add(var("x"), intLit(1))), ret(var("y"))));
 
     VarDecl x = new VarDecl("x", Sort.INT);
-    VarDecl y = new VarDecl("y", Sort.INT);
     FnApp entry = new FnApp(new TermSymbol("f", List.of(Sort.INT), Sort.RESULT), List.of(x));
     FnApp xPlusOne = new FnApp(TheorySymbol.ADD, List.of(x, new IntValue(BigInteger.ONE)));
-    TermSymbol u1Symbol = new TermSymbol("u1", List.of(Sort.INT, Sort.INT), Sort.RESULT);
-    FnApp u1 = new FnApp(u1Symbol, List.of(x, xPlusOne));
-    FnApp u1scope = new FnApp(u1Symbol, List.of(x, y));
-    FnApp retY = new FnApp(new TermSymbol("ret_Int", List.of(Sort.INT), Sort.RESULT), List.of(y));
+    FnApp retSum =
+        new FnApp(new TermSymbol("ret_Int", List.of(Sort.INT), Sort.RESULT), List.of(xPlusOne));
     FnApp bound = i16Bound(xPlusOne);
 
     Rule errRule =
         new Rule(
             entry, err(), Optional.of(new Constraint(new FnApp(TheorySymbol.NOT, List.of(bound)))));
-    Rule normalRule = new Rule(entry, u1, Optional.of(new Constraint(bound)));
-    Rule retRule = new Rule(u1scope, retY, Optional.empty());
-    assertEquals(List.of(errRule, normalRule, retRule), lctrs.rules());
+    Rule normalRule = new Rule(entry, retSum, Optional.of(new Constraint(bound)));
+    assertEquals(List.of(errRule, normalRule), lctrs.rules());
   }
 
   /**
@@ -615,17 +585,12 @@ class TranslatorTest {
             IntegerSemantics.unbounded);
 
     VarDecl x = new VarDecl("x", Sort.INT);
-    VarDecl y = new VarDecl("y", Sort.INT);
     FnApp entry = new FnApp(new TermSymbol("f", List.of(Sort.INT), Sort.RESULT), List.of(x));
     FnApp xPlusOne = new FnApp(TheorySymbol.ADD, List.of(x, new IntValue(BigInteger.ONE)));
-    TermSymbol u1Symbol = new TermSymbol("u1", List.of(Sort.INT, Sort.INT), Sort.RESULT);
-    FnApp u1 = new FnApp(u1Symbol, List.of(x, xPlusOne));
-    FnApp u1scope = new FnApp(u1Symbol, List.of(x, y));
-    FnApp retY = new FnApp(new TermSymbol("ret_Int", List.of(Sort.INT), Sort.RESULT), List.of(y));
+    FnApp retSum =
+        new FnApp(new TermSymbol("ret_Int", List.of(Sort.INT), Sort.RESULT), List.of(xPlusOne));
 
-    assertEquals(
-        List.of(new Rule(entry, u1, Optional.empty()), new Rule(u1scope, retY, Optional.empty())),
-        lctrs.rules());
+    assertEquals(List.of(new Rule(entry, retSum, Optional.empty())), lctrs.rules());
   }
 
   /**

@@ -3,11 +3,9 @@ ret_Int :: Int -> result
 err :: result
 u1 :: Int -> Int -> result
 u2 :: Int -> Int -> result
-u4 :: Int -> Int -> result
 
 wrap_count(x) -> u1(x, x)
 u1(x, y) -> u2(x, y) | y > 0
 u2(x, y) -> err | ¬((-32768 ≤ (y + 1)) ∧ ((y + 1) ≤ 32767))
 u2(x, y) -> u1(x, y + 1) | (-32768 ≤ (y + 1)) ∧ ((y + 1) ≤ 32767)
-u1(x, y) -> u4(x, y) | ¬(y > 0)
-u4(x, y) -> ret_Int(y)
+u1(x, y) -> ret_Int(y) | ¬(y > 0)

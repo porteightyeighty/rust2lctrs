@@ -206,6 +206,19 @@ final class AstHelper {
   }
 
   /**
+   * As {@link #translateFn(String, List, Type, Block)}, but without simplification
+   *
+   * @param name the function name (also the entry program-point symbol)
+   * @param params the parameter list
+   * @param returnType the declared return type
+   * @param body the function body
+   * @return the translated, unsimplified LCTRS
+   */
+  static Lctrs translateFnRaw(String name, List<Parameter> params, Type returnType, Block body) {
+    return new Translator(crate(fn(name, params, returnType, body))).translate();
+  }
+
+  /**
    * As {@link #translateFn(String, List, Type, Block)}, but under chosen {@link IntegerSemantics}
    * so tests can pin the release (wrapping) and unbounded encodings against the default debug
    * (panic) one.

@@ -3,13 +3,9 @@ ret_Int :: Int -> result
 err :: result
 u1 :: Int -> Int -> result
 u2 :: Int -> Int -> result
-u3 :: Int -> Int -> Int -> result
-u4 :: Int -> Int -> result
 
 shadow_scoped(n) -> u1(n, n)
 u1(n, x) -> u2(n, x) | n > 0
 u2(n, x) -> err | ¬((-128 ≤ (x + 1)) ∧ ((x + 1) ≤ 127))
-u2(n, x) -> u3(n, x, x + 1) | (-128 ≤ (x + 1)) ∧ ((x + 1) ≤ 127)
-u3(n, x, x_1) -> ret_Int(x_1)
-u1(n, x) -> u4(n, x) | ¬(n > 0)
-u4(n, x) -> ret_Int(x)
+u2(n, x) -> ret_Int(x + 1) | (-128 ≤ (x + 1)) ∧ ((x + 1) ≤ 127)
+u1(n, x) -> ret_Int(x) | ¬(n > 0)
