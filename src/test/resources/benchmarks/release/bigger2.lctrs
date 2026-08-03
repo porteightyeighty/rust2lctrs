@@ -1,0 +1,9 @@
+bigger2 :: Int -> Int -> result
+ret_Int :: Int -> result
+err :: result
+u2 :: Int -> Int -> result
+
+bigger2(x, y) -> ret_Int(x) | x > y
+bigger2(x, y) -> u2(x, y) | ¬(x > y)
+u2(x, y) -> ret_Int(y) | x < y
+u2(x, y) -> ret_Int(0) | ¬(x < y)

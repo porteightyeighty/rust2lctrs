@@ -1,4 +1,5 @@
 // debug: YES
+// release: MAYBE
 fn sum_skip(n: i16) -> i16 {
     let mut i: i16 = 0;
     let mut acc: i16 = 0;

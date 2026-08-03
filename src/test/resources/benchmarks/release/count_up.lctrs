@@ -1,0 +1,8 @@
+count_up :: Int -> result
+ret_Int :: Int -> result
+err :: result
+u1 :: Int -> Int -> result
+
+count_up(x) -> u1(x, 0)
+u1(x, y) -> u1(x, (((y + 1) - -32768) % 65536) + -32768) | x > y
+u1(x, y) -> ret_Int(y) | ¬(x > y)

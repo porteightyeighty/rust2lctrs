@@ -1,4 +1,5 @@
 // debug: YES
+// release: MAYBE
 fn is_even(n: i8) -> bool {
     if n == 0 {
         return true;

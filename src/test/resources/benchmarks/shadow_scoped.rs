@@ -1,4 +1,5 @@
 // debug: YES
+// release: YES
 fn shadow_scoped(n: i8) -> i8 {
     let x: i8 = n;
     if n > 0 {

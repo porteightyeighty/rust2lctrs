@@ -1,0 +1,5 @@
+endless_while :: result
+ret_unit :: result
+err :: result
+
+endless_while -> endless_while

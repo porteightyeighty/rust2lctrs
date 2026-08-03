@@ -1,0 +1,8 @@
+div :: Int -> Int -> result
+ret_Int :: Int -> result
+err :: result
+
+div(a, b) -> err | ¬((b ≠ 0) ∧ ¬((a = -32768) ∧ (b = -1)))
+div(a, b) -> ret_Int($div) | (((b ≠ 0) ∧ ¬((a = -32768) ∧ (b = -1))) ∧ ((a ≥ 0) ∨ ((a % b) = 0))) ∧ ($div = (a / b))
+div(a, b) -> ret_Int($div) | (((b ≠ 0) ∧ ¬((a = -32768) ∧ (b = -1))) ∧ (((a < 0) ∧ ((a % b) ≠ 0)) ∧ (b > 0))) ∧ ($div = ((a / b) + 1))
+div(a, b) -> ret_Int($div) | (((b ≠ 0) ∧ ¬((a = -32768) ∧ (b = -1))) ∧ (((a < 0) ∧ ((a % b) ≠ 0)) ∧ (b < 0))) ∧ ($div = ((a / b) - 1))
