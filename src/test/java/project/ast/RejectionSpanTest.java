@@ -9,7 +9,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * Evidence that a rejected construct reports where it is. This asserts the reported {@link Span}, when both thrown as {@link UnsupportedConstructException}, or collected as a {@link Diagnostic}.
+ * Evidence that a rejected construct reports where it is. This asserts the reported {@link Span},
+ * when both thrown as {@link UnsupportedConstructException}, or collected as a {@link Diagnostic}.
+ */
 public class RejectionSpanTest {
 
   private DiagnosticRecorder diagnostics;
