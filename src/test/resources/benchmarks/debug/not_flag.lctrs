@@ -1,0 +1,6 @@
+not_flag :: Bool -> Bool -> result
+ret_Bool :: Bool -> result
+err :: result
+
+not_flag(p, q) -> ret_Bool(q) | ¬p
+not_flag(p, q) -> ret_Bool(¬(p ∧ q)) | ¬(¬p)

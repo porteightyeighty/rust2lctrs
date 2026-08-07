@@ -1,0 +1,8 @@
+loop_break :: Int -> result
+ret_Int :: Int -> result
+err :: result
+u1 :: Int -> result
+
+loop_break(x) -> u1(x)
+u1(x) -> ret_Int(x) | x ≥ 10
+u1(x) -> loop_break((((x + 1) - -2147483648) % 4294967296) + -2147483648) | ¬(x ≥ 10)

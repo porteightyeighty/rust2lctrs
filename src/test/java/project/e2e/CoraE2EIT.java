@@ -55,7 +55,12 @@ final class CoraE2EIT {
         () -> "Golden missing for " + benchmark.name() + "; run ./mvnw test first");
 
     project.testsupport.Verdict expected = benchmark.expectedVerdict().orElseThrow();
+
+    System.out.printf("  %-24s %-9s ... ", benchmark.name(), benchmark.semantics());
+    System.out.flush();
+    long start = System.nanoTime();
     project.testsupport.Verdict actual = Cora.run(benchmark.golden());
+    System.out.printf("%-5s (%.1fs)%n", actual, (System.nanoTime() - start) / 1e9);
 
     assertEquals(
         expected,

@@ -1,0 +1,10 @@
+call_plain :: Int -> result
+ret_Int :: Int -> result
+err :: result
+u1 :: Int -> result -> result
+double :: Int -> result
+
+call_plain(x) -> u1(x, double(x))
+u1(x, ret_Int($call)) -> ret_Int(((($call + 1) - -128) % 256) + -128)
+u1(x, err) -> err
+double(x) -> ret_Int((((x + x) - -128) % 256) + -128)
