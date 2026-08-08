@@ -1,0 +1,11 @@
+while_div :: Int -> result
+ret_Int :: Int -> result
+err :: result
+u1 :: Int -> Int -> result
+u2 :: Int -> Int -> Int -> result
+
+while_div(n) -> u1(n, 0)
+u1(n, i) -> u2(n, i, $div) | ((i ≥ 0) ∨ ((i % 2) = 0)) ∧ ($div = (i / 2))
+u1(n, i) -> u2(n, i, $div) | ((i < 0) ∧ ((i % 2) ≠ 0)) ∧ ($div = ((i / 2) + 1))
+u2(n, i, $div) -> u1(n, (((i + 1) - -32768) % 65536) + -32768) | $div < n
+u2(n, i, $div) -> ret_Int(i) | ¬($div < n)

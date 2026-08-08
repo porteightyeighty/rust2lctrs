@@ -1,4 +1,5 @@
 // debug: YES
+// release: YES
 fn and_or(x: i32, y: i32) -> i32 {
     if x < 0 || x > 9 {
         return 0;

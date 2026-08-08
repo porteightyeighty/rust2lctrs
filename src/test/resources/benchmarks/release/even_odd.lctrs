@@ -1,0 +1,15 @@
+is_even :: Int -> result
+ret_Bool :: Bool -> result
+err :: result
+u3 :: Int -> result -> result
+is_odd :: Int -> result
+u7 :: Int -> result -> result
+
+is_even(n) -> ret_Bool(true) | n = 0
+is_even(n) -> u3(n, is_odd((((n - 1) - -128) % 256) + -128)) | ¬(n = 0)
+u3(n, ret_Bool($call)) -> ret_Bool($call)
+u3(n, err) -> err
+is_odd(n) -> ret_Bool(false) | n = 0
+is_odd(n) -> u7(n, is_even((((n - 1) - -128) % 256) + -128)) | ¬(n = 0)
+u7(n, ret_Bool($call)) -> ret_Bool($call)
+u7(n, err) -> err

@@ -1,0 +1,11 @@
+div_cond :: Int -> Int -> result
+ret_Int :: Int -> result
+err :: result
+u1 :: Int -> Int -> Int -> result
+
+div_cond(a, b) -> err | ¬((b ≠ 0) ∧ ¬((a = -32768) ∧ (b = -1)))
+div_cond(a, b) -> u1(a, b, $div) | (((b ≠ 0) ∧ ¬((a = -32768) ∧ (b = -1))) ∧ ((a ≥ 0) ∨ ((a % b) = 0))) ∧ ($div = (a / b))
+div_cond(a, b) -> u1(a, b, $div) | (((b ≠ 0) ∧ ¬((a = -32768) ∧ (b = -1))) ∧ (((a < 0) ∧ ((a % b) ≠ 0)) ∧ (b > 0))) ∧ ($div = ((a / b) + 1))
+div_cond(a, b) -> u1(a, b, $div) | (((b ≠ 0) ∧ ¬((a = -32768) ∧ (b = -1))) ∧ (((a < 0) ∧ ((a % b) ≠ 0)) ∧ (b < 0))) ∧ ($div = ((a / b) - 1))
+u1(a, b, $div) -> ret_Int(1) | $div > 0
+u1(a, b, $div) -> ret_Int(0) | ¬($div > 0)

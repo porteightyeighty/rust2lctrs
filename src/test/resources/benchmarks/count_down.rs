@@ -1,3 +1,5 @@
+// debug: YES
+// release: YES
 fn count_down(mut n: i32) {
     while n > 0 {
         n = n - 1;

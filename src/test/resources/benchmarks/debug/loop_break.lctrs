@@ -1,0 +1,11 @@
+loop_break :: Int -> result
+ret_Int :: Int -> result
+err :: result
+u1 :: Int -> result
+u3 :: Int -> result
+
+loop_break(x) -> u1(x)
+u1(x) -> ret_Int(x) | x ≥ 10
+u1(x) -> u3(x) | ¬(x ≥ 10)
+u3(x) -> err | ¬((-2147483648 ≤ (x + 1)) ∧ ((x + 1) ≤ 2147483647))
+u3(x) -> loop_break(x + 1) | (-2147483648 ≤ (x + 1)) ∧ ((x + 1) ≤ 2147483647)

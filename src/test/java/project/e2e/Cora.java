@@ -82,15 +82,22 @@ final class Cora {
         resolveBinary()
             .orElseThrow(() -> new IllegalStateException("Cora binary not found; set CORA_BIN"));
 
+    Path captured = Files.createTempFile("cora-", ".out");
     Process proc =
-        new ProcessBuilder(bin.toString(), lctrsFile.toString()).redirectErrorStream(true).start();
+        new ProcessBuilder(bin.toString(), lctrsFile.toString())
+            .redirectErrorStream(true)
+            .redirectOutput(captured.toFile())
+            .start();
 
-    String output = new String(proc.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-    if (!proc.waitFor(TIMEOUT.toSeconds(), TimeUnit.SECONDS)) {
-      proc.destroyForcibly();
-      throw new IllegalStateException("Cora timed out after " + TIMEOUT.toSeconds() + "s");
+    try {
+      if (!proc.waitFor(TIMEOUT.toSeconds(), TimeUnit.SECONDS)) {
+        proc.destroyForcibly();
+        throw new IllegalStateException("Cora timed out after " + TIMEOUT.toSeconds() + "s");
+      }
+      return parse(new String(Files.readAllBytes(captured), StandardCharsets.UTF_8));
+    } finally {
+      Files.deleteIfExists(captured);
     }
-    return parse(output);
   }
 
   /**

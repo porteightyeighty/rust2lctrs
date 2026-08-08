@@ -1,0 +1,6 @@
+count_down :: Int -> result
+ret_unit :: result
+err :: result
+
+count_down(n) -> count_down((((n - 1) - -2147483648) % 4294967296) + -2147483648) | n > 0
+count_down(n) -> ret_unit | ¬(n > 0)

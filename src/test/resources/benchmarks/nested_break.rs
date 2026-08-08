@@ -1,4 +1,5 @@
 // debug: YES
+// release: MAYBE
 fn nested_break(mut x: i16) -> i16 {
     let mut total: i16 = 0;
     while x > 0 {

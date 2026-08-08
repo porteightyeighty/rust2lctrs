@@ -1,0 +1,8 @@
+shadow_scoped :: Int -> result
+ret_Int :: Int -> result
+err :: result
+u1 :: Int -> Int -> result
+
+shadow_scoped(n) -> u1(n, n)
+u1(n, x) -> ret_Int((((x + 1) - -128) % 256) + -128) | n > 0
+u1(n, x) -> ret_Int(x) | ¬(n > 0)
