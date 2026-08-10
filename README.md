@@ -107,8 +107,12 @@ The translated `.lctrs` is Cora's input format. Install
 the output:
 
 ```sh
-cora out.lctrs           # → YES (terminates) or MAYBE (inconclusive)
+cora --strategy cbv out.lctrs   # → YES (terminates) or MAYBE (inconclusive)
 ```
+
+Always pass `--strategy cbv`. Rewriting in this encoding only ever happens at
+the root of a configuration, once every argument is already a value, so
+call-by-value is the strategy the translation is built for. 
 
 ## Development
 

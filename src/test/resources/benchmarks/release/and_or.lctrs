@@ -1,9 +1,11 @@
 and_or :: Int -> Int -> result
-ret_Int :: Int -> result
-err :: result
-u2 :: Int -> Int -> result
+private ret_Int :: Int -> result
+private err :: result
+private u1 :: Int -> Int -> result
+private u3 :: Int -> Int -> result
 
-and_or(x, y) -> ret_Int(0) | (x < 0) ∨ (x > 9)
-and_or(x, y) -> u2(x, y) | ¬((x < 0) ∨ (x > 9))
-u2(x, y) -> ret_Int(1) | (x < 1) ∧ (y > 2)
-u2(x, y) -> ret_Int(2) | ¬((x < 1) ∧ (y > 2))
+and_or(x, y) -> u1(x, y) | ((-2147483648 ≤ x) ∧ (x ≤ 2147483647)) ∧ ((-2147483648 ≤ y) ∧ (y ≤ 2147483647))
+u1(x, y) -> ret_Int(0) | (x < 0) ∨ (x > 9)
+u1(x, y) -> u3(x, y) | ¬((x < 0) ∨ (x > 9))
+u3(x, y) -> ret_Int(1) | (x < 1) ∧ (y > 2)
+u3(x, y) -> ret_Int(2) | ¬((x < 1) ∧ (y > 2))

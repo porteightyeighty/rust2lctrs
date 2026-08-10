@@ -1,6 +1,7 @@
 package project.lctrs;
 
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -23,7 +24,7 @@ public final class Serialiser {
    */
   public static String serialise(Lctrs lctrs) {
     StringBuilder out = new StringBuilder();
-    out.append(serialiseSignature(lctrs.sigma()));
+    out.append(serialiseSignature(lctrs.sigma(), lctrs.entries()));
     out.append(System.lineSeparator());
     out.append(serialiseRules(lctrs.rules()));
     return out.toString();
@@ -32,12 +33,19 @@ public final class Serialiser {
   /**
    * Serialises the signature, one symbol per line as {@code notation :: s₁ -> … -> sₙ -> result}.
    *
+   * <p>Every symbol that is not a function entry symbol is declared {@code private}, so Cora only
+   * considers rewrite sequences starting from a call to a source-level function.
+   *
    * @param signature the symbols to declare, in output order
+   * @param entries the function entry symbols, the only ones left public
    * @return the signature section, each declaration terminated by a line separator
    */
-  private static String serialiseSignature(List<Symbol> signature) {
+  private static String serialiseSignature(List<Symbol> signature, Set<Symbol> entries) {
     StringBuilder out = new StringBuilder();
     for (Symbol currentSymbol : signature) {
+      if (!entries.contains(currentSymbol)) {
+        out.append("private ");
+      }
       out.append(currentSymbol.notation());
       out.append(" :: ");
       List<Sort> argSorts = currentSymbol.argSorts();

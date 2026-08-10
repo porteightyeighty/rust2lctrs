@@ -1,11 +1,11 @@
 wrap_negate :: Int -> result
-ret_Int :: Int -> result
-err :: result
-u1 :: Int -> Int -> result
-u2 :: Int -> Int -> result
+private ret_Int :: Int -> result
+private err :: result
+private u2 :: Int -> Int -> result
+private u3 :: Int -> Int -> result
 
-wrap_negate(x) -> u1(x, x)
-u1(x, i) -> u2(x, i) | i < 0
-u2(x, i) -> err | ¬((-32768 ≤ -i) ∧ (-i ≤ 32767))
-u2(x, i) -> u1(x, -i) | (-32768 ≤ -i) ∧ (-i ≤ 32767)
-u1(x, i) -> ret_Int(i) | ¬(i < 0)
+wrap_negate(x) -> u2(x, x) | (-32768 ≤ x) ∧ (x ≤ 32767)
+u2(x, i) -> u3(x, i) | i < 0
+u3(x, i) -> err | ¬((-32768 ≤ -i) ∧ (-i ≤ 32767))
+u3(x, i) -> u2(x, -i) | (-32768 ≤ -i) ∧ (-i ≤ 32767)
+u2(x, i) -> ret_Int(i) | ¬(i < 0)

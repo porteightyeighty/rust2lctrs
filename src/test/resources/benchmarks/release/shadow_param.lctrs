@@ -1,5 +1,5 @@
 shadow_param :: Int -> result
-ret_Int :: Int -> result
-err :: result
+private ret_Int :: Int -> result
+private err :: result
 
-shadow_param(x) -> ret_Int((((x + 1) - -128) % 256) + -128)
+shadow_param(x) -> ret_Int((((x + 1) - -128) % 256) + -128) | (-128 ≤ x) ∧ (x ≤ 127)

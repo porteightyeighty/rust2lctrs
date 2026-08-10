@@ -234,14 +234,22 @@ final class ExpressionLowering {
    * @return the in-range clause, or empty if the operand width is unknown
    */
   private static Optional<Term> withinWidth(Context ctx, Expression expression) {
-    return inferWidth(ctx, expression)
-        .map(
-            w -> {
-              Term t = lower(ctx, expression);
-              Term lo = new FnApp(TheorySymbol.LE, List.of(new IntValue(w.min()), t));
-              Term hi = new FnApp(TheorySymbol.LE, List.of(t, new IntValue(w.max())));
-              return new FnApp(TheorySymbol.AND, List.of(lo, hi));
-            });
+    return inferWidth(ctx, expression).map(w -> inRange(lower(ctx, expression), w));
+  }
+
+  /**
+   * The clause {@code w.min ≤ t ≤ w.max} asserting that an already-lowered term stays within an
+   * integer width. Shared by {@link #withinWidth} and the entry rule's parameter bounds, where the
+   * width comes from a declaration rather than from inference.
+   *
+   * @param t the term to bound
+   * @param w the integer width to bound it by
+   * @return the in-range clause
+   */
+  static Term inRange(Term t, Type.Int w) {
+    Term lo = new FnApp(TheorySymbol.LE, List.of(new IntValue(w.min()), t));
+    Term hi = new FnApp(TheorySymbol.LE, List.of(t, new IntValue(w.max())));
+    return new FnApp(TheorySymbol.AND, List.of(lo, hi));
   }
 
   /**

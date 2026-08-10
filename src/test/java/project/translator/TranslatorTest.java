@@ -95,11 +95,28 @@ class TranslatorTest {
   }
 
   /**
+   * The entry rule every function leads with: {@code entry -> body} guarded by the conjoined width
+   * bounds of the parameters
+   *
+   * @param entry the entry configuration
+   * @param body the configuration the body is lowered against
+   * @param bounds the per-parameter width bounds, conjoined left to right
+   * @return the entry rule
+   */
+  private static Rule entryRule(FnApp entry, FnApp body, FnApp... bounds) {
+    Term phi = bounds[0];
+    for (int i = 1; i < bounds.length; i++) {
+      phi = new FnApp(TheorySymbol.AND, List.of(phi, bounds[i]));
+    }
+    return new Rule(entry, body, Optional.of(new Constraint(phi)));
+  }
+
+  /**
    * {@code fn f(n: i32) -> i32 { let x = n + 1; x }}. The point of interest is that the bound value
    * on the right-hand side is evaluated over the <em>pre-binding</em> scope: the first slot is the
    * live variable {@code n} and the second is {@code n + 1}, never {@code x}. Because {@code n + 1}
-   * can overflow, the entry splits into a guarded normal rule and an {@code err} rule on the
-   * negated bound. Asserted before simplification, which would inline {@code u1} away.
+   * can overflow, {@code u1} splits into a guarded normal rule and an {@code err} rule on the
+   * negated bound. Asserted before simplification, which would inline {@code u2} away.
    */
   @Test
   void letBindingEvaluatesValueOverPreBindingScope() {
@@ -114,26 +131,28 @@ class TranslatorTest {
     VarDecl x = new VarDecl("x", Sort.INT);
     FnApp entry = new FnApp(new TermSymbol("f", List.of(Sort.INT), Sort.RESULT), List.of(n));
     FnApp nPlusOne = new FnApp(TheorySymbol.ADD, List.of(n, new IntValue(BigInteger.ONE)));
-    TermSymbol u1Symbol = new TermSymbol("u1", List.of(Sort.INT, Sort.INT), Sort.RESULT);
-    FnApp u1 = new FnApp(u1Symbol, List.of(n, nPlusOne));
-    FnApp u1scope = new FnApp(u1Symbol, List.of(n, x));
+    FnApp u1 = new FnApp(new TermSymbol("u1", List.of(Sort.INT), Sort.RESULT), List.of(n));
+    TermSymbol u2Symbol = new TermSymbol("u2", List.of(Sort.INT, Sort.INT), Sort.RESULT);
+    FnApp u2 = new FnApp(u2Symbol, List.of(n, nPlusOne));
+    FnApp u2scope = new FnApp(u2Symbol, List.of(n, x));
     FnApp retX = new FnApp(new TermSymbol("ret_Int", List.of(Sort.INT), Sort.RESULT), List.of(x));
     FnApp bound = i32Bound(nPlusOne);
     Rule errRule =
         new Rule(
-            entry, err(), Optional.of(new Constraint(new FnApp(TheorySymbol.NOT, List.of(bound)))));
-    Rule normalRule = new Rule(entry, u1, Optional.of(new Constraint(bound)));
-    Rule retRule = new Rule(u1scope, retX, Optional.empty());
-    assertEquals(List.of(errRule, normalRule, retRule), lctrs.rules());
+            u1, err(), Optional.of(new Constraint(new FnApp(TheorySymbol.NOT, List.of(bound)))));
+    Rule normalRule = new Rule(u1, u2, Optional.of(new Constraint(bound)));
+    Rule retRule = new Rule(u2scope, retX, Optional.empty());
+    assertEquals(
+        List.of(entryRule(entry, u1, i32Bound(n)), errRule, normalRule, retRule), lctrs.rules());
   }
 
   /**
    * Two sequential {@code let} bindings thread their configurations: the outgoing configuration of
    * the first rule is the incoming configuration (left-hand side) of the second. For {@code fn f(n:
-   * i32) -> i32 { let x = n + 1; let y = x; x }} this gives {@code f(n) -> u1(n, n + 1)} followed
-   * by {@code u1(n, x) -> u2(n, x, x)}: the {@code u1} that closes rule 1 reopens as the head of
-   * rule 2's left-hand side, now over the scope variables. Asserted before simplification, which
-   * would inline both {@code u1} and {@code u2} away.
+   * i32) -> i32 { let x = n + 1; let y = x; x }} this gives {@code u1(n) -> u2(n, n + 1)} followed
+   * by {@code u2(n, x) -> u3(n, x, x)}: the {@code u2} that closes the first rule reopens as the
+   * head of the next rule's left-hand side, now over the scope variables. Asserted before
+   * simplification, which would inline both {@code u2} and {@code u3} away.
    */
   @Test
   void sequentialLetsThreadConfigurations() {
@@ -149,33 +168,36 @@ class TranslatorTest {
     VarDecl y = new VarDecl("y", Sort.INT);
     FnApp entry = new FnApp(new TermSymbol("f", List.of(Sort.INT), Sort.RESULT), List.of(n));
     FnApp nPlusOne = new FnApp(TheorySymbol.ADD, List.of(n, new IntValue(BigInteger.ONE)));
-    TermSymbol u1Symbol = new TermSymbol("u1", List.of(Sort.INT, Sort.INT), Sort.RESULT);
-    FnApp u1 = new FnApp(u1Symbol, List.of(n, nPlusOne));
-    FnApp u1scope = new FnApp(u1Symbol, List.of(n, x));
-    TermSymbol u2Symbol = new TermSymbol("u2", List.of(Sort.INT, Sort.INT, Sort.INT), Sort.RESULT);
+    FnApp u1 = new FnApp(new TermSymbol("u1", List.of(Sort.INT), Sort.RESULT), List.of(n));
+    TermSymbol u2Symbol = new TermSymbol("u2", List.of(Sort.INT, Sort.INT), Sort.RESULT);
+    FnApp u2 = new FnApp(u2Symbol, List.of(n, nPlusOne));
+    FnApp u2scope = new FnApp(u2Symbol, List.of(n, x));
+    TermSymbol u3Symbol = new TermSymbol("u3", List.of(Sort.INT, Sort.INT, Sort.INT), Sort.RESULT);
 
-    FnApp u2 = new FnApp(u2Symbol, List.of(n, x, x));
-    FnApp u2scope = new FnApp(u2Symbol, List.of(n, x, y));
+    FnApp u3 = new FnApp(u3Symbol, List.of(n, x, x));
+    FnApp u3scope = new FnApp(u3Symbol, List.of(n, x, y));
     FnApp retX = new FnApp(new TermSymbol("ret_Int", List.of(Sort.INT), Sort.RESULT), List.of(x));
 
     FnApp bound = i32Bound(nPlusOne);
     Rule errRule =
         new Rule(
-            entry, err(), Optional.of(new Constraint(new FnApp(TheorySymbol.NOT, List.of(bound)))));
-    // Only the first let (n + 1) can overflow; let y = x carries no bound, so rules 3 and 4 thread
-    // configurations unconstrained.
-    Rule normalRule = new Rule(entry, u1, Optional.of(new Constraint(bound)));
-    Rule expected2 = new Rule(u1scope, u2, Optional.empty());
-    Rule expected3 = new Rule(u2scope, retX, Optional.empty());
+            u1, err(), Optional.of(new Constraint(new FnApp(TheorySymbol.NOT, List.of(bound)))));
+    // Only the first let (n + 1) can overflow; let y = x carries no bound, so the last two rules
+    // thread configurations unconstrained.
+    Rule normalRule = new Rule(u1, u2, Optional.of(new Constraint(bound)));
+    Rule expected2 = new Rule(u2scope, u3, Optional.empty());
+    Rule expected3 = new Rule(u3scope, retX, Optional.empty());
 
-    assertEquals(List.of(errRule, normalRule, expected2, expected3), lctrs.rules());
+    assertEquals(
+        List.of(entryRule(entry, u1, i32Bound(n)), errRule, normalRule, expected2, expected3),
+        lctrs.rules());
   }
 
   /**
    * A shadowing {@code let} stays a distinct LCTRS variable rather than collapsing onto the binding
    * it shadows. For {@code fn f(n: i32) -> i32 { let x = n; let x = x + 1; x }} the second {@code
    * x} mints a fresh name {@code x_1}: its value {@code x + 1} is evaluated over the <em>outer</em>
-   * {@code x}. Asserted before simplification, which would inline {@code u2} and with it every
+   * {@code x}. Asserted before simplification, which would inline {@code u3} and with it every
    * occurrence of {@code x_1}.
    */
   @Test
@@ -191,35 +213,38 @@ class TranslatorTest {
     VarDecl x = new VarDecl("x", Sort.INT);
     VarDecl xShadow = new VarDecl("x_1", Sort.INT);
     FnApp entry = new FnApp(new TermSymbol("f", List.of(Sort.INT), Sort.RESULT), List.of(n));
-    TermSymbol u1Symbol = new TermSymbol("u1", List.of(Sort.INT, Sort.INT), Sort.RESULT);
-    FnApp u1 = new FnApp(u1Symbol, List.of(n, n));
-    FnApp u1scope = new FnApp(u1Symbol, List.of(n, x));
-    TermSymbol u2Symbol = new TermSymbol("u2", List.of(Sort.INT, Sort.INT, Sort.INT), Sort.RESULT);
+    FnApp u1 = new FnApp(new TermSymbol("u1", List.of(Sort.INT), Sort.RESULT), List.of(n));
+    TermSymbol u2Symbol = new TermSymbol("u2", List.of(Sort.INT, Sort.INT), Sort.RESULT);
+    FnApp u2 = new FnApp(u2Symbol, List.of(n, n));
+    FnApp u2scope = new FnApp(u2Symbol, List.of(n, x));
+    TermSymbol u3Symbol = new TermSymbol("u3", List.of(Sort.INT, Sort.INT, Sort.INT), Sort.RESULT);
     FnApp xPlusOne = new FnApp(TheorySymbol.ADD, List.of(x, new IntValue(BigInteger.ONE)));
-    FnApp u2 = new FnApp(u2Symbol, List.of(n, x, xPlusOne));
-    FnApp u2scope = new FnApp(u2Symbol, List.of(n, x, xShadow));
+    FnApp u3 = new FnApp(u3Symbol, List.of(n, x, xPlusOne));
+    FnApp u3scope = new FnApp(u3Symbol, List.of(n, x, xShadow));
     FnApp retShadow =
         new FnApp(new TermSymbol("ret_Int", List.of(Sort.INT), Sort.RESULT), List.of(xShadow));
 
     FnApp bound = i32Bound(xPlusOne);
     // let x = n carries no bound (single unguarded rule); only the shadowing let x = x + 1
     // overflows.
-    Rule firstLet = new Rule(entry, u1, Optional.empty());
+    Rule firstLet = new Rule(u1, u2, Optional.empty());
     Rule errRule =
         new Rule(
-            u1scope,
+            u2scope,
             err(),
             Optional.of(new Constraint(new FnApp(TheorySymbol.NOT, List.of(bound)))));
-    Rule normalRule = new Rule(u1scope, u2, Optional.of(new Constraint(bound)));
-    Rule retRule = new Rule(u2scope, retShadow, Optional.empty());
+    Rule normalRule = new Rule(u2scope, u3, Optional.of(new Constraint(bound)));
+    Rule retRule = new Rule(u3scope, retShadow, Optional.empty());
 
-    assertEquals(List.of(firstLet, errRule, normalRule, retRule), lctrs.rules());
+    assertEquals(
+        List.of(entryRule(entry, u1, i32Bound(n)), firstLet, errRule, normalRule, retRule),
+        lctrs.rules());
   }
 
   /**
    * {@code fn f(x: i32, y: i32) -> i32 { if x < 1 && y > 2 { return 1; } 0 }}. A lazy boolean
    * operator over panic-free operands lowers eagerly: one conjunction inside the branch guards, no
-   * extra program points, no err rule.
+   * program point beyond the entry hop, no err rule.
    */
   @Test
   void lazyAndLowersToConjunctionInBranchGuards() {
@@ -244,16 +269,19 @@ class TranslatorTest {
                 new FnApp(TheorySymbol.LT, List.of(x, IntValue.of(1))),
                 new FnApp(TheorySymbol.GT, List.of(y, IntValue.of(2)))));
     TermSymbol retInt = new TermSymbol("ret_Int", List.of(Sort.INT), Sort.RESULT);
+    FnApp u1 =
+        new FnApp(new TermSymbol("u1", List.of(Sort.INT, Sort.INT), Sort.RESULT), List.of(x, y));
 
     Rule thenRule =
-        new Rule(
-            entry, new FnApp(retInt, List.of(IntValue.of(1))), Optional.of(new Constraint(cond)));
+        new Rule(u1, new FnApp(retInt, List.of(IntValue.of(1))), Optional.of(new Constraint(cond)));
     Rule mergeRule =
         new Rule(
-            entry,
+            u1,
             new FnApp(retInt, List.of(IntValue.of(0))),
             Optional.of(new Constraint(new FnApp(TheorySymbol.NOT, List.of(cond)))));
-    assertEquals(List.of(thenRule, mergeRule), lctrs.rules());
+    assertEquals(
+        List.of(entryRule(entry, u1, i32Bound(x), i32Bound(y)), thenRule, mergeRule),
+        lctrs.rules());
   }
 
   /**
@@ -277,16 +305,16 @@ class TranslatorTest {
 
     VarDecl x = new VarDecl("x", Sort.INT);
     VarDecl y = new VarDecl("y", Sort.INT);
-    FnApp entry =
-        new FnApp(new TermSymbol("f", List.of(Sort.INT, Sort.INT), Sort.RESULT), List.of(x, y));
+    FnApp u1 =
+        new FnApp(new TermSymbol("u1", List.of(Sort.INT, Sort.INT), Sort.RESULT), List.of(x, y));
     FnApp yPlusOne = new FnApp(TheorySymbol.ADD, List.of(y, IntValue.of(1)));
     FnApp leftFalse =
         new FnApp(
             TheorySymbol.NOT, List.of(new FnApp(TheorySymbol.LT, List.of(x, IntValue.of(1)))));
     FnApp safety = new FnApp(TheorySymbol.OR, List.of(leftFalse, i32Bound(yPlusOne)));
 
-    Rule errRule = lctrs.rules().get(0);
-    assertEquals(entry, errRule.lhs());
+    Rule errRule = lctrs.rules().get(1);
+    assertEquals(u1, errRule.lhs());
     assertEquals(err(), errRule.rhs());
     assertEquals(
         Optional.of(new Constraint(new FnApp(TheorySymbol.NOT, List.of(safety)))),
@@ -312,14 +340,14 @@ class TranslatorTest {
 
     VarDecl x = new VarDecl("x", Sort.INT);
     VarDecl y = new VarDecl("y", Sort.INT);
-    FnApp entry =
-        new FnApp(new TermSymbol("f", List.of(Sort.INT, Sort.INT), Sort.RESULT), List.of(x, y));
+    FnApp u1 =
+        new FnApp(new TermSymbol("u1", List.of(Sort.INT, Sort.INT), Sort.RESULT), List.of(x, y));
     FnApp yPlusOne = new FnApp(TheorySymbol.ADD, List.of(y, IntValue.of(1)));
     FnApp leftTrue = new FnApp(TheorySymbol.LT, List.of(x, IntValue.of(1)));
     FnApp safety = new FnApp(TheorySymbol.OR, List.of(leftTrue, i32Bound(yPlusOne)));
 
-    Rule errRule = lctrs.rules().get(0);
-    assertEquals(entry, errRule.lhs());
+    Rule errRule = lctrs.rules().get(1);
+    assertEquals(u1, errRule.lhs());
     assertEquals(err(), errRule.rhs());
     assertEquals(
         Optional.of(new Constraint(new FnApp(TheorySymbol.NOT, List.of(safety)))),
@@ -401,8 +429,9 @@ class TranslatorTest {
 
   /**
    * Release wraps an overflowing {@code +} instead of faulting. For {@code fn f(x: i16) -> i16 {
-   * let y = x + 1; y }} the bound value is {@code wrap((x + 1))} and the entry rule carries neither
-   * a width constraint nor a companion {@code err} rule — the panic path is gone entirely.
+   * let y = x + 1; y }} the bound value is {@code wrap((x + 1))} with no result-width constraint
+   * and no companion {@code err} rule: the panic path is gone entirely, and the only constraint
+   * left is the entry rule's parameter bound.
    */
   @Test
   void releaseWrapsAdditionWithNoErrRule() {
@@ -421,7 +450,7 @@ class TranslatorTest {
         new FnApp(
             new TermSymbol("ret_Int", List.of(Sort.INT), Sort.RESULT), List.of(wrap16(xPlusOne)));
 
-    assertEquals(List.of(new Rule(entry, retWrapped, Optional.empty())), lctrs.rules());
+    assertEquals(List.of(entryRule(entry, retWrapped, i16Bound(x))), lctrs.rules());
   }
 
   /**
@@ -446,7 +475,7 @@ class TranslatorTest {
         new FnApp(
             new TermSymbol("ret_Int", List.of(Sort.INT), Sort.RESULT), List.of(wrap16(xTimesX)));
 
-    assertEquals(List.of(new Rule(entry, retWrapped, Optional.empty())), lctrs.rules());
+    assertEquals(List.of(entryRule(entry, retWrapped, i16Bound(x))), lctrs.rules());
   }
 
   /**
@@ -469,7 +498,7 @@ class TranslatorTest {
     FnApp retWrapped =
         new FnApp(new TermSymbol("ret_Int", List.of(Sort.INT), Sort.RESULT), List.of(wrap16(negX)));
 
-    assertEquals(List.of(new Rule(entry, retWrapped, Optional.empty())), lctrs.rules());
+    assertEquals(List.of(entryRule(entry, retWrapped, i16Bound(x))), lctrs.rules());
   }
 
   /**
@@ -561,12 +590,13 @@ class TranslatorTest {
     FnApp retSum =
         new FnApp(new TermSymbol("ret_Int", List.of(Sort.INT), Sort.RESULT), List.of(xPlusOne));
     FnApp bound = i16Bound(xPlusOne);
+    FnApp u1 = new FnApp(new TermSymbol("u1", List.of(Sort.INT), Sort.RESULT), List.of(x));
 
     Rule errRule =
         new Rule(
-            entry, err(), Optional.of(new Constraint(new FnApp(TheorySymbol.NOT, List.of(bound)))));
-    Rule normalRule = new Rule(entry, retSum, Optional.of(new Constraint(bound)));
-    assertEquals(List.of(errRule, normalRule), lctrs.rules());
+            u1, err(), Optional.of(new Constraint(new FnApp(TheorySymbol.NOT, List.of(bound)))));
+    Rule normalRule = new Rule(u1, retSum, Optional.of(new Constraint(bound)));
+    assertEquals(List.of(entryRule(entry, u1, i16Bound(x)), errRule, normalRule), lctrs.rules());
   }
 
   /**
@@ -612,8 +642,10 @@ class TranslatorTest {
     List<Rule> errRules = lctrs.rules().stream().filter(r -> r.rhs().equals(err())).toList();
     assertEquals(
         List.of(expected), errRules.stream().map(r -> r.constraint().orElseThrow()).toList());
+    // Debug leads with an entry rule bounding the parameters; unbounded has no widths to bound, so
+    // discount it before comparing the division encodings.
     assertEquals(
-        translateFn("f", params, I16, body, IntegerSemantics.debug).rules().size(),
+        translateFn("f", params, I16, body, IntegerSemantics.debug).rules().size() - 1,
         lctrs.rules().size());
   }
 

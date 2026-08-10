@@ -1,6 +1,8 @@
 wrap_mul :: Int -> result
-ret_Int :: Int -> result
-err :: result
+private ret_Int :: Int -> result
+private err :: result
+private u1 :: Int -> result
 
-wrap_mul(x) -> err | ¬((-32768 ≤ (x * x)) ∧ ((x * x) ≤ 32767))
-wrap_mul(x) -> ret_Int(x * x) | (-32768 ≤ (x * x)) ∧ ((x * x) ≤ 32767)
+wrap_mul(x) -> u1(x) | (-32768 ≤ x) ∧ (x ≤ 32767)
+u1(x) -> err | ¬((-32768 ≤ (x * x)) ∧ ((x * x) ≤ 32767))
+u1(x) -> ret_Int(x * x) | (-32768 ≤ (x * x)) ∧ ((x * x) ≤ 32767)

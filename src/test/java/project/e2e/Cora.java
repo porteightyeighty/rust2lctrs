@@ -70,6 +70,10 @@ final class Cora {
   /**
    * Runs Cora on an LCTRS file and returns the verdict it prints.
    *
+   * <p>Analysis runs under {@code --strategy cbv}. The encoding only ever rewrites a configuration
+   * at the root with all arguments already values, so call-by-value is the strategy it targets, and
+   * restricting Cora to it discharges cases the default full strategy leaves as {@code MAYBE}.
+   *
    * @param lctrsFile the LCTRS file to analyse
    * @return the parsed verdict
    * @throws IllegalStateException if Cora cannot be located, the process times out, or it exits
@@ -84,7 +88,7 @@ final class Cora {
 
     Path captured = Files.createTempFile("cora-", ".out");
     Process proc =
-        new ProcessBuilder(bin.toString(), lctrsFile.toString())
+        new ProcessBuilder(bin.toString(), "--strategy", "cbv", lctrsFile.toString())
             .redirectErrorStream(true)
             .redirectOutput(captured.toFile())
             .start();

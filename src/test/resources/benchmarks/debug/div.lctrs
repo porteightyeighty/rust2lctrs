@@ -1,8 +1,10 @@
 div :: Int -> Int -> result
-ret_Int :: Int -> result
-err :: result
+private ret_Int :: Int -> result
+private err :: result
+private u1 :: Int -> Int -> result
 
-div(a, b) -> err | ¬((b ≠ 0) ∧ ¬((a = -32768) ∧ (b = -1)))
-div(a, b) -> ret_Int($div) | (((b ≠ 0) ∧ ¬((a = -32768) ∧ (b = -1))) ∧ ((a ≥ 0) ∨ ((a % b) = 0))) ∧ ($div = (a / b))
-div(a, b) -> ret_Int($div) | (((b ≠ 0) ∧ ¬((a = -32768) ∧ (b = -1))) ∧ (((a < 0) ∧ ((a % b) ≠ 0)) ∧ (b > 0))) ∧ ($div = ((a / b) + 1))
-div(a, b) -> ret_Int($div) | (((b ≠ 0) ∧ ¬((a = -32768) ∧ (b = -1))) ∧ (((a < 0) ∧ ((a % b) ≠ 0)) ∧ (b < 0))) ∧ ($div = ((a / b) - 1))
+div(a, b) -> u1(a, b) | ((-32768 ≤ a) ∧ (a ≤ 32767)) ∧ ((-32768 ≤ b) ∧ (b ≤ 32767))
+u1(a, b) -> err | ¬((b ≠ 0) ∧ ¬((a = -32768) ∧ (b = -1)))
+u1(a, b) -> ret_Int($div) | (((b ≠ 0) ∧ ¬((a = -32768) ∧ (b = -1))) ∧ ((a ≥ 0) ∨ ((a % b) = 0))) ∧ ($div = (a / b))
+u1(a, b) -> ret_Int($div) | (((b ≠ 0) ∧ ¬((a = -32768) ∧ (b = -1))) ∧ (((a < 0) ∧ ((a % b) ≠ 0)) ∧ (b > 0))) ∧ ($div = ((a / b) + 1))
+u1(a, b) -> ret_Int($div) | (((b ≠ 0) ∧ ¬((a = -32768) ∧ (b = -1))) ∧ (((a < 0) ∧ ((a % b) ≠ 0)) ∧ (b < 0))) ∧ ($div = ((a / b) - 1))

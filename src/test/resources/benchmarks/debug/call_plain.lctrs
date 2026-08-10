@@ -1,14 +1,16 @@
 call_plain :: Int -> result
-ret_Int :: Int -> result
-err :: result
-u1 :: Int -> result -> result
-u3 :: Int -> Int -> result
+private ret_Int :: Int -> result
+private err :: result
+private u2 :: Int -> result -> result
+private u4 :: Int -> Int -> result
 double :: Int -> result
+private u5 :: Int -> result
 
-call_plain(x) -> u1(x, double(x))
-u1(x, ret_Int($call)) -> u3(x, $call)
-u1(x, err) -> err
-u3(x, y) -> err | ¬((-128 ≤ (y + 1)) ∧ ((y + 1) ≤ 127))
-u3(x, y) -> ret_Int(y + 1) | (-128 ≤ (y + 1)) ∧ ((y + 1) ≤ 127)
-double(x) -> err | ¬((-128 ≤ (x + x)) ∧ ((x + x) ≤ 127))
-double(x) -> ret_Int(x + x) | (-128 ≤ (x + x)) ∧ ((x + x) ≤ 127)
+call_plain(x) -> u2(x, double(x)) | (-128 ≤ x) ∧ (x ≤ 127)
+u2(x, ret_Int($call)) -> u4(x, $call)
+u2(x, err) -> err
+u4(x, y) -> err | ¬((-128 ≤ (y + 1)) ∧ ((y + 1) ≤ 127))
+u4(x, y) -> ret_Int(y + 1) | (-128 ≤ (y + 1)) ∧ ((y + 1) ≤ 127)
+double(x) -> u5(x) | (-128 ≤ x) ∧ (x ≤ 127)
+u5(x) -> err | ¬((-128 ≤ (x + x)) ∧ ((x + x) ≤ 127))
+u5(x) -> ret_Int(x + x) | (-128 ≤ (x + x)) ∧ ((x + x) ≤ 127)

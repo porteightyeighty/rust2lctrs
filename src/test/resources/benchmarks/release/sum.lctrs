@@ -1,5 +1,5 @@
 sum :: Int -> Int -> result
-ret_Int :: Int -> result
-err :: result
+private ret_Int :: Int -> result
+private err :: result
 
-sum(a, b) -> ret_Int((((a + b) - -128) % 256) + -128)
+sum(a, b) -> ret_Int((((a + b) - -128) % 256) + -128) | ((-128 ≤ a) ∧ (a ≤ 127)) ∧ ((-128 ≤ b) ∧ (b ≤ 127))

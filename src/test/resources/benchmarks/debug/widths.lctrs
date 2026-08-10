@@ -1,27 +1,29 @@
 widths :: Int -> Int -> Int -> Int -> Int -> Int -> Int -> result
-ret_Int :: Int -> result
-err :: result
-u1 :: Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> result
-u2 :: Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> result
-u3 :: Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> result
-u4 :: Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> result
-u5 :: Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> result
-u6 :: Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> result
-u7 :: Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> result
+private ret_Int :: Int -> result
+private err :: result
+private u1 :: Int -> Int -> Int -> Int -> Int -> Int -> Int -> result
+private u2 :: Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> result
+private u3 :: Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> result
+private u4 :: Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> result
+private u5 :: Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> result
+private u6 :: Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> result
+private u7 :: Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> result
+private u8 :: Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> result
 
-widths(a, b, c, d, e, f, n) -> err | ¬((0 ≤ (a + 1)) ∧ ((a + 1) ≤ 65535))
-widths(a, b, c, d, e, f, n) -> u1(a, b, c, d, e, f, n, a + 1) | (0 ≤ (a + 1)) ∧ ((a + 1) ≤ 65535)
-u1(a, b, c, d, e, f, n, p) -> err | ¬((0 ≤ (b + 1)) ∧ ((b + 1) ≤ 4294967295))
-u1(a, b, c, d, e, f, n, p) -> u2(a, b, c, d, e, f, n, p, b + 1) | (0 ≤ (b + 1)) ∧ ((b + 1) ≤ 4294967295)
-u2(a, b, c, d, e, f, n, p, q) -> err | ¬((0 ≤ (c + 1)) ∧ ((c + 1) ≤ 18446744073709551615))
-u2(a, b, c, d, e, f, n, p, q) -> u3(a, b, c, d, e, f, n, p, q, c + 1) | (0 ≤ (c + 1)) ∧ ((c + 1) ≤ 18446744073709551615)
-u3(a, b, c, d, e, f, n, p, q, r) -> err | ¬((0 ≤ (d + 1)) ∧ ((d + 1) ≤ 340282366920938463463374607431768211455))
-u3(a, b, c, d, e, f, n, p, q, r) -> u4(a, b, c, d, e, f, n, p, q, r, d + 1) | (0 ≤ (d + 1)) ∧ ((d + 1) ≤ 340282366920938463463374607431768211455)
-u4(a, b, c, d, e, f, n, p, q, r, s) -> err | ¬((-9223372036854775808 ≤ (e + 1)) ∧ ((e + 1) ≤ 9223372036854775807))
-u4(a, b, c, d, e, f, n, p, q, r, s) -> u5(a, b, c, d, e, f, n, p, q, r, s, e + 1) | (-9223372036854775808 ≤ (e + 1)) ∧ ((e + 1) ≤ 9223372036854775807)
-u5(a, b, c, d, e, f, n, p, q, r, s, t) -> err | ¬((-170141183460469231731687303715884105728 ≤ (f + 1)) ∧ ((f + 1) ≤ 170141183460469231731687303715884105727))
-u5(a, b, c, d, e, f, n, p, q, r, s, t) -> u6(a, b, c, d, e, f, n, p, q, r, s, t, f + 1) | (-170141183460469231731687303715884105728 ≤ (f + 1)) ∧ ((f + 1) ≤ 170141183460469231731687303715884105727)
-u6(a, b, c, d, e, f, n, p, q, r, s, t, u) -> u7(a, b, c, d, e, f, n, p, q, r, s, t, u) | n > 0
-u7(a, b, c, d, e, f, n, p, q, r, s, t, u) -> err | ¬((0 ≤ (n - 1)) ∧ ((n - 1) ≤ 255))
-u7(a, b, c, d, e, f, n, p, q, r, s, t, u) -> u6(a, b, c, d, e, f, n - 1, p, q, r, s, t, u) | (0 ≤ (n - 1)) ∧ ((n - 1) ≤ 255)
-u6(a, b, c, d, e, f, n, p, q, r, s, t, u) -> ret_Int(n) | ¬(n > 0)
+widths(a, b, c, d, e, f, n) -> u1(a, b, c, d, e, f, n) | (((((((0 ≤ a) ∧ (a ≤ 65535)) ∧ ((0 ≤ b) ∧ (b ≤ 4294967295))) ∧ ((0 ≤ c) ∧ (c ≤ 18446744073709551615))) ∧ ((0 ≤ d) ∧ (d ≤ 340282366920938463463374607431768211455))) ∧ ((-9223372036854775808 ≤ e) ∧ (e ≤ 9223372036854775807))) ∧ ((-170141183460469231731687303715884105728 ≤ f) ∧ (f ≤ 170141183460469231731687303715884105727))) ∧ ((0 ≤ n) ∧ (n ≤ 255))
+u1(a, b, c, d, e, f, n) -> err | ¬((0 ≤ (a + 1)) ∧ ((a + 1) ≤ 65535))
+u1(a, b, c, d, e, f, n) -> u2(a, b, c, d, e, f, n, a + 1) | (0 ≤ (a + 1)) ∧ ((a + 1) ≤ 65535)
+u2(a, b, c, d, e, f, n, p) -> err | ¬((0 ≤ (b + 1)) ∧ ((b + 1) ≤ 4294967295))
+u2(a, b, c, d, e, f, n, p) -> u3(a, b, c, d, e, f, n, p, b + 1) | (0 ≤ (b + 1)) ∧ ((b + 1) ≤ 4294967295)
+u3(a, b, c, d, e, f, n, p, q) -> err | ¬((0 ≤ (c + 1)) ∧ ((c + 1) ≤ 18446744073709551615))
+u3(a, b, c, d, e, f, n, p, q) -> u4(a, b, c, d, e, f, n, p, q, c + 1) | (0 ≤ (c + 1)) ∧ ((c + 1) ≤ 18446744073709551615)
+u4(a, b, c, d, e, f, n, p, q, r) -> err | ¬((0 ≤ (d + 1)) ∧ ((d + 1) ≤ 340282366920938463463374607431768211455))
+u4(a, b, c, d, e, f, n, p, q, r) -> u5(a, b, c, d, e, f, n, p, q, r, d + 1) | (0 ≤ (d + 1)) ∧ ((d + 1) ≤ 340282366920938463463374607431768211455)
+u5(a, b, c, d, e, f, n, p, q, r, s) -> err | ¬((-9223372036854775808 ≤ (e + 1)) ∧ ((e + 1) ≤ 9223372036854775807))
+u5(a, b, c, d, e, f, n, p, q, r, s) -> u6(a, b, c, d, e, f, n, p, q, r, s, e + 1) | (-9223372036854775808 ≤ (e + 1)) ∧ ((e + 1) ≤ 9223372036854775807)
+u6(a, b, c, d, e, f, n, p, q, r, s, t) -> err | ¬((-170141183460469231731687303715884105728 ≤ (f + 1)) ∧ ((f + 1) ≤ 170141183460469231731687303715884105727))
+u6(a, b, c, d, e, f, n, p, q, r, s, t) -> u7(a, b, c, d, e, f, n, p, q, r, s, t, f + 1) | (-170141183460469231731687303715884105728 ≤ (f + 1)) ∧ ((f + 1) ≤ 170141183460469231731687303715884105727)
+u7(a, b, c, d, e, f, n, p, q, r, s, t, u) -> u8(a, b, c, d, e, f, n, p, q, r, s, t, u) | n > 0
+u8(a, b, c, d, e, f, n, p, q, r, s, t, u) -> err | ¬((0 ≤ (n - 1)) ∧ ((n - 1) ≤ 255))
+u8(a, b, c, d, e, f, n, p, q, r, s, t, u) -> u7(a, b, c, d, e, f, n - 1, p, q, r, s, t, u) | (0 ≤ (n - 1)) ∧ ((n - 1) ≤ 255)
+u7(a, b, c, d, e, f, n, p, q, r, s, t, u) -> ret_Int(n) | ¬(n > 0)

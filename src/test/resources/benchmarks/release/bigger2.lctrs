@@ -1,9 +1,11 @@
 bigger2 :: Int -> Int -> result
-ret_Int :: Int -> result
-err :: result
-u2 :: Int -> Int -> result
+private ret_Int :: Int -> result
+private err :: result
+private u1 :: Int -> Int -> result
+private u3 :: Int -> Int -> result
 
-bigger2(x, y) -> ret_Int(x) | x > y
-bigger2(x, y) -> u2(x, y) | ¬(x > y)
-u2(x, y) -> ret_Int(y) | x < y
-u2(x, y) -> ret_Int(0) | ¬(x < y)
+bigger2(x, y) -> u1(x, y) | ((-128 ≤ x) ∧ (x ≤ 127)) ∧ ((-128 ≤ y) ∧ (y ≤ 127))
+u1(x, y) -> ret_Int(x) | x > y
+u1(x, y) -> u3(x, y) | ¬(x > y)
+u3(x, y) -> ret_Int(y) | x < y
+u3(x, y) -> ret_Int(0) | ¬(x < y)
