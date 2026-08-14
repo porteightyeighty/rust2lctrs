@@ -1,5 +1,5 @@
 wrap_mul :: Int -> result
-ret_Int :: Int -> result
-err :: result
+private ret_Int :: Int -> result
+private err :: result
 
-wrap_mul(x) -> ret_Int((((x * x) - -32768) % 65536) + -32768)
+wrap_mul(x) -> ret_Int((((x * x) - -32768) % 65536) + -32768) | (-32768 ≤ x) ∧ (x ≤ 32767)

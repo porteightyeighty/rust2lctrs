@@ -1,21 +1,25 @@
 is_even :: Int -> result
-ret_Bool :: Bool -> result
-err :: result
-u2 :: Int -> result
-u3 :: Int -> result -> result
+private ret_Bool :: Bool -> result
+private err :: result
+private u1 :: Int -> result
+private u3 :: Int -> result
+private u4 :: Int -> result -> result
 is_odd :: Int -> result
-u6 :: Int -> result
-u7 :: Int -> result -> result
+private u6 :: Int -> result
+private u8 :: Int -> result
+private u9 :: Int -> result -> result
 
-is_even(n) -> ret_Bool(true) | n = 0
-is_even(n) -> u2(n) | ¬(n = 0)
-u2(n) -> err | ¬((-128 ≤ (n - 1)) ∧ ((n - 1) ≤ 127))
-u2(n) -> u3(n, is_odd(n - 1)) | (-128 ≤ (n - 1)) ∧ ((n - 1) ≤ 127)
-u3(n, ret_Bool($call)) -> ret_Bool($call)
-u3(n, err) -> err
-is_odd(n) -> ret_Bool(false) | n = 0
-is_odd(n) -> u6(n) | ¬(n = 0)
-u6(n) -> err | ¬((-128 ≤ (n - 1)) ∧ ((n - 1) ≤ 127))
-u6(n) -> u7(n, is_even(n - 1)) | (-128 ≤ (n - 1)) ∧ ((n - 1) ≤ 127)
-u7(n, ret_Bool($call)) -> ret_Bool($call)
-u7(n, err) -> err
+is_even(n) -> u1(n) | (-128 ≤ n) ∧ (n ≤ 127)
+u1(n) -> ret_Bool(true) | n = 0
+u1(n) -> u3(n) | ¬(n = 0)
+u3(n) -> err | ¬((-128 ≤ (n - 1)) ∧ ((n - 1) ≤ 127))
+u3(n) -> u4(n, is_odd(n - 1)) | (-128 ≤ (n - 1)) ∧ ((n - 1) ≤ 127)
+u4(n, ret_Bool($call)) -> ret_Bool($call)
+u4(n, err) -> err
+is_odd(n) -> u6(n) | (-128 ≤ n) ∧ (n ≤ 127)
+u6(n) -> ret_Bool(false) | n = 0
+u6(n) -> u8(n) | ¬(n = 0)
+u8(n) -> err | ¬((-128 ≤ (n - 1)) ∧ ((n - 1) ≤ 127))
+u8(n) -> u9(n, is_even(n - 1)) | (-128 ≤ (n - 1)) ∧ ((n - 1) ≤ 127)
+u9(n, ret_Bool($call)) -> ret_Bool($call)
+u9(n, err) -> err

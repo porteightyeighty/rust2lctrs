@@ -193,11 +193,53 @@ public class Translator {
     Symbol ret = retSymbol(functionDeclaration.returnType());
     Symbol err = new TermSymbol("err", List.of(), Sort.RESULT);
     ctx.setResultSymbols(ret, err);
-    Term incoming = new FnApp(entry, ctx.argsFromScope());
+    Term incoming = enterBody(ctx, functionDeclaration.parameters(), entry);
     Optional<Term> tail = processBlock(ctx, functionDeclaration.block(), incoming);
     if (ctx.returnType().isEmpty() && tail.isPresent()) {
       ctx.addRule(new Rule(tail.get(), new FnApp(ctx.ret(), List.of()), Optional.empty()));
     }
+  }
+
+  /**
+   * Returns the configuration the function body is lowered against.
+   *
+   * @param ctx the per-function translation state, with the parameters already in scope
+   * @param parameters the function's declared parameters
+   * @param entry the function's entry program-point symbol
+   * @return the configuration the first statement of the body flows from
+   */
+  private Term enterBody(Context ctx, List<Parameter> parameters, Symbol entry) {
+    Term entryConfig = new FnApp(entry, ctx.argsFromScope());
+    Optional<Term> bounds = parameterBounds(ctx, parameters);
+    if (bounds.isEmpty()) {
+      return entryConfig;
+    }
+    Term body = new FnApp(ctx.advance(), ctx.argsFromScope());
+    ctx.addRule(new Rule(entryConfig, body, Optional.of(new Constraint(bounds.get()))));
+    return body;
+  }
+
+  /**
+   * The conjunction of the width bounds of every integer parameter, empty when there are none or
+   * integers are {@link IntegerSemantics#unbounded}. Widths come from the declarations.
+   *
+   * @param ctx the per-function translation state, with the parameters already in scope
+   * @param parameters the function's declared parameters
+   * @return the bound on the entry rule, or empty if there is nothing to bound
+   */
+  private Optional<Term> parameterBounds(Context ctx, List<Parameter> parameters) {
+    if (ctx.semantics() == IntegerSemantics.unbounded) {
+      return Optional.empty();
+    }
+    Optional<Term> bounds = Optional.empty();
+    for (Parameter parameter : parameters) {
+      if (parameter.type() instanceof Type.Int width) {
+        Term arg = ctx.resolve(parameter.identifier()).varDecl();
+        bounds =
+            ExpressionLowering.conjoin(bounds, Optional.of(ExpressionLowering.inRange(arg, width)));
+      }
+    }
+    return bounds;
   }
 
   /**

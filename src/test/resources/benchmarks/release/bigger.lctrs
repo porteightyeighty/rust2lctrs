@@ -1,6 +1,8 @@
 bigger :: Int -> Int -> result
-ret_Int :: Int -> result
-err :: result
+private ret_Int :: Int -> result
+private err :: result
+private u1 :: Int -> Int -> result
 
-bigger(x, y) -> ret_Int(x) | x ≥ y
-bigger(x, y) -> ret_Int(y) | ¬(x ≥ y)
+bigger(x, y) -> u1(x, y) | ((-128 ≤ x) ∧ (x ≤ 127)) ∧ ((-128 ≤ y) ∧ (y ≤ 127))
+u1(x, y) -> ret_Int(x) | x ≥ y
+u1(x, y) -> ret_Int(y) | ¬(x ≥ y)

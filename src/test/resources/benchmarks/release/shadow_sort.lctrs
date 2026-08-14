@@ -1,8 +1,8 @@
 shadow_sort :: Int -> result
-ret_Int :: Int -> result
-err :: result
-u2 :: Int -> Int -> Bool -> result
+private ret_Int :: Int -> result
+private err :: result
+private u3 :: Int -> Int -> Bool -> result
 
-shadow_sort(n) -> u2(n, (((n + 1) - -128) % 256) + -128, ((((n + 1) - -128) % 256) + -128) > 0)
-u2(n, x, x_1) -> ret_Int(1) | x_1
-u2(n, x, x_1) -> ret_Int(0) | ¬x_1
+shadow_sort(n) -> u3(n, (((n + 1) - -128) % 256) + -128, ((((n + 1) - -128) % 256) + -128) > 0) | (-128 ≤ n) ∧ (n ≤ 127)
+u3(n, x, x_1) -> ret_Int(1) | x_1
+u3(n, x, x_1) -> ret_Int(0) | ¬x_1

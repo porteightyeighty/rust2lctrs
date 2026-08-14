@@ -55,6 +55,14 @@ final class SerialiserTest {
     return "(-2147483648 ≤ " + t + ") ∧ (" + t + " ≤ 2147483647)";
   }
 
+  /**
+   * The entry rule every function with an {@code i32} parameter {@code n} now leads with: the body
+   * starts at {@code u1}, reachable only for arguments in range.
+   */
+  private static String entryRule() {
+    return "f(n) -> u1(n) | " + i32BoundBare("n");
+  }
+
   /** Binary theory symbols render infix and parenthesised; program-point symbols stay prefix. */
   @Test
   void infixBinaryWithinPrefixApplication() {
@@ -65,11 +73,12 @@ final class SerialiserTest {
             I32,
             block(let("x", I32, add(var("n"), intLit(1))), ret(var("x"))));
 
-    // n + 1 can overflow, so the entry splits: err rule first, then the guarded normal rule.
+    // n + 1 can overflow, so the let splits: err rule first, then the guarded normal rule.
     String bound = i32BoundBare("(n + 1)");
-    assertEquals("f(n) -> err | ¬(" + bound + ")", Serialiser.serialise(lctrs.rules().get(0)));
-    assertEquals("f(n) -> u1(n, n + 1) | " + bound, Serialiser.serialise(lctrs.rules().get(1)));
-    assertEquals("u1(n, x) -> ret_Int(x)", Serialiser.serialise(lctrs.rules().get(2)));
+    assertEquals(entryRule(), Serialiser.serialise(lctrs.rules().get(0)));
+    assertEquals("u1(n) -> err | ¬(" + bound + ")", Serialiser.serialise(lctrs.rules().get(1)));
+    assertEquals("u1(n) -> u2(n, n + 1) | " + bound, Serialiser.serialise(lctrs.rules().get(2)));
+    assertEquals("u2(n, x) -> ret_Int(x)", Serialiser.serialise(lctrs.rules().get(3)));
   }
 
   /** Nested binary applications nest their parentheses. */
@@ -84,7 +93,7 @@ final class SerialiserTest {
 
     String bound = i32Bound("(n * 2)") + " ∧ " + i32Bound("(n + (n * 2))");
     assertEquals(
-        "f(n) -> u1(n, n + (n * 2)) | " + bound, Serialiser.serialise(lctrs.rules().get(1)));
+        "u1(n) -> u2(n, n + (n * 2)) | " + bound, Serialiser.serialise(lctrs.rules().get(2)));
   }
 
   /** Comparisons are binary theory symbols, so they render infix. */
@@ -97,7 +106,7 @@ final class SerialiserTest {
             I32,
             block(let("b", BOOL, lt(var("n"), intLit(1))), ret(intLit(0))));
 
-    assertEquals("f(n) -> u1(n, n < 1)", Serialiser.serialise(lctrs.rules().get(0)));
+    assertEquals("u1(n) -> u2(n, n < 1)", Serialiser.serialise(lctrs.rules().get(1)));
   }
 
   /** A whole LCTRS is the signature, a blank line, then the rules. */
@@ -114,21 +123,25 @@ final class SerialiserTest {
     String expected =
         "f :: Int -> result"
             + ls()
-            + "ret_Int :: Int -> result"
+            + "private ret_Int :: Int -> result"
             + ls()
-            + "err :: result"
+            + "private err :: result"
             + ls()
-            + "u1 :: Int -> Int -> result"
+            + "private u1 :: Int -> result"
+            + ls()
+            + "private u2 :: Int -> Int -> result"
             + ls()
             + ls()
-            + "f(n) -> err | ¬("
+            + entryRule()
+            + ls()
+            + "u1(n) -> err | ¬("
             + bound
             + ")"
             + ls()
-            + "f(n) -> u1(n, n + 1) | "
+            + "u1(n) -> u2(n, n + 1) | "
             + bound
             + ls()
-            + "u1(n, x) -> ret_Int(x)"
+            + "u2(n, x) -> ret_Int(x)"
             + ls();
     assertEquals(expected, Serialiser.serialise(lctrs));
   }
@@ -193,8 +206,8 @@ final class SerialiserTest {
             "f", List.of(param("n", I32)), I32, block(let("x", I32, neg(var("n"))), ret(var("x"))));
 
     String bound = i32BoundBare("-n");
-    assertEquals("f(n) -> err | ¬(" + bound + ")", Serialiser.serialise(lctrs.rules().get(0)));
-    assertEquals("f(n) -> u1(n, -n) | " + bound, Serialiser.serialise(lctrs.rules().get(1)));
+    assertEquals("u1(n) -> err | ¬(" + bound + ")", Serialiser.serialise(lctrs.rules().get(1)));
+    assertEquals("u1(n) -> u2(n, -n) | " + bound, Serialiser.serialise(lctrs.rules().get(2)));
   }
 
   @Test
@@ -202,12 +215,13 @@ final class SerialiserTest {
     Lctrs lctrs =
         translateFnRaw("f", List.of(param("n", I32)), I32, block(ret(call("f", var("n")))));
 
-    assertEquals("f(n) -> u1(n, f(n))", Serialiser.serialise(lctrs.rules().get(0)));
+    assertEquals(entryRule(), Serialiser.serialise(lctrs.rules().get(0)));
+    assertEquals("u1(n) -> u2(n, f(n))", Serialiser.serialise(lctrs.rules().get(1)));
     assertEquals(
-        "u1(n, ret_Int($call)) -> u2(n, $call)", Serialiser.serialise(lctrs.rules().get(1)));
-    assertEquals("u1(n, err) -> err", Serialiser.serialise(lctrs.rules().get(2)));
-    assertEquals("u2(n, $call) -> ret_Int($call)", Serialiser.serialise(lctrs.rules().get(3)));
-    assertEquals(4, lctrs.rules().size());
+        "u2(n, ret_Int($call)) -> u3(n, $call)", Serialiser.serialise(lctrs.rules().get(2)));
+    assertEquals("u2(n, err) -> err", Serialiser.serialise(lctrs.rules().get(3)));
+    assertEquals("u3(n, $call) -> ret_Int($call)", Serialiser.serialise(lctrs.rules().get(4)));
+    assertEquals(5, lctrs.rules().size());
   }
 
   /**
@@ -223,10 +237,10 @@ final class SerialiserTest {
                     fn("g", List.of(param("n", I32)), I32, block(ret(var("n"))))))
             .translate();
 
-    assertEquals("f(n) -> u1(n, g(n))", Serialiser.serialise(lctrs.rules().get(0)));
+    assertEquals("u1(n) -> u2(n, g(n))", Serialiser.serialise(lctrs.rules().get(1)));
     assertEquals(
-        "u1(n, ret_Int($call)) -> u2(n, $call)", Serialiser.serialise(lctrs.rules().get(1)));
-    assertEquals("u2(n, $call) -> ret_Int($call)", Serialiser.serialise(lctrs.rules().get(3)));
+        "u2(n, ret_Int($call)) -> u3(n, $call)", Serialiser.serialise(lctrs.rules().get(2)));
+    assertEquals("u3(n, $call) -> ret_Int($call)", Serialiser.serialise(lctrs.rules().get(4)));
   }
 
   @Test
@@ -238,15 +252,15 @@ final class SerialiserTest {
             "f", List.of(param("n", I32)), I32, block(ret(mul(var("n"), call("f", var("n"))))));
 
     String bound = i32BoundBare("(n * $call)");
-    assertEquals("f(n) -> u1(n, f(n))", Serialiser.serialise(lctrs.rules().get(0)));
+    assertEquals("u1(n) -> u2(n, f(n))", Serialiser.serialise(lctrs.rules().get(1)));
     assertEquals(
-        "u1(n, ret_Int($call)) -> u2(n, $call)", Serialiser.serialise(lctrs.rules().get(1)));
-    assertEquals("u1(n, err) -> err", Serialiser.serialise(lctrs.rules().get(2)));
+        "u2(n, ret_Int($call)) -> u3(n, $call)", Serialiser.serialise(lctrs.rules().get(2)));
+    assertEquals("u2(n, err) -> err", Serialiser.serialise(lctrs.rules().get(3)));
     assertEquals(
-        "u2(n, $call) -> err | ¬(" + bound + ")", Serialiser.serialise(lctrs.rules().get(3)));
+        "u3(n, $call) -> err | ¬(" + bound + ")", Serialiser.serialise(lctrs.rules().get(4)));
     assertEquals(
-        "u2(n, $call) -> ret_Int(n * $call) | " + bound,
-        Serialiser.serialise(lctrs.rules().get(4)));
+        "u3(n, $call) -> ret_Int(n * $call) | " + bound,
+        Serialiser.serialise(lctrs.rules().get(5)));
   }
 
   @Test
@@ -258,11 +272,11 @@ final class SerialiserTest {
             "f", List.of(param("n", I32)), I32, block(ret(call("f", sub(var("n"), intLit(1))))));
 
     String bound = i32BoundBare("(n - 1)");
-    assertEquals("f(n) -> err | ¬(" + bound + ")", Serialiser.serialise(lctrs.rules().get(0)));
-    assertEquals("f(n) -> u1(n, f(n - 1)) | " + bound, Serialiser.serialise(lctrs.rules().get(1)));
+    assertEquals("u1(n) -> err | ¬(" + bound + ")", Serialiser.serialise(lctrs.rules().get(1)));
+    assertEquals("u1(n) -> u2(n, f(n - 1)) | " + bound, Serialiser.serialise(lctrs.rules().get(2)));
     assertEquals(
-        "u1(n, ret_Int($call)) -> u2(n, $call)", Serialiser.serialise(lctrs.rules().get(2)));
-    assertEquals("u1(n, err) -> err", Serialiser.serialise(lctrs.rules().get(3)));
-    assertEquals("u2(n, $call) -> ret_Int($call)", Serialiser.serialise(lctrs.rules().get(4)));
+        "u2(n, ret_Int($call)) -> u3(n, $call)", Serialiser.serialise(lctrs.rules().get(3)));
+    assertEquals("u2(n, err) -> err", Serialiser.serialise(lctrs.rules().get(4)));
+    assertEquals("u3(n, $call) -> ret_Int($call)", Serialiser.serialise(lctrs.rules().get(5)));
   }
 }

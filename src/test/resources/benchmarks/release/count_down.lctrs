@@ -1,6 +1,8 @@
 count_down :: Int -> result
-ret_unit :: result
-err :: result
+private ret_unit :: result
+private err :: result
+private u1 :: Int -> result
 
-count_down(n) -> count_down((((n - 1) - -2147483648) % 4294967296) + -2147483648) | n > 0
-count_down(n) -> ret_unit | ¬(n > 0)
+count_down(n) -> u1(n) | (-2147483648 ≤ n) ∧ (n ≤ 2147483647)
+u1(n) -> u1((((n - 1) - -2147483648) % 4294967296) + -2147483648) | n > 0
+u1(n) -> ret_unit | ¬(n > 0)

@@ -195,6 +195,26 @@ class SimplifierTest {
     assertEquals(List.of(F, RET), simplified.sigma());
   }
 
+  /**
+   * Inlining substitutes into a constrained rule's right-hand side and leaves its constraint alone,
+   * so the entry rule's parameter-width bound survives the removal of the program point it steps
+   * to.
+   */
+  @Test
+  void preservesConstraintOfTheRuleInlinedInto() {
+    Constraint bound = constraint(app(TheorySymbol.LE, IntValue.of(0), X));
+    Lctrs simplified =
+        Simplifier.inline(
+            lctrs(
+                List.of(F, U1, RET),
+                new Rule(app(F, X), app(U1, X), Optional.of(bound)),
+                rule(app(U1, X), app(RET, X))),
+            Set.of(F));
+
+    assertEquals(List.of(new Rule(app(F, X), app(RET, X), Optional.of(bound))), simplified.rules());
+    assertEquals(List.of(F, RET), simplified.sigma());
+  }
+
   /** Inlining reaches occurrences nested inside a right-hand side, not just at its root. */
   @Test
   void inlinesNestedOccurrences() {

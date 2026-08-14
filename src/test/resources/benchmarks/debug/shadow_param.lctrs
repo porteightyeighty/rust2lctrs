@@ -1,6 +1,8 @@
 shadow_param :: Int -> result
-ret_Int :: Int -> result
-err :: result
+private ret_Int :: Int -> result
+private err :: result
+private u1 :: Int -> result
 
-shadow_param(x) -> err | ¬((-128 ≤ (x + 1)) ∧ ((x + 1) ≤ 127))
-shadow_param(x) -> ret_Int(x + 1) | (-128 ≤ (x + 1)) ∧ ((x + 1) ≤ 127)
+shadow_param(x) -> u1(x) | (-128 ≤ x) ∧ (x ≤ 127)
+u1(x) -> err | ¬((-128 ≤ (x + 1)) ∧ ((x + 1) ≤ 127))
+u1(x) -> ret_Int(x + 1) | (-128 ≤ (x + 1)) ∧ ((x + 1) ≤ 127)

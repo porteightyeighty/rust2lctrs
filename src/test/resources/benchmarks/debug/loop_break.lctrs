@@ -1,11 +1,11 @@
 loop_break :: Int -> result
-ret_Int :: Int -> result
-err :: result
-u1 :: Int -> result
-u3 :: Int -> result
+private ret_Int :: Int -> result
+private err :: result
+private u2 :: Int -> result
+private u4 :: Int -> result
 
-loop_break(x) -> u1(x)
-u1(x) -> ret_Int(x) | x ≥ 10
-u1(x) -> u3(x) | ¬(x ≥ 10)
-u3(x) -> err | ¬((-2147483648 ≤ (x + 1)) ∧ ((x + 1) ≤ 2147483647))
-u3(x) -> loop_break(x + 1) | (-2147483648 ≤ (x + 1)) ∧ ((x + 1) ≤ 2147483647)
+loop_break(x) -> u2(x) | (-2147483648 ≤ x) ∧ (x ≤ 2147483647)
+u2(x) -> ret_Int(x) | x ≥ 10
+u2(x) -> u4(x) | ¬(x ≥ 10)
+u4(x) -> err | ¬((-2147483648 ≤ (x + 1)) ∧ ((x + 1) ≤ 2147483647))
+u4(x) -> u2(x + 1) | (-2147483648 ≤ (x + 1)) ∧ ((x + 1) ≤ 2147483647)
