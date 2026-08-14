@@ -24,6 +24,7 @@ import project.ast.Identifier;
 import project.ast.If;
 import project.ast.Item;
 import project.ast.Let;
+import project.ast.Literal;
 import project.ast.Loop;
 import project.ast.Parameter;
 import project.ast.Return;
@@ -649,7 +650,8 @@ public class Translator {
         yield new HoistedExpr(u.withOperand(inner.expr()), inner.outgoing());
       }
       case FunctionCall c -> emitCallHoist(ctx, c, ctxWidth, incoming);
-      default -> new HoistedExpr(e, incoming); // IntegerLiteral, BooleanLiteral, Variable
+      case Literal l -> new HoistedExpr(l, incoming);
+      case Variable v -> new HoistedExpr(v, incoming);
     };
   }
 
