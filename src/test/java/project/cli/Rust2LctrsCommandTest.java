@@ -27,6 +27,12 @@ class Rust2LctrsCommandTest {
   }
 
   @Test
+  void rejectsUnboundedAsAProfile() {
+    assertThrows(
+        CommandLine.ParameterException.class, () -> parse("--profile", "unbounded", "x.rs"));
+  }
+
+  @Test
   void defaultsToDebug() {
     assertEquals(IntegerSemantics.debug, parse("x.rs").ints.semantics());
   }
