@@ -16,8 +16,8 @@ import project.parser.RustParser.ItemContext;
 import project.parser.RustParser.VisItemContext;
 
 /**
- * Builds top-level {@link Item} nodes (the crate and its single function) from item parse-tree
- * contexts. Delegates the function body to a {@link StatementBuilder}.
+ * Builds top-level {@link Item} nodes (the crate and its functions) from item parse-tree contexts.
+ * Delegates the function body to a {@link StatementBuilder}.
  */
 final class ItemBuilder {
 

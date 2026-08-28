@@ -24,7 +24,8 @@ import project.lctrs.TheorySymbol;
 /**
  * Lowers a {@link project.ast.Expression} to a theory term, and derives the safety formula under
  * which that expression evaluates without panicking (integer overflow, division or remainder by
- * zero, and the {@code MIN / -1} edge case), following Fuhs, Kop &amp; Nishida (2017), §8.1.
+ * zero, and the {@code MIN / -1} edge case). Overflow and division by zero follow Fuhs, Kop &amp;
+ * Nishida (2017), §3.3. {@code MIN / -1} is this project's own addition, in neither paper.
  *
  * <p>This is the expression-level half of translation, split out from {@link Translator} so the
  * statement/control-flow lowering and rule emission stay separate from term construction and the
@@ -256,9 +257,10 @@ final class ExpressionLowering {
    * Infers the integer width of an expression, taken from the first width-tracked variable operand
    * encountered (left-biased for binary operations). Literals carry no width of their own.
    *
-   * <p>This is the only place {@link IntegerSemantics#unbounded} is checked: reporting everything
-   * as width-less turns off {@link #withinWidth}, {@link #notMinOverNegOne} and {@link #wrap} at
-   * once. The divisor-non-zero clause in {@link #safety} doesn't go through here, so it survives.
+   * <p>{@link IntegerSemantics#unbounded} is checked here so that reporting everything as
+   * width-less turns off {@link #withinWidth}, {@link #notMinOverNegOne} and {@link #wrap} at once.
+   * The divisor-non-zero clause in {@link #safety} doesn't go through here, so it survives. {@code
+   * Translator} checks the same flag again for the entry-rule parameter bounds.
    *
    * @param ctx the per-function translation state
    * @param expression the expression whose width to infer

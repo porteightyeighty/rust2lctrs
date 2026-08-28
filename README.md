@@ -24,9 +24,9 @@ cora sum.lctrs                   # → YES  (termination proved)
 
 A deliberately small, integer/boolean fragment:
 
-- Integer arithmetic (`i8`…`i64`) and booleans
+- Integer arithmetic (`i8`…`i128`, `u8`…`u128`) and booleans
 - `let` bindings, `let mut` locals and assignment, variable shadowing
-- `if`/`else`, `while`, `loop`/`break`
+- `if`/`else`, `while`, `loop`/`break`, `continue`
 - Multiple top-level functions with by-value primitive arguments and return
   types, including recursion and mutual recursion
 
@@ -43,25 +43,25 @@ Requires **JDK 25**. Download the self-contained jar from the
 and run it:
 
 ```sh
-java -jar rust2lctrs-0.3.0.jar sum.rs -o sum.lctrs
+java -jar rust2lctrs-0.4.0.jar sum.rs -o sum.lctrs
 ```
 
 Or build from source with the bundled Maven wrapper:
 
 ```sh
-./mvnw package        # produces target/rust2lctrs-0.3.0.jar
+./mvnw package        # produces target/rust2lctrs-0.4.0.jar
 ```
 
 To invoke `rust2lctrs` from any directory, define a shell alias:
 
 ```sh
-alias rust2lctrs='java -jar /path/to/rust2lctrs-0.3.0.jar'
+alias rust2lctrs='java -jar /path/to/rust2lctrs-<version>.jar'
 ```
 
 ## Usage
 
 ```
-rust2lctrs <input.rs> [-o <output.lctrs>] [--profile debug|release]
+rust2lctrs <input.rs> [-o <output.lctrs>] [--profile debug|release | --unbounded] [-r]
 ```
 
 | Option | Effect |
@@ -69,6 +69,8 @@ rust2lctrs <input.rs> [-o <output.lctrs>] [--profile debug|release]
 | `<input.rs>` | Rust source file to translate (required). |
 | `-o`, `--output <file>` | Write the LCTRS to a file. Default: **stdout**. |
 | `--profile <debug\|release>` | Arithmetic-overflow semantics (below). Default: `debug`. |
+| `--unbounded` | Idealise integers to `Z`: no widths, no overflow (below). Not combinable with `--profile`. |
+| `-r`, `--raw` | Emit the rules as the statement-by-statement translation produces them, skipping the simplification passes. |
 | `--help`, `--version` | Usage / version. |
 
 The LCTRS goes to **stdout** (logs go to stderr), so you can pipe straight
@@ -100,6 +102,22 @@ under `release`. `/` and `%` panic in **both** profiles (division by zero and
 rust2lctrs input.rs --profile release -o out.lctrs
 ```
 
+### Unbounded integers
+
+`--unbounded` steps outside rustc's profiles altogether: integers become the
+unbounded sort `Z`, so there are no width bounds, no overflow guards and no
+wrapping. `/` and `%` still guard `divisor ≠ 0`, which is partiality rather
+than width.
+
+It keeps an example readable when overflow isn't its point, at a cost: a
+verdict under `--unbounded` describes the idealised model, not the Rust
+program. A loop that terminates under `debug` only by overflowing into `err`
+may well diverge over `Z`.
+
+```sh
+rust2lctrs input.rs --unbounded -o out.lctrs
+```
+
 ## Running Cora on the output
 
 The translated `.lctrs` is Cora's input format. Install
@@ -122,7 +140,15 @@ rule, snapshot golden files, and Cora end-to-end.
 
 ```sh
 ./mvnw test      # unit + snapshot tests (fast)
-./mvnw verify    # + formatting and Cora end-to-end (needs Cora on PATH)
+./mvnw verify    # + formatting and Cora end-to-end (needs Cora installed)
+```
+
+The Cora layer skips itself when no binary is found, so `verify` passes
+without one. Point `CORA_BIN` at an install (or put `cora` on `PATH`) to
+actually run it:
+
+```sh
+CORA_BIN=/path/to/cora/app/build/install/app/bin/app ./mvnw verify
 ```
 
 Logging is SLF4J + Logback on **stderr**, root level `WARN`, overridable with

@@ -79,17 +79,6 @@ public class Translator {
   }
 
   /**
-   * Creates a translator for a single crate, reading source locations from the given span table for
-   * provenance trace output.
-   *
-   * @param crate the AST to translate
-   * @param spans the span table populated during the parse-to-AST walk
-   */
-  public Translator(Crate crate, SpanTable spans) {
-    this(crate, spans, IntegerSemantics.debug);
-  }
-
-  /**
    * Creates a translator for a single crate under the given integer semantics, reading source
    * locations from the span table for provenance trace output.
    *
@@ -171,9 +160,9 @@ public class Translator {
   }
 
   /**
-   * Lowers a function: seeds the scope with its parameters, hand-rolls the entry program-point
-   * symbol (named after the function so the family starts at the actual function name), and
-   * translates the body against that initial configuration.
+   * Lowers a function: seeds the scope with its parameters, takes the entry program-point symbol
+   * minted for it by the registry pre-pass (named after the function so the family starts at the
+   * actual function name), and translates the body against that initial configuration.
    *
    * @param ctx the per-function translation state
    * @param functionDeclaration the function to translate
@@ -188,9 +177,9 @@ public class Translator {
     // register it explicitly or the signature would omit the function's own program-point symbol.
     Symbol entry = ctx.calleeEntry(functionDeclaration.identifier());
     ctx.register(entry);
-    ctx.setEntry(entry);
-    // ret wraps the value into the result sort, err is the nullary error sink (FKN §8.1). Held on
-    // the Context so return lowering shares one definition instead of rebuilding it.
+    // ret wraps the value into the result sort, err is the nullary error sink (Nishida & Kop
+    // (2015), §8.1). Held on the Context so return lowering shares one definition instead of
+    // rebuilding it.
     Symbol ret = retSymbol(functionDeclaration.returnType());
     Symbol err = new TermSymbol("err", List.of(), Sort.RESULT);
     ctx.setResultSymbols(ret, err);
@@ -244,9 +233,9 @@ public class Translator {
   }
 
   /**
-   * Mints the {@code ret} program-point symbol for a function's return type (FKN §8.1). Cora
-   * forbids overloading one name across sorts, so the symbol is qualified by value sort ({@code
-   * ret_Int}, {@code ret_Bool}) — or {@code ret_unit}, a nullary sink, for a {@code ()}-returning
+   * Mints the {@code ret} symbol for a function's return type, the {@code ret_f} of Nishida &amp;
+   * Kop (2015), §8.1. Cora forbids overloading one name across sorts, so the symbol is qualified by
+   * value sort ({@code ret_Int}, {@code ret_Bool}), or {@code ret_unit} for a {@code ()}-returning
    * function.
    *
    * @param returnType the declared return type, empty if unit
@@ -259,7 +248,7 @@ public class Translator {
   }
 
   /**
-   * Mints the sorted {@code ret_<sort>} symbol for a function that returns a value (FKN §8.1).
+   * Mints the sorted {@code ret_<sort>} symbol for a function that returns a value.
    *
    * @param valueType the declared, non-unit return type
    * @return the qualified, well-sorted return symbol
@@ -513,7 +502,8 @@ public class Translator {
   /**
    * Lowers a {@code return}: evaluates the returned expression and rewrites the incoming
    * configuration to {@code ret(value)}, the normal-completion term of the function's {@code
-   * result} sort (FKN §8.1). Control diverges here, so the caller discards anything after it.
+   * result} sort (Nishida &amp; Kop (2015), §8.1). Control diverges here, so the caller discards
+   * anything after it.
    *
    * @param ctx the per-function translation state
    * @param ret the return statement to translate
@@ -546,7 +536,6 @@ public class Translator {
     LoweredExpr low = lowerHoisted(ctx, assignment.value(), ctxWidth, incoming);
     incoming = low.outgoing();
 
-    // Fails if variable is not in scope
     Symbol to = ctx.advance();
     Term rhs = new FnApp(to, ctx.argsWithValue(target, low.term()));
     emitDivSafe(ctx, low.safety(), incoming, rhs);
@@ -554,9 +543,10 @@ public class Translator {
   }
 
   /**
-   * Emits the error rule {@code incoming -> err [¬safety]} when {@code e} can divide or take a
-   * modulus by zero, and returns the safety formula so callers can guard their normal-path rules
-   * with it. When {@code e} cannot fault, emits nothing and returns empty.
+   * Emits the error rule {@code incoming -> err [¬safety]} when the expression can panic, and
+   * returns the safety formula so callers can guard their normal-path rules with it. Emits nothing
+   * and returns empty when it cannot fault. The faulting cases are those of {@link
+   * ExpressionLowering#safety}. Following Fuhs, Kop &amp; Nishida (2017), §3.3.
    *
    * <p>The safety formula is supplied already lowered rather than recomputed here: a {@code let}
    * binding mutates the scope between lowering its value and emitting its rules, so re-lowering
@@ -581,10 +571,9 @@ public class Translator {
   }
 
   /**
-   * Emits the rule(s) for a statement that rewrites {@code incoming} to {@code safeRhs} after
-   * evaluating {@code e}. When {@code e} can divide or take a modulus by zero this is the FKN pair
-   * the error rule plus the normal rewrite guarded by the divisors being non-zero; otherwise it is
-   * the single unguarded rule.
+   * Emits the rule(s) rewriting {@code incoming} to {@code safeRhs}. When the expression can panic
+   * this is the guarded pair of Fuhs, Kop &amp; Nishida (2017), §3.3, the error rule plus the
+   * normal rewrite guarded by {@code safety}. Otherwise it is the single unguarded rule.
    *
    * @param ctx the per-function translation state
    * @param safety the safety formula of the expression evaluated into {@code safeRhs}, lowered over
@@ -656,11 +645,11 @@ public class Translator {
   }
 
   /**
-   * Hoists a self-recursive call, emitting the rules that run it and capture its result into a
-   * fresh variable that the call expression reduces to.
+   * Hoists a call to any function in the crate, self-recursive or not, emitting the rules that run
+   * it and capture its result into a fresh variable that the call expression reduces to.
    *
    * @param ctx the translation context
-   * @param c the self-recursive call to hoist
+   * @param c the call to hoist
    * @param ctxWidth fallback integer width threaded into the argument hoists
    * @param incoming the configuration at the entry of the call
    * @return the hoisted expression (the captured-value variable) and its outgoing configuration
@@ -797,10 +786,10 @@ public class Translator {
   }
 
   /**
-   * Builds the true/false branch guards for a condition and, when the condition can divide or take
-   * a modulus by zero, emits the shared error rule {@code incoming -> err [¬safety]} (§8.1). The
-   * returned guards are {@code safety ∧ cond} and {@code safety ∧ ¬cond}, so a faulting condition
-   * routes to {@code err} rather than to either branch.
+   * Builds the true/false branch guards for a condition and, when the condition can panic, emits
+   * the shared error rule {@code incoming -> err [¬safety]}. The returned guards are {@code safety
+   * ∧ cond} and {@code safety ∧ ¬cond}, so a faulting condition routes to {@code err} rather than
+   * to either branch. See {@link #emitErrIfFaulty} for what counts as faulting.
    *
    * @param ctx the per-function translation state
    * @param condition the branching condition
