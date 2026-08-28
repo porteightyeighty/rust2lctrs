@@ -23,9 +23,9 @@ import project.parser.RustParser.StatementContext;
 import project.parser.RustParser.StatementsContext;
 
 /**
- * Builds {@link Statement} nodes (and the {@link Block}/{@link BodyBlock} that hold them) from
- * statement parse-tree contexts. Delegates expression position to an {@link ExpressionBuilder} and
- * recurses into itself for nested blocks (loop and {@code if} bodies).
+ * Builds {@link Statement} nodes (and the {@link Block}s that hold them) from statement parse-tree
+ * contexts. Delegates expression position to an {@link ExpressionBuilder} and recurses into itself
+ * for nested blocks (loop and {@code if} bodies).
  */
 final class StatementBuilder {
 
@@ -46,10 +46,10 @@ final class StatementBuilder {
   }
 
   /**
-   * Records the enclosing function's name on the delegate expression builder, so self-recursive
-   * calls can be distinguished from out-of-scope calls to other functions.
+   * Records a declared function's name on the delegate expression builder, so that calls to it are
+   * accepted and calls to anything else are rejected as out of scope.
    *
-   * @param name the enclosing function's name
+   * @param name the declared function's name
    */
   void addFunctionIdentifier(Identifier name) {
     expressions.addFunctionIdentifier(name);
@@ -168,12 +168,11 @@ final class StatementBuilder {
   }
 
   /**
-   * Builds a {@link Return} from an expression-statement parse-tree context. Only {@code return}
-   * expressions are supported as expression statements.
+   * Builds a {@link Return} from a return-expression parse-tree context. A bare {@code return} and
+   * {@code return ()} both yield an empty return value.
    *
-   * @param ctx the expression statement context
+   * @param ctx the return expression context
    * @return the corresponding {@link Return} node
-   * @throws UnsupportedConstructException if the expression statement is not a {@code return}
    */
   Return buildReturnStatement(ReturnExpressionContext ctx) {
     if (ctx.expression() == null || "()".equals(ctx.expression().getText())) {
@@ -271,11 +270,11 @@ final class StatementBuilder {
 
   /**
    * Extracts and builds the {@link Statement} list from a block-expression context. An empty block
-   * yields an empty list;
+   * yields an empty list. An out-of-scope statement is recorded as a {@link Diagnostic} rather than
+   * throwing, so the rest of the block still builds.
    *
    * @param ctx the block-expression context
    * @return the statements in the block, in source order, possibly empty
-   * @throws UnsupportedConstructException if the block has a trailing expression
    */
   private List<Statement> extractStatementsFromBlock(BlockExpressionContext ctx) {
     StatementsContext statementsCtx = ctx.statements();

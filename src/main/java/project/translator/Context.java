@@ -137,8 +137,9 @@ final class Context {
   }
 
   /**
-   * Records a symbol in the terms signature. Used for symbols not minted by {@link #advance()},
-   * such as the function's hand-rolled entry program-point symbol, so the signature stays complete.
+   * Records a symbol in the terms signature. Used for symbols not minted by {@link #advance()}, so
+   * the signature stays complete. Those are the entry program-point symbol and the {@code
+   * ret}/{@code err} pair.
    *
    * @param s the term symbol to add to the signature
    */
@@ -162,10 +163,12 @@ final class Context {
   // --- Result symbols -------------------------------------------------------
 
   /**
-   * Records the function's two primary result symbols — {@code ret}, which wraps a returned value
-   * into the {@code result} sort, and the nullary {@code err} error sink — and registers both in
-   * the signature. Following Fuhs, Kop &amp; Nishida (2017), §8.1, every accepted function has
-   * exactly this pair, so they are per-function fixtures held alongside {@link #returnSort}.
+   * Records the function's two primary result symbols and registers both in the signature. These
+   * are {@code ret}, which wraps a returned value into the {@code result} sort, and the nullary
+   * {@code err} error sink.
+   *
+   * <p>These are the {@code ret_f} and {@code err_f} of Nishida &amp; Kop (2015), §8.1, but named
+   * per sort rather than per function, so they deduplicate across the crate.
    *
    * @param ret the {@code ret :: <returnSort> -> result} symbol
    * @param err the nullary {@code err :: result} symbol

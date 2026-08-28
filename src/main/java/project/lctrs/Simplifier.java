@@ -104,7 +104,7 @@ public final class Simplifier {
    * ∨ true} folds to {@code true}), so the caller must check that the result mentions the same
    * variables before keeping it: every variable of a constraint is in LVar and must be instantiated
    * by a theory value for the rule to fire, so erasing one from a surviving constraint would
-   * enlarge the rewrite relation (Kop &amp; Nishida (2013), Def. 2.6).
+   * enlarge the rewrite relation (Fuhs, Kop &amp; Nishida (2017), Def. 2.9 and Def. 2.10).
    *
    * @param t the term to fold
    * @return the folded term, or {@code t} unchanged
