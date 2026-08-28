@@ -10,6 +10,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import project.testsupport.Benchmark;
 import project.testsupport.Benchmarks;
 
@@ -26,17 +28,27 @@ import project.testsupport.Benchmarks;
  * layer runs first (in {@code test}), so by {@code verify} the goldens exist and are current.
  *
  * <p>Every test {@code assumeTrue}-skips when Cora is not installed, so the absence of the external
- * binary (or Z3) turns the e2e layer into a no-op rather than a build failure. See the README's
- * "Running Cora locally" section for setup.
+ * binary (or Z3) turns the e2e layer into a no-op rather than a build failure.
  */
 @Timeout(90)
 final class CoraE2EIT {
 
+  private static final Logger LOG = LoggerFactory.getLogger(CoraE2EIT.class);
+
+  /**
+   * Aborts the whole class when Cora is absent, warning first: an aborted container is reported as
+   * zero tests run, which is indistinguishable from a green build unless the skip is said out loud.
+   */
   @BeforeAll
   static void requireCora() {
+    boolean available = Cora.isAvailable();
+    if (!available) {
+      LOG.warn(
+          "Cora binary not found: skipping the whole e2e layer. Set CORA_BIN to an install, or"
+              + " put cora on PATH, to check real termination verdicts.");
+    }
     assumeTrue(
-        Cora.isAvailable(),
-        "Cora binary not found (set CORA_BIN or add it to PATH); skipping e2e tests");
+        available, "Cora binary not found (set CORA_BIN or add it to PATH); skipping e2e tests");
   }
 
   /**
