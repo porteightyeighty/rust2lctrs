@@ -282,7 +282,7 @@ final class ExpressionBuilder {
         params.add(buildExpression(exprCtx));
       }
     }
-    return new FunctionCall(callee, params);
+    return spans.track(new FunctionCall(callee, params), c);
   }
 
   /**
