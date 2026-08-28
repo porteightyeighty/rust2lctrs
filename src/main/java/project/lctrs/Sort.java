@@ -8,8 +8,6 @@ public enum Sort {
   INT("Int"),
   /** The boolean sort. */
   BOOL("Bool"),
-  /** The non-theory sort. */
-  A("A"),
   /** The result sort. */
   RESULT("result");
 
