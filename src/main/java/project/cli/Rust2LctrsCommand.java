@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import picocli.CommandLine.ArgGroup;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.ITypeConverter;
+import picocli.CommandLine.IVersionProvider;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 import picocli.CommandLine.TypeConversionException;
@@ -34,10 +35,24 @@ import project.translator.Translator;
 @Command(
     name = "rust2lctrs",
     mixinStandardHelpOptions = true,
+    versionProvider = Rust2LctrsCommand.ManifestVersion.class,
     description = "Converts a Rust program into a LCTRS program.")
 public class Rust2LctrsCommand implements Callable<Integer> {
 
   private static final Logger LOG = LoggerFactory.getLogger(Rust2LctrsCommand.class);
+
+  /**
+   * Reports the version {@code --version} prints, read from the jar manifest. Falls back to a
+   * placeholder when the classes are loaded outside a jar.
+   */
+  static class ManifestVersion implements IVersionProvider {
+
+    @Override
+    public String[] getVersion() {
+      String version = Rust2LctrsCommand.class.getPackage().getImplementationVersion();
+      return new String[] {"rust2lctrs " + (version == null ? "(dev build)" : version)};
+    }
+  }
 
   @Option(
       names = {"-o", "--output"},
