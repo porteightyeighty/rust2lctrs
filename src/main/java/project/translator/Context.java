@@ -46,7 +46,6 @@ final class Context {
   private Symbol err;
   private final Deque<Integer> scopeMarks = new ArrayDeque<>();
   private final Deque<LoopContext> loopContexts = new ArrayDeque<>();
-  private Symbol entry;
 
   /**
    * Creates a context for a single function.
@@ -70,14 +69,6 @@ final class Context {
 
   Optional<Type> returnType() {
     return returnType;
-  }
-
-  void setEntry(Symbol entry) {
-    this.entry = entry;
-  }
-
-  Symbol entry() {
-    return this.entry;
   }
 
   /**

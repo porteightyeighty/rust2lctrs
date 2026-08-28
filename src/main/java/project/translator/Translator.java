@@ -79,17 +79,6 @@ public class Translator {
   }
 
   /**
-   * Creates a translator for a single crate, reading source locations from the given span table for
-   * provenance trace output.
-   *
-   * @param crate the AST to translate
-   * @param spans the span table populated during the parse-to-AST walk
-   */
-  public Translator(Crate crate, SpanTable spans) {
-    this(crate, spans, IntegerSemantics.debug);
-  }
-
-  /**
    * Creates a translator for a single crate under the given integer semantics, reading source
    * locations from the span table for provenance trace output.
    *
@@ -188,7 +177,6 @@ public class Translator {
     // register it explicitly or the signature would omit the function's own program-point symbol.
     Symbol entry = ctx.calleeEntry(functionDeclaration.identifier());
     ctx.register(entry);
-    ctx.setEntry(entry);
     // ret wraps the value into the result sort, err is the nullary error sink (Nishida & Kop
     // (2015), §8.1). Held on the Context so return lowering shares one definition instead of
     // rebuilding it.
@@ -548,7 +536,6 @@ public class Translator {
     LoweredExpr low = lowerHoisted(ctx, assignment.value(), ctxWidth, incoming);
     incoming = low.outgoing();
 
-    // Fails if variable is not in scope
     Symbol to = ctx.advance();
     Term rhs = new FnApp(to, ctx.argsWithValue(target, low.term()));
     emitDivSafe(ctx, low.safety(), incoming, rhs);
