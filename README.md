@@ -132,6 +132,51 @@ Always pass `--strategy cbv`. Rewriting in this encoding only ever happens at
 the root of a configuration, once every argument is already a value, so
 call-by-value is the strategy the translation is built for. 
 
+## Results
+
+The corpus in `src/test/resources/benchmarks` has 32 short programs (3–18 lines)
+that between them cover every construct in the fragment. Each one is translated
+under both profiles and analysed by Cora. A comment marker in each source file
+records the expected verdict, and `./mvnw verify` checks it against a local Cora
+install.
+
+Cora answers `YES` (termination proved) or `MAYBE` (not proved). It has no
+procedure for proving non-termination, so the useful number is how many of the
+programs that *do* terminate get proved:
+
+| Profile | Terminating programs | Proved |
+|---|---|---|
+| `debug` | 29 of 32 | 28 |
+| `release` | 26 of 32 | 21 |
+
+| Family | Programs | Terminate (debug / release) | Proved (debug / release) |
+|---|---|---|---|
+| Arithmetic and conditionals | 8 | 8 / 8 | 8 / 8 |
+| Shadowing | 3 | 3 / 3 | 3 / 3 |
+| Division and modulo | 5 | 5 / 4 | 5 / 4 |
+| Loops and control flow | 7 | 6 / 6 | 6 / 4 |
+| Overflow and wrapping | 4 | 4 / 2 | 4 / 1 |
+| Calls and recursion | 3 | 3 / 3 | 2 / 1 |
+| Divergence | 2 | 0 / 0 | 0 / 0 |
+| **Total** | **32** | **29 / 26** | **28 / 21** |
+
+**The overflow profile changes the answer.** Seven programs are proved under
+`debug` but not under `release`:
+
+- `while_div`, `wrap_negate` and `wrap_parity` no longer terminate. With
+  wrapping arithmetic they can run forever, so `MAYBE` is correct.
+- `count_up`, `sum_skip`, `wrap_count` and `even_odd` still terminate but aren't
+  proved. Under `debug`, a value that leaves its type's range panics (rewrites
+  to `err`), and that bound gives Cora a decreasing measure for free. Under
+  `release` the bound is gone, so the loop's own encoding has to carry the
+  argument.
+
+So the `debug` figure partly reflects the overflow modelling, and `release` is
+the harder test of the encoding. The only terminating program not proved under
+`debug` is `mccarthy` (the McCarthy 91 function), whose termination argument
+needs a ranking over nested recursive calls. That is a limit of Cora's search,
+not of the translation.
+
 ## Web demo
 
 A small HTTP API wraps the same pipeline, for the [rust2lctrs-web](https://github.com/porteightyeighty/rust2lctrs-web) demo. The CLI remains the primary artifact.
