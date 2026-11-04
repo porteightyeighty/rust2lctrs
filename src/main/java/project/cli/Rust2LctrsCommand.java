@@ -3,7 +3,6 @@ package project.cli;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.concurrent.Callable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,19 +13,8 @@ import picocli.CommandLine.IVersionProvider;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 import picocli.CommandLine.TypeConversionException;
-import project.ast.AstBuilder;
-import project.ast.Crate;
-import project.ast.Diagnostic;
-import project.ast.DiagnosticRecorder;
-import project.ast.SpanTable;
-import project.ast.UnsupportedConstructException;
-import project.lctrs.Lctrs;
-import project.lctrs.Serialiser;
-import project.lctrs.Simplifier;
-import project.parser.RustParsing;
-import project.parser.SyntaxErrorException;
+import project.Translation;
 import project.translator.IntegerSemantics;
-import project.translator.Translator;
 
 /**
  * The {@code rust2lctrs} command: reads a Rust source file, runs it through the parse → AST →
@@ -135,38 +123,21 @@ public class Rust2LctrsCommand implements Callable<Integer> {
       return 1;
     }
 
-    DiagnosticRecorder diagnostics = new DiagnosticRecorder();
-    SpanTable spanTable = new SpanTable();
-    String result;
-    try {
-      Crate crate = buildCrate(source, spanTable, diagnostics);
-      List<Diagnostic> recorded = diagnostics.diagnostics();
-      if (!recorded.isEmpty()) {
-        recorded.forEach(d -> LOG.error("Out-of-scope Rust: {}", d));
+    Translation.Result translation =
+        Translation.of(source, ints.semantics(), raw, inputPath.toString());
+    switch (translation.failure()) {
+      case OUT_OF_SCOPE -> {
+        translation.diagnostics().forEach(d -> LOG.error("Out-of-scope Rust: {}", d));
         return 2;
       }
-      LOG.trace("Crate: {}", crate);
-      Lctrs lctrs = new Translator(crate, spanTable, ints.semantics()).translate();
-      if (!raw) {
-        lctrs = Simplifier.simplify(lctrs);
+      case SYNTAX_ERROR -> {
+        translation.diagnostics().forEach(d -> LOG.error("Malformed Rust: {}", d));
+        return 3;
       }
-      LOG.info(
-          "Translated {}: {} symbols, {} rules",
-          inputPath,
-          lctrs.sigma().size(),
-          lctrs.rules().size());
-      result = Serialiser.serialise(lctrs);
-    } catch (UnsupportedConstructException e) {
-      // Some out-of-scope constructs can only be recognised once sorts are known, so the translator
-      // rejects them past the AST boundary. Treat them as the same out-of-scope failure as an
-      // AST-time diagnostic rather than letting the exception escape as an unhandled crash.
-      LOG.error("Out-of-scope Rust: {}", e.getMessage());
-      return 2;
-    } catch (SyntaxErrorException e) {
-      LOG.error("Malformed Rust: {}", e.getMessage());
-      return 3;
+      case NONE -> {}
     }
 
+    String result = translation.lctrs();
     if (outputPath == null) {
       System.out.print(result);
       return 0;
@@ -179,20 +150,5 @@ public class Rust2LctrsCommand implements Callable<Integer> {
       return 1;
     }
     return 0;
-  }
-
-  /**
-   * Runs the parse → AST pipeline on a Rust source string, collecting any out-of-scope constructs
-   * into the given recorder rather than throwing on the first.
-   *
-   * @param source the Rust source text
-   * @param spanTable the table that node source spans are written to during the walk
-   * @param diagnostics the recorder that out-of-scope-construct diagnostics are collected into
-   * @return the built crate, which may be incomplete if {@code diagnostics} is non-empty
-   */
-  private static Crate buildCrate(
-      String source, SpanTable spanTable, DiagnosticRecorder diagnostics) {
-    AstBuilder astBuilder = new AstBuilder(spanTable, diagnostics);
-    return astBuilder.buildCrate(RustParsing.parse(source));
   }
 }

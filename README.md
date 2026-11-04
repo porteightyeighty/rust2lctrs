@@ -132,6 +132,24 @@ Always pass `--strategy cbv`. Rewriting in this encoding only ever happens at
 the root of a configuration, once every argument is already a value, so
 call-by-value is the strategy the translation is built for. 
 
+## Web demo
+
+A small HTTP API wraps the same pipeline, for the [rust2lctrs-web](https://github.com/porteightyeighty/rust2lctrs-web) demo. The CLI remains the primary artifact.
+
+Build the jar and run the server on `PORT` (default `8080`):
+
+```sh
+./mvnw package
+java -cp target/rust2lctrs-0.4.0.jar project.web.Demo
+```
+
+| Route | Response |
+|---|---|
+| `GET /health` | `200` `ok` |
+| `POST /v1/translate?semantics=debug\|release\|unbounded&raw=1` | body is Rust source; `200` LCTRS, `422` diagnostics, `400` syntax error, `413` body over 64 KiB |
+
+`ALLOWED_ORIGIN` sets `Access-Control-Allow-Origin` (default `*`). The server binds `0.0.0.0`.
+
 ## Development
 
 The translation pipeline is `Rust → ANTLR parser → AstBuilder → AST →
