@@ -7,6 +7,9 @@ analyse for termination.
 You give it a Rust function; it gives you an `.lctrs` file. Feed that to Cora
 and Cora tells you whether the program is guaranteed to terminate.
 
+How the translation works, and why it is built the way it is, is in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 ```rust
 // sum.rs
 fn sum(a: i8, b: i8) -> i8 {
@@ -210,7 +213,8 @@ The `Dockerfile` builds all three: the translator jar, Cora from a pinned commit
 
 The translation pipeline is `Rust → ANTLR parser → AstBuilder → AST →
 Translator → LCTRS`. Tests run in three layers: unit tests per translation
-rule, snapshot golden files, and Cora end-to-end.
+rule, snapshot golden files, and Cora end-to-end. Each stage, and the design
+decisions behind it, is described in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ```sh
 ./mvnw test      # unit + snapshot tests (fast)
