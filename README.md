@@ -192,8 +192,19 @@ java -cp target/rust2lctrs-0.4.0.jar project.web.Demo
 |---|---|
 | `GET /health` | `200` `ok` |
 | `POST /v1/translate?semantics=debug\|release\|unbounded&raw=1` | body is Rust source; `200` LCTRS, `422` diagnostics, `400` syntax error, `413` body over 64 KiB |
+| `POST /v1/analyse?semantics=debug\|release\|unbounded` | translates (simplified), then runs Cora with `--strategy cbv`; `200` Cora's output (first line `YES` or `MAYBE`), `504` timed out, `503` busy or no Cora, `502` Cora failed; `400`/`413`/`422` as above |
 
 `ALLOWED_ORIGIN` sets `Access-Control-Allow-Origin` (default `*`). The server binds `0.0.0.0`.
+
+`/v1/analyse` only ever hands Cora an LCTRS the translator produced, so the risks are CPU and
+memory, not code execution. Each run is capped: at most `CORA_CONCURRENCY` (default `2`) at once,
+with further requests refused rather than queued; each is killed with its Z3 children after
+`CORA_TIMEOUT_SECONDS` (default `30`); Cora's heap is capped by `CORA_JAVA_OPTS` (default
+`-Xmx384m`); and the output is truncated at 256 KiB. `CORA_BIN` locates Cora as for the tests
+below; without it the route answers `503`.
+
+The `Dockerfile` builds all three: the translator jar, Cora from a pinned commit on its
+`development` branch, and Z3 from a checksummed upstream release. It runs as a non-root user.
 
 ## Development
 
