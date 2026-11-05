@@ -46,13 +46,13 @@ Requires **JDK 25**. Download the self-contained jar from the
 and run it:
 
 ```sh
-java -jar rust2lctrs-0.4.0.jar sum.rs -o sum.lctrs
+java -jar rust2lctrs-0.5.0.jar sum.rs -o sum.lctrs
 ```
 
 Or build from source with the bundled Maven wrapper:
 
 ```sh
-./mvnw package        # produces target/rust2lctrs-0.4.0.jar
+./mvnw package        # produces target/rust2lctrs-0.5.0.jar
 ```
 
 To invoke `rust2lctrs` from any directory, define a shell alias:
@@ -183,14 +183,14 @@ not of the translation.
 ## Web demo
 
 A small Spring Boot HTTP API wraps the same pipeline, for the [rust2lctrs-web](https://github.com/porteightyeighty/rust2lctrs-web) demo. The CLI remains the primary artifact. `./mvnw package`
-builds two jars: `rust2lctrs-0.4.0.jar`, the CLI, which contains no Spring; and
-`rust2lctrs-0.4.0-server.jar`, the server.
+builds two jars: `rust2lctrs-0.5.0.jar`, the CLI, which contains no Spring; and
+`rust2lctrs-0.5.0-server.jar`, the server.
 
 Run the server on `PORT` (default `8080`):
 
 ```sh
 ./mvnw package
-java -jar target/rust2lctrs-0.4.0-server.jar
+java -jar target/rust2lctrs-0.5.0-server.jar
 ```
 
 | Route | Response |
