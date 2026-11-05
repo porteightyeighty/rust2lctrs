@@ -3,32 +3,24 @@ package project.web;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.sun.net.httpserver.HttpServer;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
-import java.time.Duration;
-import java.util.Map;
-import java.util.Optional;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.server.LocalServerPort;
 
+/** The demo over real HTTP, on a server with no Cora install. */
+@SpringBootTest(
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+    properties = "cora.bin=/nonexistent/cora")
 class DemoTest {
 
-  private static HttpServer server;
-  private static URI base;
-  private static HttpServer analysingServer;
-  private static URI analysingBase;
-  private static final HttpClient CLIENT = HttpClient.newHttpClient();
+  static final HttpClient CLIENT = HttpClient.newHttpClient();
 
-  @TempDir static Path dir;
-
-  private static final String SUM =
+  static final String SUM =
       """
       fn sum(a: i8, b: i8) -> i8 {
           let x: i8 = a + b;
@@ -36,50 +28,52 @@ class DemoTest {
       }
       """;
 
-  @BeforeAll
-  static void startServer() throws Exception {
-    server = Demo.start(0, "*");
-    base = URI.create("http://localhost:" + server.getAddress().getPort());
+  @LocalServerPort int port;
 
-    // A stand-in for Cora that echoes the system it was given after a YES verdict.
-    Path fakeCora = CoraRunnerTest.script(dir, "cora", "echo YES; cat \"$3\"");
-    CoraRunner runner = new CoraRunner(fakeCora, Duration.ofSeconds(5), 2, Map.of());
-    analysingServer = Demo.start(0, "*", Optional.of(runner));
-    analysingBase = URI.create("http://localhost:" + analysingServer.getAddress().getPort());
+  URI base;
+
+  @BeforeEach
+  void setBase() {
+    base = URI.create("http://localhost:" + port);
   }
 
-  @AfterAll
-  static void stopServer() {
-    server.stop(0);
-    analysingServer.stop(0);
-  }
-
-  private static HttpResponse<String> analyse(URI root, String source) throws Exception {
+  static HttpResponse<String> post(URI base, String pathAndQuery, String source) throws Exception {
     return CLIENT.send(
-        HttpRequest.newBuilder(root.resolve("/v1/analyse?semantics=release"))
+        HttpRequest.newBuilder(base.resolve(pathAndQuery))
             .POST(HttpRequest.BodyPublishers.ofString(source))
             .build(),
         HttpResponse.BodyHandlers.ofString());
   }
 
-  private static HttpResponse<String> translate(String source) throws Exception {
+  private HttpResponse<String> get(String path) throws Exception {
     return CLIENT.send(
-        HttpRequest.newBuilder(base.resolve("/v1/translate?semantics=debug"))
-            .POST(HttpRequest.BodyPublishers.ofString(source))
-            .build(),
-        HttpResponse.BodyHandlers.ofString());
+        HttpRequest.newBuilder(base.resolve(path)).build(), HttpResponse.BodyHandlers.ofString());
+  }
+
+  private HttpResponse<String> translate(String source) throws Exception {
+    return post(base, "/v1/translate?semantics=debug", source);
   }
 
   @Test
   void translatesAValidProgram() throws Exception {
+    HttpResponse<String> response = translate(SUM);
+
+    assertEquals(200, response.statusCode());
+    assertTrue(response.body().contains("sum"), response.body());
+    assertEquals(
+        "text/plain;charset=UTF-8", response.headers().firstValue("Content-Type").orElseThrow());
+  }
+
+  @Test
+  void readsTheRawBodyWhateverTheContentType() throws Exception {
+    // curl --data sends this type; the body must still reach the translator verbatim.
     HttpResponse<String> response =
-        translate(
-            """
-            fn sum(a: i8, b: i8) -> i8 {
-                let x: i8 = a + b;
-                x
-            }
-            """);
+        CLIENT.send(
+            HttpRequest.newBuilder(base.resolve("/v1/translate?semantics=debug"))
+                .POST(HttpRequest.BodyPublishers.ofString(SUM))
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .build(),
+            HttpResponse.BodyHandlers.ofString());
 
     assertEquals(200, response.statusCode());
     assertTrue(response.body().contains("sum"), response.body());
@@ -111,6 +105,14 @@ class DemoTest {
   }
 
   @Test
+  void rejectsUnknownSemantics() throws Exception {
+    HttpResponse<String> response = post(base, "/v1/translate?semantics=wrapping", SUM);
+
+    assertEquals(400, response.statusCode());
+    assertEquals("unknown semantics: wrapping", response.body());
+  }
+
+  @Test
   void rejectsOversizedBodies() throws Exception {
     HttpResponse<String> response = translate("a".repeat(64 * 1024 + 1));
 
@@ -118,39 +120,85 @@ class DemoTest {
   }
 
   @Test
+  void rejectsTheWrongMethod() throws Exception {
+    HttpResponse<String> response = get("/v1/translate");
+
+    assertEquals(405, response.statusCode());
+    assertEquals("method not allowed", response.body());
+  }
+
+  @Test
   void answersPreflightWithCorsHeaders() throws Exception {
     HttpResponse<String> response =
         CLIENT.send(
-            HttpRequest.newBuilder(base.resolve("/v1/translate"))
+            HttpRequest.newBuilder(base.resolve("/v1/analyse"))
                 .method("OPTIONS", HttpRequest.BodyPublishers.noBody())
+                .header("Origin", "https://example.org")
+                .header("Access-Control-Request-Method", "POST")
                 .build(),
-            HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            HttpResponse.BodyHandlers.ofString());
 
-    assertEquals(204, response.statusCode());
+    assertEquals(200, response.statusCode());
     assertEquals("*", response.headers().firstValue("Access-Control-Allow-Origin").orElseThrow());
   }
 
   @Test
-  void analysesTheSimplifiedTranslation() throws Exception {
-    HttpResponse<String> response = analyse(analysingBase, SUM);
+  void exposesTheAnalysisTimingHeaderToBrowsers() throws Exception {
+    HttpResponse<String> response =
+        CLIENT.send(
+            HttpRequest.newBuilder(base.resolve("/v1/translate"))
+                .POST(HttpRequest.BodyPublishers.ofString(SUM))
+                .header("Origin", "https://example.org")
+                .build(),
+            HttpResponse.BodyHandlers.ofString());
 
-    assertEquals(200, response.statusCode(), response.body());
-    assertTrue(response.body().startsWith("YES"), response.body());
-    assertTrue(response.body().contains("sum"), response.body());
-    assertTrue(response.headers().firstValue("X-Analysis-Millis").isPresent());
-  }
-
-  @Test
-  void reportsOutOfScopeRustBeforeRunningCora() throws Exception {
-    HttpResponse<String> response = analyse(analysingBase, "fn f() -> f64 { 1.0 }");
-
-    assertEquals(422, response.statusCode(), response.body());
+    assertEquals("*", response.headers().firstValue("Access-Control-Allow-Origin").orElseThrow());
+    assertTrue(
+        response
+            .headers()
+            .firstValue("Access-Control-Expose-Headers")
+            .orElseThrow()
+            .contains("X-Analysis-Millis"));
   }
 
   @Test
   void answersAnalyseWith503WithoutCora() throws Exception {
-    HttpResponse<String> response = analyse(base, SUM);
+    HttpResponse<String> response = post(base, "/v1/analyse?semantics=release", SUM);
 
     assertEquals(503, response.statusCode());
+  }
+
+  @Test
+  void keepsTheLegacyHealthCheck() throws Exception {
+    HttpResponse<String> response = get("/health");
+
+    assertEquals(200, response.statusCode());
+    assertEquals("ok", response.body());
+  }
+
+  @Test
+  void reportsActuatorHealth() throws Exception {
+    HttpResponse<String> response = get("/actuator/health");
+
+    assertEquals(200, response.statusCode());
+    assertTrue(response.body().contains("\"UP\""), response.body());
+  }
+
+  @Test
+  void exposesRequestMetricsForPrometheus() throws Exception {
+    translate(SUM);
+
+    HttpResponse<String> response = get("/actuator/prometheus");
+
+    assertEquals(200, response.statusCode());
+    assertTrue(
+        response.body().contains("http_server_requests_seconds_count{")
+            && response.body().contains("uri=\"/v1/translate\""),
+        response.body());
+  }
+
+  @Test
+  void exposesNoOtherActuatorEndpoints() throws Exception {
+    assertEquals(404, get("/actuator/env").statusCode());
   }
 }

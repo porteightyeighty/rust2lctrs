@@ -69,27 +69,6 @@ public final class CoraRunner {
     this.environment = Map.copyOf(environment);
   }
 
-  /**
-   * Builds a runner from the environment: {@code CORA_BIN} (a path, or a command on {@code PATH};
-   * default {@code cora}), {@code CORA_TIMEOUT_SECONDS} (default 30), {@code CORA_CONCURRENCY}
-   * (default 2) and {@code CORA_JAVA_OPTS} (passed to Cora as {@code JAVA_OPTS}; default {@code
-   * -Xmx384m}).
-   *
-   * @return the runner, or empty if no Cora executable can be found
-   */
-  public static Optional<CoraRunner> fromEnvironment() {
-    Map<String, String> env = System.getenv();
-    return resolve(env.getOrDefault("CORA_BIN", "cora"), env.get("PATH"))
-        .map(
-            bin ->
-                new CoraRunner(
-                    bin,
-                    Duration.ofSeconds(
-                        Long.parseLong(env.getOrDefault("CORA_TIMEOUT_SECONDS", "30"))),
-                    Integer.parseInt(env.getOrDefault("CORA_CONCURRENCY", "2")),
-                    Map.of("JAVA_OPTS", env.getOrDefault("CORA_JAVA_OPTS", "-Xmx384m"))));
-  }
-
   /** Resolves a direct path, or searches {@code path} for a bare command name. */
   static Optional<Path> resolve(String bin, String path) {
     if (bin.contains(File.separator)) {

@@ -33,9 +33,9 @@ RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends tini > 
  && rm -rf /var/lib/apt/lists/*
 COPY --from=z3 /usr/local/bin/z3 /usr/local/bin/z3
 COPY --from=cora /cora/app/build/install/app /opt/cora
-COPY --from=build /src/target/rust2lctrs-*.jar /app/app.jar
+COPY --from=build /src/target/rust2lctrs-*-server.jar /app/app.jar
 RUN useradd --system --no-create-home demo
 USER demo
 WORKDIR /tmp
 ENV CORA_BIN=/opt/cora/bin/app
-ENTRYPOINT ["/usr/bin/tini", "--", "java", "-cp", "/app/app.jar", "project.web.Demo"]
+ENTRYPOINT ["/usr/bin/tini", "--", "java", "-jar", "/app/app.jar"]

@@ -3,11 +3,12 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.mattport</groupId>
   <artifactId>rust2lctrs</artifactId>
-  <version>0.4.0</version>
+  <version>0.5.0</version>
   <properties>
     <maven.compiler.release>25</maven.compiler.release>
     <maven-compiler-plugin-version>3.15.0</maven-compiler-plugin-version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <spring-boot.version>4.1.2</spring-boot.version>
   </properties>
   <dependencyManagement>
     <dependencies>
@@ -15,6 +16,14 @@
         <groupId>org.junit</groupId>
         <artifactId>junit-bom</artifactId>
         <version>6.1.0</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <!-- After junit-bom, so the JUnit version above wins over Spring Boot's. -->
+      <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-dependencies</artifactId>
+        <version>${spring-boot.version}</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
@@ -28,19 +37,36 @@
     </dependency>
     <dependency>
       <groupId>org.antlr</groupId>
-      <artifactId>antlr4</artifactId>
+      <!-- The runtime only: the grammar is compiled by antlr4-maven-plugin at build time. -->
+      <artifactId>antlr4-runtime</artifactId>
       <version>4.13.2</version>
     </dependency>
     <dependency>
       <groupId>ch.qos.logback</groupId>
       <artifactId>logback-classic</artifactId>
-      <version>1.5.32</version>
-      <scope>compile</scope>
     </dependency>
     <dependency>
       <groupId>info.picocli</groupId>
       <artifactId>picocli</artifactId>
       <version>4.7.7</version>
+    </dependency>
+    <!-- The web demo (project.web). The CLI never starts Spring. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-webmvc</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.micrometer</groupId>
+      <artifactId>micrometer-registry-prometheus</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-webmvc-test</artifactId>
+      <scope>test</scope>
     </dependency>
   </dependencies>
   <build>
@@ -87,6 +113,26 @@
         </executions>
       </plugin>
       <plugin>
+        <!-- The server jar, target/rust2lctrs-<version>-server.jar: Spring and the web demo. Runs
+             before the shade plugin below, so it is built from the unshaded classes. -->
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+        <version>${spring-boot.version}</version>
+        <configuration>
+          <mainClass>project.web.Demo</mainClass>
+          <classifier>server</classifier>
+        </configuration>
+        <executions>
+          <execution>
+            <goals>
+              <goal>repackage</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <!-- The CLI jar, target/rust2lctrs-<version>.jar: the translator and its runtime
+             dependencies only, so the CLI loads no Spring classes and starts as fast as it did. -->
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>
         <version>3.6.0</version>
@@ -98,6 +144,24 @@
             </goals>
             <configuration>
               <createDependencyReducedPom>false</createDependencyReducedPom>
+              <artifactSet>
+                <includes>
+                  <include>org.antlr:antlr4-runtime</include>
+                  <include>ch.qos.logback:logback-classic</include>
+                  <include>ch.qos.logback:logback-core</include>
+                  <include>org.slf4j:slf4j-api</include>
+                  <include>info.picocli:picocli</include>
+                </includes>
+              </artifactSet>
+              <filters>
+                <filter>
+                  <artifact>${project.groupId}:${project.artifactId}</artifact>
+                  <excludes>
+                    <exclude>project/web/**</exclude>
+                    <exclude>application.properties</exclude>
+                  </excludes>
+                </filter>
+              </filters>
               <transformers>
                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                   <mainClass>project.Main</mainClass>
@@ -110,6 +174,28 @@
             </configuration>
           </execution>
         </executions>
+      </plugin>
+      <plugin>
+        <!-- Exposes ${org.mockito:mockito-core:jar} for the surefire agent below. -->
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <version>3.9.0</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>properties</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <!-- Load Mockito as an agent up front; JDK 21+ warns about attaching one at runtime. -->
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.5.2</version>
+        <configuration>
+          <argLine>-javaagent:${org.mockito:mockito-core:jar}</argLine>
+        </configuration>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>

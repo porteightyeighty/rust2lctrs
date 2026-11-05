@@ -19,5 +19,5 @@ jobs:
       - run: ./mvnw -q clean package -DskipTests
       - uses: softprops/action-gh-release@v2
         with:
-          files: target/rust2lctrs-*.jar
+          files: target/rust2lctrs-*[0-9].jar
           body: 'Run: java -jar rust2lctrs-*.jar <input.rs>  (needs Java 25)'
