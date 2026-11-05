@@ -113,33 +113,65 @@
         </executions>
       </plugin>
       <plugin>
-        <!-- Implementation-Version, which the CLI reports as its version. -->
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-jar-plugin</artifactId>
-        <version>3.5.1</version>
-        <configuration>
-          <archive>
-            <manifest>
-              <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
-            </manifest>
-          </archive>
-        </configuration>
-      </plugin>
-      <plugin>
-        <!-- One executable jar for both entry points. The ZIP layout uses PropertiesLauncher, so
-             `java -jar` runs the CLI (Start-Class) and `-Dloader.main=project.web.Demo` the server. -->
+        <!-- The server jar, target/rust2lctrs-<version>-server.jar: Spring and the web demo. Runs
+             before the shade plugin below, so it is built from the unshaded classes. -->
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
         <version>${spring-boot.version}</version>
         <configuration>
-          <mainClass>project.Main</mainClass>
-          <layout>ZIP</layout>
+          <mainClass>project.web.Demo</mainClass>
+          <classifier>server</classifier>
         </configuration>
         <executions>
           <execution>
             <goals>
               <goal>repackage</goal>
             </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <!-- The CLI jar, target/rust2lctrs-<version>.jar: the translator and its runtime
+             dependencies only, so the CLI loads no Spring classes and starts as fast as it did. -->
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.6.0</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <configuration>
+              <createDependencyReducedPom>false</createDependencyReducedPom>
+              <artifactSet>
+                <includes>
+                  <include>org.antlr:antlr4-runtime</include>
+                  <include>ch.qos.logback:logback-classic</include>
+                  <include>ch.qos.logback:logback-core</include>
+                  <include>org.slf4j:slf4j-api</include>
+                  <include>info.picocli:picocli</include>
+                </includes>
+              </artifactSet>
+              <filters>
+                <filter>
+                  <artifact>${project.groupId}:${project.artifactId}</artifact>
+                  <excludes>
+                    <exclude>project/web/**</exclude>
+                    <exclude>application.properties</exclude>
+                  </excludes>
+                </filter>
+              </filters>
+              <transformers>
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                  <mainClass>project.Main</mainClass>
+                  <manifestEntries>
+                    <Implementation-Version>${project.version}</Implementation-Version>
+                  </manifestEntries>
+                </transformer>
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+              </transformers>
+            </configuration>
           </execution>
         </executions>
       </plugin>

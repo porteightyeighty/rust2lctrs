@@ -182,14 +182,15 @@ not of the translation.
 
 ## Web demo
 
-A small Spring Boot HTTP API wraps the same pipeline, for the [rust2lctrs-web](https://github.com/porteightyeighty/rust2lctrs-web) demo. The CLI remains the primary artifact: the same
-jar runs it by default and never starts Spring.
+A small Spring Boot HTTP API wraps the same pipeline, for the [rust2lctrs-web](https://github.com/porteightyeighty/rust2lctrs-web) demo. The CLI remains the primary artifact. `./mvnw package`
+builds two jars: `rust2lctrs-0.4.0.jar`, the CLI, which contains no Spring; and
+`rust2lctrs-0.4.0-server.jar`, the server.
 
-Build the jar and run the server on `PORT` (default `8080`):
+Run the server on `PORT` (default `8080`):
 
 ```sh
 ./mvnw package
-java -Dloader.main=project.web.Demo -jar target/rust2lctrs-0.4.0.jar
+java -jar target/rust2lctrs-0.4.0-server.jar
 ```
 
 | Route | Response |
