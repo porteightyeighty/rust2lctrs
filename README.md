@@ -182,22 +182,29 @@ not of the translation.
 
 ## Web demo
 
-A small HTTP API wraps the same pipeline, for the [rust2lctrs-web](https://github.com/porteightyeighty/rust2lctrs-web) demo. The CLI remains the primary artifact.
+A small Spring Boot HTTP API wraps the same pipeline, for the [rust2lctrs-web](https://github.com/porteightyeighty/rust2lctrs-web) demo. The CLI remains the primary artifact: the same
+jar runs it by default and never starts Spring.
 
 Build the jar and run the server on `PORT` (default `8080`):
 
 ```sh
 ./mvnw package
-java -cp target/rust2lctrs-0.4.0.jar project.web.Demo
+java -Dloader.main=project.web.Demo -jar target/rust2lctrs-0.4.0.jar
 ```
 
 | Route | Response |
 |---|---|
-| `GET /health` | `200` `ok` |
+| `GET /health` | `200` `ok` (kept for existing health checks) |
+| `GET /actuator/health` | `200` `{"status":"UP",…}` |
+| `GET /actuator/prometheus` | Prometheus metrics, including `http_server_requests_seconds` per route and status, and `demo_analysis_seconds` per Cora outcome |
 | `POST /v1/translate?semantics=debug\|release\|unbounded&raw=1` | body is Rust source; `200` LCTRS, `422` diagnostics, `400` syntax error, `413` body over 64 KiB |
 | `POST /v1/analyse?semantics=debug\|release\|unbounded` | translates (simplified), then runs Cora with `--strategy cbv`; `200` Cora's output (first line `YES` or `MAYBE`), `504` timed out, `503` busy or no Cora, `502` Cora failed; `400`/`413`/`422` as above |
 
-`ALLOWED_ORIGIN` sets `Access-Control-Allow-Origin` (default `*`). The server binds `0.0.0.0`.
+Every response, including errors, is `text/plain`. The body is always read as raw UTF-8 source,
+whatever the `Content-Type`, so `curl --data-binary @sum.rs` works. `ALLOWED_ORIGIN` sets
+`Access-Control-Allow-Origin` (default `*`). The server binds `0.0.0.0`. The environment variables
+are mapped onto Spring properties (`server.port`, `demo.allowed-origin`, `cora.*`) in
+`src/main/resources/application.properties`, so either form can be set.
 
 `/v1/analyse` only ever hands Cora an LCTRS the translator produced, so the risks are CPU and
 memory, not code execution. Each run is capped: at most `CORA_CONCURRENCY` (default `2`) at once,

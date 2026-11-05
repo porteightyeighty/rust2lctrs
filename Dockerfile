@@ -38,4 +38,4 @@ RUN useradd --system --no-create-home demo
 USER demo
 WORKDIR /tmp
 ENV CORA_BIN=/opt/cora/bin/app
-ENTRYPOINT ["/usr/bin/tini", "--", "java", "-cp", "/app/app.jar", "project.web.Demo"]
+ENTRYPOINT ["/usr/bin/tini", "--", "java", "-Dloader.main=project.web.Demo", "-jar", "/app/app.jar"]
