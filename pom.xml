@@ -37,7 +37,8 @@
     </dependency>
     <dependency>
       <groupId>org.antlr</groupId>
-      <artifactId>antlr4</artifactId>
+      <!-- The runtime only: the grammar is compiled by antlr4-maven-plugin at build time. -->
+      <artifactId>antlr4-runtime</artifactId>
       <version>4.13.2</version>
     </dependency>
     <dependency>
